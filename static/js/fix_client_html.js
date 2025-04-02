@@ -32,11 +32,17 @@
         function fixQuestionOrder() {
             // 获取试卷生成区域
             const paperContainer = document.querySelector('#paper-container');
-            if (!paperContainer) return;
+            if (!paperContainer) {
+                console.log('未找到#paper-container元素，跳过题目排序');
+                return;
+            }
             
             // 查找所有题目元素
             const questions = paperContainer.querySelectorAll('.question-item');
-            if (!questions || questions.length === 0) return;
+            if (!questions || questions.length === 0) {
+                console.log('未找到题目元素，跳过题目排序');
+                return;
+            }
             
             // 将题目转换为数组以便排序
             const questionArray = Array.from(questions);
@@ -87,7 +93,14 @@
             // 查找下载按钮
             const downloadButtons = document.querySelectorAll('.download-btn, #downloadPdf');
             
+            if (!downloadButtons || downloadButtons.length === 0) {
+                console.log('未找到下载按钮，跳过PDF下载修复');
+                return;
+            }
+            
             downloadButtons.forEach(button => {
+                if (!button) return;
+                
                 const originalClick = button.onclick;
                 
                 button.onclick = function(e) {
@@ -109,6 +122,13 @@
         
         // 4. 监听动态添加的题目
         function setupMutationObserver() {
+            // 要观察的目标节点
+            const targetNode = document.querySelector('#paper-container');
+            if (!targetNode) {
+                console.log('未找到#paper-container元素，跳过MutationObserver设置');
+                return;
+            }
+            
             // 创建一个MutationObserver实例
             const observer = new MutationObserver(function(mutations) {
                 mutations.forEach(function(mutation) {
@@ -119,27 +139,33 @@
                 });
             });
             
-            // 要观察的目标节点
-            const targetNode = document.querySelector('#paper-container');
-            if (targetNode) {
-                // 观察器的配置
-                const config = { childList: true, subtree: true };
-                
-                // 开始观察
-                observer.observe(targetNode, config);
-                console.log('变动观察器已设置');
+            // 观察器的配置
+            const config = { childList: true, subtree: true };
+            
+            // 开始观察
+            observer.observe(targetNode, config);
+            console.log('变动观察器已设置');
+        }
+        
+        // 安全执行函数，防止错误中断脚本执行
+        function safeExecute(fn, name) {
+            try {
+                fn();
+                console.log(`成功执行 ${name}`);
+            } catch (error) {
+                console.error(`执行 ${name} 时出错:`, error);
             }
         }
         
         // 初始化修复
-        fixHtmlEntities();
-        fixQuestionOrder();
-        fixPdfDownload();
-        setupMutationObserver();
+        safeExecute(fixHtmlEntities, 'fixHtmlEntities');
+        safeExecute(fixQuestionOrder, 'fixQuestionOrder');
+        safeExecute(fixPdfDownload, 'fixPdfDownload');
+        safeExecute(setupMutationObserver, 'setupMutationObserver');
         
         // 每秒运行一次修复，确保动态加载的内容也被处理
         setInterval(function() {
-            fixHtmlEntities();
+            safeExecute(fixHtmlEntities, 'fixHtmlEntities (定时)');
         }, 1000);
         
         console.log('客户端修复脚本初始化完成');
