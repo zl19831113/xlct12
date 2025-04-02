@@ -1,52 +1,42 @@
 /**
  * 客户端修复脚本 - 处理HTML实体和题目排序问题
- * 版本: 1.0.2
+ * 版本: 1.0.1
  * 日期: 2025-04-02
  */
 (function() {
-    // 使用匿名自执行函数，避免污染全局命名空间
-    
-    // 检查当前页面是否为客户端页面
-    function isClientPage() {
-        try {
-            return !!(
-                document.querySelector('#paper-container') || 
-                document.querySelector('.question-item') || 
-                document.querySelector('.download-btn') || 
-                document.querySelector('#downloadPdf')
-            );
-        } catch (e) {
-            console.error('检查页面类型时出错:', e);
-            return false;
-        }
+    // 确保document和addEventListener都存在
+    if (!document || !document.addEventListener) {
+        console.error('document或addEventListener不存在，客户端修复脚本将不会运行');
+        return;
     }
     
-    // 1. 修复HTML实体问题
-    function fixHtmlEntities() {
-        try {
+    // 确保文档已加载
+    function initScript() {
+        console.log('客户端修复脚本已加载');
+        
+        // 1. 修复HTML实体问题
+        function fixHtmlEntities() {
             // 查找所有可能包含HTML实体的元素
             const textElements = document.querySelectorAll('.question-content, .question-text, .paper-content');
-            
-            if (!textElements || textElements.length === 0) {
-                return; // 静默失败，不输出任何日志
-            }
+            if (!textElements || textElements.length === 0) return;
             
             textElements.forEach(element => {
                 if (element && element.innerHTML) {
                     // 替换所有&middot;实体
-                    element.innerHTML = element.innerHTML.replace(/&middot;/g, '')
+                    element.innerHTML = element.innerHTML.replace(/&middot;/g, '');
+                    
+                    // 处理其他可能的HTML实体问题
+                    element.innerHTML = element.innerHTML
                         .replace(/&amp;middot;/g, '')
                         .replace(/·/g, '');
                 }
             });
-        } catch (error) {
-            // 静默失败，不输出任何日志
+            
+            console.log('HTML实体修复完成');
         }
-    }
-    
-    // 2. 修复题目排序问题
-    function fixQuestionOrder() {
-        try {
+        
+        // 2. 修复题目排序问题
+        function fixQuestionOrder() {
             // 获取试卷生成区域
             const paperContainer = document.querySelector('#paper-container');
             if (!paperContainer) return;
@@ -95,17 +85,14 @@
             questionArray.forEach(question => {
                 paperContainer.appendChild(question);
             });
-        } catch (error) {
-            // 静默失败，不输出任何日志
+            
+            console.log('题目排序修复完成');
         }
-    }
-    
-    // 3. 修复下载PDF功能
-    function fixPdfDownload() {
-        try {
+        
+        // 3. 修复下载PDF功能
+        function fixPdfDownload() {
             // 查找下载按钮
             const downloadButtons = document.querySelectorAll('.download-btn, #downloadPdf');
-            
             if (!downloadButtons || downloadButtons.length === 0) return;
             
             downloadButtons.forEach(button => {
@@ -118,62 +105,79 @@
                     fixHtmlEntities();
                     fixQuestionOrder();
                     
+                    console.log('下载前预处理完成');
+                    
                     // 调用原始点击事件
                     if (typeof originalClick === 'function') {
                         return originalClick.call(this, e);
                     }
                 };
             });
-        } catch (error) {
-            // 静默失败，不输出任何日志
+            
+            console.log('PDF下载功能修复完成');
         }
-    }
-    
-    // 4. 监听动态添加的题目
-    function setupMutationObserver() {
-        try {
+        
+        // 4. 监听动态添加的题目
+        function setupMutationObserver() {
+            if (!window.MutationObserver) {
+                console.log('浏览器不支持MutationObserver');
+                return;
+            }
+            
             // 要观察的目标节点
             const targetNode = document.querySelector('#paper-container');
             if (!targetNode) return;
             
             // 创建一个MutationObserver实例
-            const observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                        // 新元素添加时修复HTML实体
-                        fixHtmlEntities();
-                    }
+            try {
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                            // 新元素添加时修复HTML实体
+                            fixHtmlEntities();
+                        }
+                    });
                 });
-            });
-            
-            // 观察器的配置
-            const config = { childList: true, subtree: true };
-            
-            // 开始观察
-            observer.observe(targetNode, config);
-        } catch (error) {
-            // 静默失败，不输出任何日志
+                
+                // 观察器的配置
+                const config = { childList: true, subtree: true };
+                
+                // 开始观察
+                observer.observe(targetNode, config);
+                console.log('变动观察器已设置');
+            } catch (error) {
+                console.error('设置MutationObserver时发生错误:', error);
+            }
         }
+        
+        // 安全执行函数
+        function safeExecute(fn) {
+            try {
+                fn();
+            } catch (error) {
+                console.error('执行函数时发生错误:', error);
+            }
+        }
+        
+        // 初始化修复 - 使用safeExecute包装每个函数调用
+        safeExecute(fixHtmlEntities);
+        safeExecute(fixQuestionOrder);
+        safeExecute(fixPdfDownload);
+        safeExecute(setupMutationObserver);
+        
+        // 每秒运行一次修复，确保动态加载的内容也被处理
+        // 使用错误处理包装定时器回调
+        setInterval(function() {
+            safeExecute(fixHtmlEntities);
+        }, 1000);
+        
+        console.log('客户端修复脚本初始化完成');
     }
     
-    // 初始化函数 - 会在页面加载后自动执行
-    function initFixes() {
-        // 只在客户端页面上执行修复
-        if (isClientPage()) {
-            fixHtmlEntities();
-            fixQuestionOrder();
-            fixPdfDownload();
-            setupMutationObserver();
-            
-            // 每秒运行一次修复，确保动态加载的内容也被处理
-            setInterval(fixHtmlEntities, 1000);
-        }
-    }
-    
-    // 以更安全的方式初始化
+    // 如果文档已加载完成，则立即执行；否则，等待DOMContentLoaded事件
     if (document.readyState === 'loading') {
-        window.addEventListener('load', initFixes);
+        document.addEventListener('DOMContentLoaded', initScript);
     } else {
-        initFixes();
+        initScript();
     }
 })(); 

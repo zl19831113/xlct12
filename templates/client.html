@@ -275,12 +275,15 @@
 // localStorage修复脚本
 // 简单的localStorage修复
 (function() {
-    try {
-        // 定义初始化函数
-        function initLocalStorageHandler() {
+    // 等待DOM加载完成
+    if (document && document.addEventListener) {  // 添加检查以防止null错误
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('localStorage修复脚本已加载');
+            
             // 确保selectedQuestions已定义
             if (typeof window.selectedQuestions === 'undefined') {
                 window.selectedQuestions = new Set();
+                console.log('创建了selectedQuestions集合');
             }
             
             // 从localStorage恢复已选题目
@@ -289,6 +292,7 @@
                 if (savedQuestions) {
                     const questionIds = JSON.parse(savedQuestions);
                     questionIds.forEach(id => window.selectedQuestions.add(parseInt(id)));
+                    console.log('从localStorage恢复已选题目:', window.selectedQuestions.size);
                     
                     // 更新UI
                     if (typeof window.updateDownloadPanel === 'function') {
@@ -296,7 +300,7 @@
                     }
                 }
             } catch (error) {
-                // 静默失败
+                console.error('恢复已选题目出错:', error);
             }
             
             // 保存已选题目到localStorage的函数
@@ -304,8 +308,9 @@
                 try {
                     const questionIds = Array.from(window.selectedQuestions);
                     localStorage.setItem('selectedQuestions', JSON.stringify(questionIds));
+                    console.log('保存题目到localStorage:', questionIds.length);
                 } catch (error) {
-                    // 静默失败
+                    console.error('保存已选题目出错:', error);
                 }
             };
             
@@ -318,6 +323,7 @@
                     // 保存到localStorage
                     window.saveSelectedQuestions();
                 };
+                console.log('已增强toggleSelect函数');
             }
             
             // 拦截clearSelectedQuestions函数
@@ -328,7 +334,9 @@
                     originalClearSelectedQuestions();
                     // 从localStorage中清除
                     localStorage.removeItem('selectedQuestions');
+                    console.log('已清除localStorage中的selectedQuestions');
                 };
+                console.log('已增强clearSelectedQuestions函数');
             }
             
             // 拦截generatePaper函数
@@ -339,38 +347,27 @@
                     originalGeneratePaper();
                     // 从localStorage中清除
                     localStorage.removeItem('selectedQuestions');
+                    console.log('生成试卷后已清除localStorage中的selectedQuestions');
                 };
+                console.log('已增强generatePaper函数');
             }
             
             // 为所有选择按钮添加点击事件
             setTimeout(function() {
-                try {
-                    const selectButtons = document.querySelectorAll('.select-btn');
-                    if (selectButtons && selectButtons.length > 0) {
-                        selectButtons.forEach(btn => {
-                            if (btn) {
-                                btn.addEventListener('click', function() {
-                                    // 保存到localStorage
-                                    setTimeout(window.saveSelectedQuestions, 100);
-                                });
-                            }
-                        });
-                    }
-                } catch (error) {
-                    // 静默失败
+                const selectButtons = document.querySelectorAll('.select-btn');
+                if (selectButtons && selectButtons.length > 0) {  // 添加检查以防止null错误
+                    selectButtons.forEach(btn => {
+                        if (btn && btn.addEventListener) {  // 添加检查以防止null错误
+                            btn.addEventListener('click', function() {
+                                // 保存到localStorage
+                                setTimeout(window.saveSelectedQuestions, 100);
+                            });
+                        }
+                    });
+                    console.log('已为', selectButtons.length, '个选择按钮添加点击事件');
                 }
             }, 1000);
-        }
-        
-        // 使用更安全的方式初始化
-        if (document.readyState === 'loading') {
-            window.addEventListener('load', initLocalStorageHandler);
-        } else {
-            // 如果文档已经加载完成，直接执行
-            initLocalStorageHandler();
-        }
-    } catch (error) {
-        // 静默失败
+        });
     }
 })();
 
