@@ -9,6 +9,53 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
+    <!-- 添加DOM安全访问工具 -->
+    <script>
+        // DOM安全访问工具
+        window.domSafe = {
+            // 安全地获取DOM元素
+            getById: function(id) {
+                try {
+                    return document.getElementById(id);
+                } catch (e) {
+                    console.warn('获取元素失败 ID:', id, e);
+                    return null;
+                }
+            },
+            // 安全地获取多个DOM元素
+            queryAll: function(selector) {
+                try {
+                    return document.querySelectorAll(selector);
+                } catch (e) {
+                    console.warn('查询元素失败 selector:', selector, e);
+                    return [];
+                }
+            },
+            // 安全地获取单个DOM元素
+            query: function(selector) {
+                try {
+                    return document.querySelector(selector);
+                } catch (e) {
+                    console.warn('查询元素失败 selector:', selector, e);
+                    return null;
+                }
+            },
+            // 安全地添加事件监听器
+            addEvent: function(element, eventType, handler) {
+                if (!element) {
+                    console.warn('添加事件失败，元素不存在');
+                    return false;
+                }
+                try {
+                    element.addEventListener(eventType, handler);
+                    return true;
+                } catch (e) {
+                    console.warn('添加事件失败:', e);
+                    return false;
+                }
+            }
+        };
+    </script>
     <!-- 添加版本号查询参数 -->
     <script>
         // 强制刷新脚本
@@ -124,39 +171,61 @@
             // 从localStorage恢复已选题目
             restoreSelectedQuestions();
             
-            const container = document.getElementById('questionCards');
-            container.addEventListener('click', function(e) {
-                const target = e.target;
-                
-                // 处理选择按钮点击
-                if (target.classList.contains('select-btn')) {
-                    // 直接从按钮的父元素获取题目ID
-                    const questionCard = target.closest('.question-card');
-                    const questionId = parseInt(questionCard.dataset.questionId);
+            // 使用安全的DOM访问方式
+            const container = window.domSafe.getById('questionCards');
+            if (container) {
+                console.log('找到questionCards元素，添加点击事件');
+                container.addEventListener('click', function(e) {
+                    const target = e.target;
                     
-                    // 切换选择状态
-                    if (selectedQuestions.has(questionId)) {
-                        selectedQuestions.delete(questionId);
-                        target.classList.remove('selected');
-                    } else {
-                        selectedQuestions.add(questionId);
-                        target.classList.add('selected');
+                    // 处理选择按钮点击
+                    if (target.classList.contains('select-btn')) {
+                        // 直接从按钮的父元素获取题目ID
+                        const questionCard = target.closest('.question-card');
+                        if (!questionCard) return; // 安全检查
+                        
+                        const questionId = parseInt(questionCard.dataset.questionId);
+                        if (isNaN(questionId)) return; // 安全检查
+                        
+                        // 切换选择状态
+                        if (selectedQuestions.has(questionId)) {
+                            selectedQuestions.delete(questionId);
+                            target.classList.remove('selected');
+                        } else {
+                            selectedQuestions.add(questionId);
+                            target.classList.add('selected');
+                        }
+                        
+                        // 安全地更新下载面板
+                        if (typeof updateDownloadPanel === 'function') {
+                            updateDownloadPanel();
+                        }
+                        
+                        // 保存到localStorage
+                        saveSelectedQuestions();
+                        return false; // 阻止事件冒泡和默认行为
                     }
-                    updateDownloadPanel();
-                    // 保存到localStorage
-                    saveSelectedQuestions();
-                    return false; // 阻止事件冒泡和默认行为
-                }
 
-                // 处理答案按钮点击
-                if (target.classList.contains('answer-btn')) {
-                    const index = parseInt(target.getAttribute('data-index'));
-                    toggleAnswer(index);
-                }
-            });
+                    // 处理答案按钮点击
+                    if (target.classList.contains('answer-btn')) {
+                        const index = parseInt(target.getAttribute('data-index'));
+                        if (!isNaN(index) && typeof toggleAnswer === 'function') {
+                            toggleAnswer(index);
+                        }
+                    }
+                });
+            } else {
+                console.warn('未找到questionCards元素，跳过事件绑定');
+            }
             
-            // 加载题目数据
-            loadQuestions();
+            try {
+                // 加载题目数据
+                if (typeof loadQuestions === 'function') {
+                    loadQuestions();
+                }
+            } catch (error) {
+                console.error('加载题目失败:', error);
+            }
             
             // 添加窗口关闭前保存
             window.addEventListener('beforeunload', function() {
@@ -172,8 +241,8 @@
                 selectedQuestions.add(questionId);
             }
             
-            // 更新选择状态
-            const buttons = document.querySelectorAll(`.question-item[data-question-id="${questionId}"] .select-btn`);
+            // 更新选择状态 - 使用安全方法
+            const buttons = window.domSafe.queryAll(`.question-item[data-question-id="${questionId}"] .select-btn`);
             buttons.forEach(button => {
                 if (selectedQuestions.has(questionId)) {
                     button.classList.add('selected');
@@ -184,8 +253,10 @@
                 }
             });
             
-            // 更新下载面板
-            updateDownloadPanel();
+            // 安全地更新下载面板
+            if (typeof updateDownloadPanel === 'function') {
+                updateDownloadPanel();
+            }
             
             // 保存到localStorage
             saveSelectedQuestions();
@@ -196,11 +267,13 @@
             // 清空选中题目集合
             selectedQuestions.clear();
             
-            // 更新购物车显示
-            updateDownloadPanel();
+            // 安全地更新下载面板
+            if (typeof updateDownloadPanel === 'function') {
+                updateDownloadPanel();
+            }
             
             // 更新题目渲染状态，清除选中标记
-            const selectedButtons = document.querySelectorAll('.select-btn.selected');
+            const selectedButtons = window.domSafe.queryAll('.select-btn.selected');
             selectedButtons.forEach(btn => {
                 btn.classList.remove('selected');
                 // 添加恢复按钮文本
@@ -208,10 +281,17 @@
             });
             
             // 关闭弹窗
-            document.getElementById('paperTitleModal').style.display = 'none';
+            const paperTitleModal = window.domSafe.getById('paperTitleModal');
+            if (paperTitleModal) {
+                paperTitleModal.style.display = 'none';
+            }
             
             // 从localStorage中也清除
-            localStorage.removeItem(STORAGE_KEY);
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+            } catch (e) {
+                console.error('清除localStorage失败:', e);
+            }
             
             // 提示用户
             alert('已清空所有已选题目');
@@ -219,11 +299,17 @@
 
         // 生成试卷
         window.generatePaper = function() {
-            const titleInput = document.getElementById('paperTitleInput');
-            const paperTitle = titleInput.value.trim() || '我的试卷';
+            const titleInput = window.domSafe.getById('paperTitleInput');
+            const paperTitle = titleInput ? titleInput.value.trim() || '我的试卷' : '我的试卷';
             
-            document.getElementById('paperTitleModal').style.display = 'none';
-            titleInput.value = '';
+            const paperTitleModal = window.domSafe.getById('paperTitleModal');
+            if (paperTitleModal) {
+                paperTitleModal.style.display = 'none';
+            }
+            
+            if (titleInput) {
+                titleInput.value = '';
+            }
             
             fetch('/generate_paper', {
                 method: 'POST',
@@ -251,13 +337,21 @@
                 
                 // 下载成功后清空已选题目
                 selectedQuestions.clear();
-                updateDownloadPanel();
+                
+                // 安全地更新下载面板
+                if (typeof updateDownloadPanel === 'function') {
+                    updateDownloadPanel();
+                }
                 
                 // 从localStorage中也清除
-                localStorage.removeItem(STORAGE_KEY);
+                try {
+                    localStorage.removeItem(STORAGE_KEY);
+                } catch(e) {
+                    console.error('清除localStorage失败:', e);
+                }
                 
                 // 更新题目渲染状态，清除选中标记
-                const selectedButtons = document.querySelectorAll('.select-btn.selected');
+                const selectedButtons = window.domSafe.queryAll('.select-btn.selected');
                 selectedButtons.forEach(btn => {
                     btn.classList.remove('selected');
                     // 添加恢复按钮文本
@@ -273,106 +367,179 @@
     </script>
 <script>
 // localStorage修复脚本
-// 简单的localStorage修复
 (function() {
-    // 等待DOM加载完成
-    if (document && document.addEventListener) {  // 添加检查以防止null错误
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('localStorage修复脚本已加载');
-            
-            // 确保selectedQuestions已定义
-            if (typeof window.selectedQuestions === 'undefined') {
-                window.selectedQuestions = new Set();
-                console.log('创建了selectedQuestions集合');
-            }
-            
-            // 从localStorage恢复已选题目
-            try {
-                const savedQuestions = localStorage.getItem('selectedQuestions');
-                if (savedQuestions) {
-                    const questionIds = JSON.parse(savedQuestions);
-                    questionIds.forEach(id => window.selectedQuestions.add(parseInt(id)));
-                    console.log('从localStorage恢复已选题目:', window.selectedQuestions.size);
-                    
-                    // 更新UI
-                    if (typeof window.updateDownloadPanel === 'function') {
-                        window.updateDownloadPanel();
-                    }
-                }
-            } catch (error) {
-                console.error('恢复已选题目出错:', error);
-            }
-            
-            // 保存已选题目到localStorage的函数
-            window.saveSelectedQuestions = function() {
-                try {
-                    const questionIds = Array.from(window.selectedQuestions);
-                    localStorage.setItem('selectedQuestions', JSON.stringify(questionIds));
-                    console.log('保存题目到localStorage:', questionIds.length);
-                } catch (error) {
-                    console.error('保存已选题目出错:', error);
+    // 使用window.onload确保在页面完全加载后执行
+    window.addEventListener("load", function() {
+        console.log("localStorage修复脚本已加载");
+        
+        // 确保selectedQuestions已定义
+        if (typeof window.selectedQuestions === 'undefined') {
+            window.selectedQuestions = new Set();
+            console.log('创建了selectedQuestions集合');
+        }
+        
+        // 确保domSafe已定义
+        if (!window.domSafe) {
+            window.domSafe = {
+                getById: function(id) { 
+                    try { return document.getElementById(id); } 
+                    catch(e) { return null; }
+                },
+                queryAll: function(selector) { 
+                    try { return document.querySelectorAll(selector); } 
+                    catch(e) { return []; }
                 }
             };
-            
-            // 拦截toggleSelect函数
-            if (typeof window.toggleSelect === 'function') {
-                const originalToggleSelect = window.toggleSelect;
-                window.toggleSelect = function(questionId) {
+            console.log('创建了domSafe工具');
+        }
+        
+        // 从localStorage恢复已选题目
+        try {
+            const savedQuestions = localStorage.getItem('selectedQuestions');
+            if (savedQuestions) {
+                const questionIds = JSON.parse(savedQuestions);
+                questionIds.forEach(id => window.selectedQuestions.add(parseInt(id)));
+                console.log('从localStorage恢复已选题目:', window.selectedQuestions.size);
+                
+                // 更新UI
+                if (typeof window.updateDownloadPanel === 'function') {
+                    window.updateDownloadPanel();
+                }
+            }
+        } catch (error) {
+            console.error('恢复已选题目出错:', error);
+        }
+        
+        // 保存已选题目到localStorage的函数
+        window.saveSelectedQuestions = function() {
+            try {
+                const questionIds = Array.from(window.selectedQuestions);
+                localStorage.setItem('selectedQuestions', JSON.stringify(questionIds));
+                console.log('保存题目到localStorage:', questionIds.length);
+            } catch (error) {
+                console.error('保存已选题目出错:', error);
+            }
+        };
+        
+        // 拦截toggleSelect函数
+        if (typeof window.toggleSelect === 'function') {
+            const originalToggleSelect = window.toggleSelect;
+            window.toggleSelect = function(questionId) {
+                try {
                     // 调用原始函数
                     originalToggleSelect(questionId);
                     // 保存到localStorage
                     window.saveSelectedQuestions();
-                };
-                console.log('已增强toggleSelect函数');
-            }
-            
-            // 拦截clearSelectedQuestions函数
-            if (typeof window.clearSelectedQuestions === 'function') {
-                const originalClearSelectedQuestions = window.clearSelectedQuestions;
-                window.clearSelectedQuestions = function() {
+                } catch (e) {
+                    console.error('toggleSelect执行失败:', e);
+                }
+            };
+            console.log('已增强toggleSelect函数');
+        }
+        
+        // 拦截clearSelectedQuestions函数
+        if (typeof window.clearSelectedQuestions === 'function') {
+            const originalClearSelectedQuestions = window.clearSelectedQuestions;
+            window.clearSelectedQuestions = function() {
+                try {
                     // 调用原始函数
                     originalClearSelectedQuestions();
                     // 从localStorage中清除
                     localStorage.removeItem('selectedQuestions');
                     console.log('已清除localStorage中的selectedQuestions');
-                };
-                console.log('已增强clearSelectedQuestions函数');
-            }
-            
-            // 拦截generatePaper函数
-            if (typeof window.generatePaper === 'function') {
-                const originalGeneratePaper = window.generatePaper;
-                window.generatePaper = function() {
+                } catch (e) {
+                    console.error('clearSelectedQuestions执行失败:', e);
+                }
+            };
+            console.log('已增强clearSelectedQuestions函数');
+        }
+        
+        // 拦截generatePaper函数
+        if (typeof window.generatePaper === 'function') {
+            const originalGeneratePaper = window.generatePaper;
+            window.generatePaper = function() {
+                try {
                     // 调用原始函数
                     originalGeneratePaper();
                     // 从localStorage中清除
                     localStorage.removeItem('selectedQuestions');
                     console.log('生成试卷后已清除localStorage中的selectedQuestions');
-                };
-                console.log('已增强generatePaper函数');
-            }
-            
-            // 为所有选择按钮添加点击事件
-            setTimeout(function() {
-                const selectButtons = document.querySelectorAll('.select-btn');
-                if (selectButtons && selectButtons.length > 0) {  // 添加检查以防止null错误
+                } catch (e) {
+                    console.error('generatePaper执行失败:', e);
+                }
+            };
+            console.log('已增强generatePaper函数');
+        }
+        
+        // 为所有选择按钮添加点击事件
+        setTimeout(function() {
+            try {
+                const selectButtons = window.domSafe.queryAll('.select-btn');
+                if (selectButtons.length > 0) {
                     selectButtons.forEach(btn => {
-                        if (btn && btn.addEventListener) {  // 添加检查以防止null错误
-                            btn.addEventListener('click', function() {
-                                // 保存到localStorage
-                                setTimeout(window.saveSelectedQuestions, 100);
-                            });
-                        }
+                        btn.addEventListener('click', function() {
+                            // 保存到localStorage
+                            setTimeout(window.saveSelectedQuestions, 100);
+                        });
                     });
                     console.log('已为', selectButtons.length, '个选择按钮添加点击事件');
+                } else {
+                    console.log('未找到选择按钮，跳过事件绑定');
                 }
-            }, 1000);
-        });
-    }
+            } catch (e) {
+                console.error('添加选择按钮事件失败:', e);
+            }
+        }, 1000);
+    });
 })();
-
 </script>
     <!-- 添加客户端修复脚本 -->
     <script src="/static/js/fix_client_html.js?v=20250402"></script>
+    
+    <!-- 防错脚本，最后加载 -->
+    <script>
+    (function() {
+        // 全局错误处理
+        window.addEventListener('error', function(event) {
+            console.error('全局错误:', event.message, 'at', event.filename, ':', event.lineno);
+            return false; // 阻止默认处理
+        });
+        
+        // 检查页面元素
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('防错脚本检查DOM元素...');
+            
+            // 检查关键元素是否存在
+            const criticalElements = ['questionCards', 'paperTitleModal', 'paperTitleInput'];
+            
+            criticalElements.forEach(id => {
+                const element = document.getElementById(id);
+                if (!element) {
+                    console.warn(`警告: 页面缺少关键元素 #${id}`);
+                }
+            });
+            
+            // 防止未定义的函数调用
+            ['updateDownloadPanel', 'toggleAnswer', 'loadQuestions'].forEach(fnName => {
+                if (typeof window[fnName] !== 'function') {
+                    console.warn(`警告: 函数 ${fnName} 未定义，创建空函数`);
+                    window[fnName] = function() {
+                        console.log(`调用了未实现的函数: ${fnName}`);
+                    };
+                }
+            });
+        });
+        
+        // 检查安全工具是否可用
+        if (!window.domSafe) {
+            console.warn('domSafe工具未定义，创建默认实现');
+            window.domSafe = {
+                getById: function(id) { return document.getElementById(id); },
+                queryAll: function(selector) { return document.querySelectorAll(selector); },
+                query: function(selector) { return document.querySelector(selector); }
+            };
+        }
+    })();
+    </script>
 </body>
 </html>
