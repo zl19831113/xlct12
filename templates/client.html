@@ -275,13 +275,6 @@
 // localStorage修复脚本
 // 简单的localStorage修复
 (function() {
-    // 检查当前是否在client页面
-    const isClientPage = window.location.href.includes('/client');
-    if (!isClientPage) {
-        console.log('当前不是client页面，跳过localStorage修复脚本');
-        return;
-    }
-
     // 等待DOM加载完成
     document.addEventListener('DOMContentLoaded', function() {
         console.log('localStorage修复脚本已加载');
@@ -320,60 +313,59 @@
             }
         };
         
-        // 安全地增强现有函数
-        function enhanceFunction(funcName, enhancer) {
-            if (typeof window[funcName] === 'function') {
-                const originalFunc = window[funcName];
-                window[funcName] = function() {
-                    // 调用原始函数
-                    const result = originalFunc.apply(this, arguments);
-                    // 调用增强器
-                    enhancer();
-                    return result;
-                };
-                console.log(`已增强${funcName}函数`);
-            } else {
-                console.warn(`${funcName}函数不存在，无法增强`);
-            }
+        // 拦截toggleSelect函数
+        if (typeof window.toggleSelect === 'function') {
+            const originalToggleSelect = window.toggleSelect;
+            window.toggleSelect = function(questionId) {
+                // 调用原始函数
+                originalToggleSelect(questionId);
+                // 保存到localStorage
+                window.saveSelectedQuestions();
+            };
+            console.log('已增强toggleSelect函数');
         }
         
-        // 增强toggleSelect函数
-        enhanceFunction('toggleSelect', function() {
-            // 保存到localStorage
-            window.saveSelectedQuestions();
-        });
+        // 拦截clearSelectedQuestions函数
+        if (typeof window.clearSelectedQuestions === 'function') {
+            const originalClearSelectedQuestions = window.clearSelectedQuestions;
+            window.clearSelectedQuestions = function() {
+                // 调用原始函数
+                originalClearSelectedQuestions();
+                // 从localStorage中清除
+                localStorage.removeItem('selectedQuestions');
+                console.log('已清除localStorage中的selectedQuestions');
+            };
+            console.log('已增强clearSelectedQuestions函数');
+        }
         
-        // 增强clearSelectedQuestions函数
-        enhanceFunction('clearSelectedQuestions', function() {
-            // 从localStorage中清除
-            localStorage.removeItem('selectedQuestions');
-            console.log('已清除localStorage中的selectedQuestions');
-        });
-        
-        // 增强generatePaper函数
-        enhanceFunction('generatePaper', function() {
-            // 从localStorage中清除
-            localStorage.removeItem('selectedQuestions');
-            console.log('生成试卷后已清除localStorage中的selectedQuestions');
-        });
+        // 拦截generatePaper函数
+        if (typeof window.generatePaper === 'function') {
+            const originalGeneratePaper = window.generatePaper;
+            window.generatePaper = function() {
+                // 调用原始函数
+                originalGeneratePaper();
+                // 从localStorage中清除
+                localStorage.removeItem('selectedQuestions');
+                console.log('生成试卷后已清除localStorage中的selectedQuestions');
+            };
+            console.log('已增强generatePaper函数');
+        }
         
         // 为所有选择按钮添加点击事件
         setTimeout(function() {
+            // 添加安全检查，确保选择器能找到元素
             const selectButtons = document.querySelectorAll('.select-btn');
-            if (!selectButtons || selectButtons.length === 0) {
-                console.log('未找到选择按钮，跳过添加点击事件');
-                return;
-            }
-            
-            selectButtons.forEach(btn => {
-                if (!btn) return;
-                
-                btn.addEventListener('click', function() {
-                    // 保存到localStorage
-                    setTimeout(window.saveSelectedQuestions, 100);
+            if (selectButtons && selectButtons.length > 0) {
+                selectButtons.forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        // 保存到localStorage
+                        setTimeout(window.saveSelectedQuestions, 100);
+                    });
                 });
-            });
-            console.log('已为', selectButtons.length, '个选择按钮添加点击事件');
+                console.log('已为', selectButtons.length, '个选择按钮添加点击事件');
+            } else {
+                console.log('未找到选择按钮，跳过添加点击事件');
+            }
         }, 1000);
     });
 })();

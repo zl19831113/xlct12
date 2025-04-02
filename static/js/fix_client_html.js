@@ -13,6 +13,11 @@
             // 查找所有可能包含HTML实体的元素
             const textElements = document.querySelectorAll('.question-content, .question-text, .paper-content');
             
+            if (!textElements || textElements.length === 0) {
+                console.log('未找到需要处理HTML实体的元素');
+                return;
+            }
+            
             textElements.forEach(element => {
                 if (element && element.innerHTML) {
                     // 替换所有&middot;实体
@@ -33,14 +38,14 @@
             // 获取试卷生成区域
             const paperContainer = document.querySelector('#paper-container');
             if (!paperContainer) {
-                console.log('未找到#paper-container元素，跳过题目排序');
+                console.log('未找到试卷容器元素#paper-container');
                 return;
             }
             
             // 查找所有题目元素
             const questions = paperContainer.querySelectorAll('.question-item');
             if (!questions || questions.length === 0) {
-                console.log('未找到题目元素，跳过题目排序');
+                console.log('未找到题目元素.question-item');
                 return;
             }
             
@@ -94,13 +99,11 @@
             const downloadButtons = document.querySelectorAll('.download-btn, #downloadPdf');
             
             if (!downloadButtons || downloadButtons.length === 0) {
-                console.log('未找到下载按钮，跳过PDF下载修复');
+                console.log('未找到下载按钮');
                 return;
             }
             
             downloadButtons.forEach(button => {
-                if (!button) return;
-                
                 const originalClick = button.onclick;
                 
                 button.onclick = function(e) {
@@ -125,7 +128,7 @@
             // 要观察的目标节点
             const targetNode = document.querySelector('#paper-container');
             if (!targetNode) {
-                console.log('未找到#paper-container元素，跳过MutationObserver设置');
+                console.log('未找到#paper-container，跳过设置MutationObserver');
                 return;
             }
             
@@ -147,13 +150,13 @@
             console.log('变动观察器已设置');
         }
         
-        // 安全执行函数，防止错误中断脚本执行
-        function safeExecute(fn, name) {
+        // 安全执行函数，捕获可能的错误
+        function safeExecute(fn, fnName) {
             try {
                 fn();
-                console.log(`成功执行 ${name}`);
+                console.log(`成功执行${fnName}`);
             } catch (error) {
-                console.error(`执行 ${name} 时出错:`, error);
+                console.error(`执行${fnName}时出错:`, error);
             }
         }
         
@@ -165,7 +168,7 @@
         
         // 每秒运行一次修复，确保动态加载的内容也被处理
         setInterval(function() {
-            safeExecute(fixHtmlEntities, 'fixHtmlEntities (定时)');
+            safeExecute(fixHtmlEntities, 'fixHtmlEntities');
         }, 1000);
         
         console.log('客户端修复脚本初始化完成');
