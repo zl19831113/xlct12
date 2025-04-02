@@ -5,77 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>小鹿题库系统 - 小鹿出题</title>
     <link rel="stylesheet" href="/static/css/header.css">
-    <!-- 添加版本号防止缓存 -->
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <!-- 添加DOM安全访问工具 -->
-    <script>
-        // DOM安全访问工具
-        window.domSafe = {
-            // 安全地获取DOM元素
-            getById: function(id) {
-                try {
-                    return document.getElementById(id);
-                } catch (e) {
-                    console.warn('获取元素失败 ID:', id, e);
-                    return null;
-                }
-            },
-            // 安全地获取多个DOM元素
-            queryAll: function(selector) {
-                try {
-                    return document.querySelectorAll(selector);
-                } catch (e) {
-                    console.warn('查询元素失败 selector:', selector, e);
-                    return [];
-                }
-            },
-            // 安全地获取单个DOM元素
-            query: function(selector) {
-                try {
-                    return document.querySelector(selector);
-                } catch (e) {
-                    console.warn('查询元素失败 selector:', selector, e);
-                    return null;
-                }
-            },
-            // 安全地添加事件监听器
-            addEvent: function(element, eventType, handler) {
-                if (!element) {
-                    console.warn('添加事件失败，元素不存在');
-                    return false;
-                }
-                try {
-                    element.addEventListener(eventType, handler);
-                    return true;
-                } catch (e) {
-                    console.warn('添加事件失败:', e);
-                    return false;
-                }
-            }
-        };
-    </script>
-    <!-- 添加版本号查询参数 -->
-    <script>
-        // 强制刷新脚本
-        (function() {
-            // 添加版本号到所有资源URL
-            const version = new Date().getTime();
-            const links = document.getElementsByTagName('link');
-            for (let i = 0; i < links.length; i++) {
-                if (links[i].rel === 'stylesheet') {
-                    links[i].href = links[i].href + '?v=' + version;
-                }
-            }
-            
-            // 检测是否为移动设备
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            if (isMobile) {
-                console.log('检测到移动设备');
-            }
-        })();
-    </script>
     <style>
         :root {
             --primary-color: #2F80ED;
@@ -99,14 +28,1016 @@
             color: #333;
         }
 
-        /* 其他样式保持不变 */
+        .main-container {
+            display: flex;
+            gap: 16px;
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 16px 16px 16px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* 对话框样式 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .modal-content h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .title-input {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        
+        .cancel-btn, .confirm-btn, .clear-btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .cancel-btn {
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .confirm-btn {
+            background-color: var(--primary-color);
+            color: white;
+            margin-left: 10px;
+        }
+        
+        .clear-btn {
+            background-color: #2F80ED;
+            color: white;
+            margin-right: auto;
+        }
+
+        /* 左侧筛选侧边栏样式 */
+        .filter-sidebar {
+            width: 280px;
+            flex-shrink: 0;
+            margin-top: 16px;
+            position: sticky;
+            top: 80px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        .filter-box {
+            background-color: var(--background-main);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin-bottom: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        
+        /* 添加筛选按钮图片样式 */
+        .filter-button-img {
+            display: inline-block;
+            border-radius: 16px;
+            background-color: #f0f5ff;
+            border: 1px solid #d6e4ff;
+            padding: 8px 16px;
+            margin: 5px;
+            font-size: 14px;
+            color: var(--primary-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .filter-button-img:hover {
+            background-color: #e6f0ff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .filter-box-content {
+            padding: var(--padding);
+        }
+
+        .filter-item {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .filter-item:last-child {
+            border-bottom: none;
+        }
+
+        .filter-item label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-subheading);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 14px;
+            background-color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--text-main);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            background-image: linear-gradient(to bottom, #ffffff, #f8f9fa);
+        }
+
+        select:hover {
+            border-color: var(--primary-color);
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.2);
+        }
+
+        select:disabled {
+            background-color: var(--background-subtle);
+            cursor: not-allowed;
+            color: rgba(0, 0, 0, 0.25);
+        }
+
+        /* 右侧内容区域样式 */
+        .content-area {
+            flex: 1;
+            min-width: 0;
+            position: relative;
+            width: 100%;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        .content-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-heading);
+            margin-top: 0;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .question-list {
+            background-color: var(--background-main);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: var(--padding);
+        }
+
+        #noQuestions {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--text-subheading);
+            display: none;
+        }
+
+        #loading {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--text-subheading);
+        }
+
+        /* 题目卡片样式 */
+        .question-item {
+            background-color: var(--background-main);
+            padding: 20px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s;
+        }
+
+        .question-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .question-type {
+            color: var(--primary-color);
+            font-size: 15px;
+            padding: 2px 0;
+            display: inline-block;
+            margin-bottom: 12px;
+        }
+
+        .question-stem {
+            margin-bottom: 16px;
+            line-height: 1.8;
+            font-size: 17px;
+            color: #333;
+            font-weight: 400;
+        }
+
+        .question-options {
+            padding-left: 0px;
+            margin-bottom: 10px;
+        }
+
+        .option {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: flex-start;
+            line-height: 1.8;
+        }
+
+        .option-label {
+            font-weight: 400;
+            margin-right: 8px;
+            color: #333;
+            font-size: 17px;
+        }
+        
+        .numbered-option {
+            display: block;
+            margin-bottom: 12px;
+            line-height: 1.8;
+            font-size: 17px;
+            color: #333;
+            font-weight: 400;
+            padding-left: 0;
+        }
+        
+        .combined-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            margin-top: 12px;
+            font-size: 17px;
+            font-weight: 400;
+            line-height: 1.8;
+        }
+        
+        .combined-option {
+            white-space: nowrap;
+            font-size: 17px;
+            color: #333;
+        }
+        
+        /* 移动端样式优化 - 按规范全面更新 */
+        /* 微调按钮文本大小一致性 */
+        .mobile-btn .btn-text {
+            font-size: 15px !important;
+            line-height: 1.5 !important;
+            font-weight: 400 !important;
+            display: inline-block !important;
+            white-space: nowrap !important;
+        }
+        
+        @media (max-width: 576px) {
+            /* 题目容器样式 */
+            .question-item {
+                padding: 16px !important;
+                margin-bottom: 32px !important;
+                border-radius: 0 !important;
+                font-family: PingFang SC, Microsoft YaHei, sans-serif !important;
+            }
+            
+            /* 题干样式 */
+            .question-stem {
+                margin-bottom: 20px !important;
+                line-height: 1.6 !important;
+                font-size: 17px !important;
+                color: #333333 !important;
+                font-weight: 500 !important;
+                letter-spacing: 0.2px !important;
+                text-align: justify !important;
+                padding: 0 !important;
+            }
+            
+            /* 段落间距 */
+            .question-stem p {
+                margin-bottom: 16px !important;
+            }
+            
+            /* 序号选项样式 */
+            .question-options {
+                margin-bottom: 18px !important;
+                padding-left: 0 !important;
+            }
+            
+            .numbered-option {
+                display: block !important;
+                margin-bottom: 12px !important;
+                line-height: 1.5 !important;
+                font-size: 16px !important;
+                color: #333333 !important;
+                font-weight: 400 !important;
+                padding-left: 0 !important;
+                letter-spacing: 0.2px !important;
+                text-align: left !important;
+            }
+            
+            /* 序号加粗 */
+            .numbered-option > strong,
+            .numbered-option > b {
+                font-weight: 600 !important;
+                color: #000000 !important;
+                margin-right: 8px !important;
+            }
+            
+            /* 组合选项样式 */
+            .combined-options {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                gap: 0 !important;
+                margin-top: 18px !important;
+                margin-bottom: 0 !important;
+                font-size: 15px !important;
+                line-height: 1.5 !important;
+                width: 100% !important;
+                overflow-x: visible !important;
+                white-space: nowrap !important;
+                justify-content: space-between !important;
+                padding: 0 !important;
+                text-align: left !important;
+            }
+            
+            .combined-option {
+                white-space: nowrap !important;
+                font-size: 15px !important;
+                color: #555555 !important;
+                font-weight: 400 !important;
+                letter-spacing: 0.2px !important;
+                padding-right: 0 !important;
+                flex-shrink: 0 !important;
+                margin: 0 !important;
+            }
+            
+            /* 更细的选项标签字体 */
+            .combined-option strong {
+                font-weight: 400 !important;
+            }
+            
+            /* 普通选项样式 */
+            .option {
+                margin-bottom: 12px !important;
+                display: flex !important;
+                align-items: flex-start !important;
+                line-height: 1.5 !important;
+            }
+            
+            .option-label {
+                font-weight: 400 !important;
+                margin-right: 8px !important;
+                color: #555555 !important;
+                font-size: 15px !important;
+                letter-spacing: 0.2px !important;
+            }
+            
+            /* 确保标签内的强调标签也是细体 */
+            .option-label strong {
+                font-weight: 400 !important;
+            }
+            
+            .option-text {
+                color: #333333 !important;
+                flex: 1 !important;
+                font-size: 16px !important;
+                line-height: 1.5 !important;
+                font-weight: 400 !important;
+                letter-spacing: 0.2px !important;
+                text-align: left !important;
+            }
+            
+            /* 问题类型样式 */
+            .question-type {
+                font-size: 15px !important;
+                margin-bottom: 16px !important;
+                color: var(--primary-color) !important;
+                font-weight: 500 !important;
+            }
+            
+            /* 按钮区域样式 */
+            .question-actions {
+                margin-top: 24px !important;
+                display: flex !important;
+                justify-content: space-between !important;
+                width: 100% !important;
+                align-items: center !important;
+                gap: 0 !important;
+            }
+            
+            /* 解析按钮样式 */
+            .answer-btn {
+                font-size: 15px !important;
+                padding: 6px 12px !important;
+                color: #2F80ED !important;
+                background: transparent !important;
+                font-weight: 400 !important;
+                border: none !important;
+                line-height: 1.4 !important;
+                box-shadow: none !important;
+                text-align: left !important;
+                text-decoration: none !important;
+                margin: 0 !important;
+            }
+            
+            /* 组卷按钮样式 */
+            .select-btn {
+                font-size: 15px !important;
+                font-weight: 400 !important;
+                padding: 6px 12px !important;
+                line-height: 1.4 !important;
+                text-align: right !important;
+                margin: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                text-decoration: none !important;
+            }
+            
+            /* 整体分页容器样式 */
+            #questionCards {
+                padding: 0 16px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: hidden !important;
+                box-sizing: border-box !important;
+            }
+            
+            /* 确保问题项不会溢出 */
+            .question-item {
+                width: 100% !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+                word-wrap: break-word !important;
+                overflow-wrap: break-word !important;
+            }
+            
+            /* 确保所有文本内容不会溢出 */
+            p, div, span, h1, h2, h3, h4, h5, h6 {
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+                word-wrap: break-word !important;
+                overflow-wrap: break-word !important;
+            }
+        }
+
+        .option-text {
+            color: #333;
+            flex: 1;
+            font-size: 17px;
+            line-height: 1.8;
+            font-weight: 400;
+        }
+
+        .question-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            align-items: center;
+        }
+
+        .answer-btn {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: none;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: color 0.3s;
+            text-decoration: none;
+        }
+
+        .answer-btn:hover {
+            color: #1C66B3;
+            text-decoration: none;
+        }
+
+        .select-btn {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: none;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: color 0.3s;
+        }
+
+        .select-btn:hover {
+            color: #1C66B3;
+            text-decoration: none;
+        }
+
+        .select-btn.selected {
+            color: var(--primary-color);
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .answer-content {
+            display: none;
+            margin-top: 16px;
+            padding: 12px 0;
+            color: var(--primary-color);
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            gap: 16px;
+        }
+
+        .pagination-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+
+        .pagination-button:hover {
+            background-color: #1C66B3;
+        }
+
+        .pagination-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            font-size: 14px;
+            color: var(--text-subheading);
+        }
+
+        .download-panel {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background-color: transparent !important;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 100;
+            box-shadow: none !important;
+        }
+
+        .download-panel:hover {
+            transform: scale(1.1);
+        }
+
+        .cart-icon {
+            width: 24px;
+            height: 24px;
+            color: var(--primary-color);
+            position: relative;
+            background: transparent !important;
+            box-shadow: none !important;
+            background-color: transparent !important;
+            border: none !important;
+        }
+
+        .selected-count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #ff4d4f;
+            color: white;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* 移动端适配 */
+        @media screen and (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                padding: 10px;
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+                align-items: center;
+            }
+            
+            .content-container {
+                width: 100%;
+                margin-left: 0;
+                align-items: center;
+            }
+
+            .filter-sidebar {
+                width: 100%;
+                position: relative;
+                top: 0;
+                margin-top: 8px;
+                max-height: none;
+            }
+
+            .content-area {
+                width: 100%;
+                overflow-x: hidden;
+                box-sizing: border-box;
+            }
+
+            .filter-box {
+                margin-bottom: 12px;
+            }
+
+            select {
+                max-width: none;
+                width: 100%;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            html, body {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden !important;
+                padding: 0;
+                margin: 0;
+            }
+            body {
+                padding: 0;
+            }
+            .content-container {
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: hidden !important;
+                padding: 0 !important;
+                box-sizing: border-box !important;
+            }
+            
+            .main-container {
+                gap: 5px;
+                padding: 0;
+                width: 100%;
+                max-width: 100%;
+                margin: 0 auto;
+                position: relative;
+                overflow-x: hidden;
+            }
+            
+            .filter-sidebar {
+                padding-top: 3px;
+                max-width: 100%;
+                margin: 0 auto;
+                width: calc(100% - 30px);
+                position: relative;
+            }
+            
+            .content-area {
+                padding: 0;
+                margin: 5px auto;
+                max-width: 100%;
+                width: calc(100% - 30px);
+                box-sizing: border-box;
+                position: relative;
+            }
+            
+            .filter-box {
+                padding: 8px;
+                overflow: visible;
+                border-radius: var(--border-radius);
+                margin-bottom: 8px;
+            }
+            
+            .filter-box-content {
+                padding: 8px 0;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-between;
+            }
+            
+            /* 第一行的三个筛选项 */
+            .filter-item:nth-child(-n+3) {
+                width: calc(33.33% - 3px);
+                margin-bottom: 6px;
+            }
+            
+            /* 第二行的三个筛选项 */
+            .filter-item:nth-child(n+4) {
+                width: calc(33.33% - 3px);
+            }
+            
+            .filter-item {
+                padding: 2px;
+                margin-bottom: 0;
+                box-sizing: border-box;
+            }
+            
+            /* 隐藏移动端筛选按钮上方的标签 */
+            .filter-item label {
+                display: none;
+            }
+            
+            select {
+                font-size: 12px;
+                padding: 6px 8px;
+                width: 100%;
+            }
+            
+            .question-actions {
+                flex-wrap: wrap;
+            }
+            
+            .question-item {
+                width: 100%;
+                padding: 12px;
+                box-sizing: border-box;
+            }
+            
+            .content-title {
+                font-size: 16px;
+                margin-bottom: 12px;
+                text-align: center;
+            }
+            
+            #questionCards {
+                padding: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: hidden !important;
+                box-sizing: border-box !important;
+            }
+            
+            .question-list {
+                padding: 0;
+                box-shadow: none;
+                background-color: transparent;
+            }
+            
+            .download-panel {
+                width: 45px;
+                height: 45px;
+                bottom: 80px;
+                right: 15px;
+                position: fixed;
+                z-index: 100;
+                background-color: transparent;
+            }
+            
+            .cart-icon {
+                width: 18px;
+                height: 18px;
+            }
+            
+            .selected-count {
+                width: 10px;
+                height: 10px;
+                font-size: 7px;
+                top: -8px;
+                right: -8px;
+            }
+            
+            .question-options {
+                padding-right: 8px;
+            }
+
+            .option {
+                margin-bottom: 6px;
+                padding-right: 4px;
+            }
+
+            .question-stem {
+                font-size: 13px;
+            }
+        }
+        
+        /* 答案内容样式 */
+        .answer-content-lines {
+            line-height: 1.8;
+        }
+
+        .answer-line {
+            margin: 0;
+            padding: 3px 0;
+            color: var(--text-main);
+            font-size: 14px;
+        }
+
+        .answer-line:first-child {
+            color: var(--text-subheading);
+            font-weight: 500;
+        }
+
+        .answer-line:nth-child(2) {
+            color: var(--primary-color);
+            font-weight: 500;
+            font-size: 16px;
+        }
+
+        /* 题目标签样式 */
+        .question-tags {
+            margin-bottom: 8px;
+        }
+
+        .tag {
+            display: inline-block;
+            background-color: #f0f0f0;
+            color: #777;
+            font-size: 13px;
+            padding: 2px 8px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .tag:hover {
+            background-color: #fff;
+            color: #2F80ED;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        @media screen and (max-width: 768px) {
+    .answer-btn {
+        position: relative;
+        display: inline-block;
+        background-color: transparent;
+        color: var(--primary-color) !important;
+        padding: 5px 12px;
+        font-size: 14px !important;
+        line-height: 1.4 !important;
+        text-align: center;
+        text-decoration: none !important;
+        font-weight: normal;
+    }
+    
+    .answer-btn:hover, .answer-btn:active, .answer-btn:focus {
+        color: #1C66B3 !important;
+        text-decoration: none !important;
+    }
+    
+    .select-btn {
+        margin-right: 5px;
+        font-weight: bold;
+    }
+    
+    .select-btn:hover, .select-btn:active, .select-btn:focus {
+        text-decoration: none !important;
+    }
+}
     </style>
 </head>
 <body>
     <!-- 引入公共头部组件 -->
     {% include 'header.html' %}
 
-    <!-- 主体内容保持不变 -->
+    <div class="main-container">
+        <div class="filter-sidebar">
+            <div class="filter-box">
+                <div class="filter-box-content">
+                    <div class="filter-item">
+                        <label for="educationStage">学段</label>
+                        <select id="educationStage" onchange="handleFilterChange(event)">
+                            <option value="">学段</option>
+                            <option value="小学">小学</option>
+                            <option value="初中">初中</option>
+                            <option value="高中" selected>高中</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="subject">科目</label>
+                        <select id="subject" onchange="updateQuestionTypes()">
+                            <option value="">科目</option>
+                            <option value="语文">语文</option>
+                            <option value="数学">数学</option>
+                            <option value="英语">英语</option>
+                            <option value="物理">物理</option>
+                            <option value="化学">化学</option>
+                            <option value="生物">生物</option>
+                            <option value="政治">政治</option>
+                            <option value="历史">历史</option>
+                            <option value="地理">地理</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="questionType">题型</label>
+                        <select id="questionType">
+                            <option value="">题型</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="chapter">章节</label>
+                        <select id="chapter" disabled>
+                            <option value="">章节</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="unit">单元</label>
+                        <select id="unit" disabled>
+                            <option value="">单元</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="lesson">课程</label>
+                        <select id="lesson" disabled>
+                            <option value="">课程</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="content-area">
+            
+            <div id="loading" style="padding: 20px; text-align: center;">
+                正在加载题目数据...
+            </div>
+
+            <div class="no-questions" id="noQuestions">
+                请选择筛选条件查看题目
+            </div>
+
+            <div id="questionCards">
+                <!-- 卡片由JS填充 -->
+            </div>
+
+            <!-- 添加分页控制 -->
+            <div class="pagination-controls" id="paginationControls">
+                <button class="pagination-button" id="prevPage" onclick="changePage(-1)">上一页</button>
+                <span class="pagination-info" id="pageInfo">第 1 页 / 共 1 页</span>
+                <button class="pagination-button" id="nextPage" onclick="changePage(1)">下一页</button>
+            </div>
+
+            <div class="download-panel" id="downloadPanel" onclick="showPaperTitleDialog()">
+                <div class="cart-icon">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none">
+                        <path d="M9 20a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"></path>
+                        <path d="M20 20a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"></path>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                    </svg>
+                    <span class="selected-count" id="selectedCount">0</span>
+                </div>
+            </div>
+            
+            <!-- 试卷标题输入对话框 -->
+            <div id="paperTitleModal" class="modal-overlay">
+                <div class="modal-content">
+                    <h3>请输入试卷标题</h3>
+                    <input type="text" id="paperTitleInput" placeholder="请输入试卷标题" class="title-input">
+                    <div class="modal-buttons">
+                        <button onclick="clearSelectedQuestions()" class="clear-btn">清空试卷</button>
+                        <div>
+                            <button onclick="closeTitleDialog()" class="cancel-btn">取消</button>
+                            <button onclick="confirmTitle()" class="confirm-btn">生成试卷</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
     <script>
         // 分页相关变量
@@ -117,32 +1048,17 @@
         // 初始化数据
         let allQuestions = [];
         let selectedQuestions = new Set();
-        
-        // 检测是否为移动设备
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        // 存储键添加设备类型前缀，避免冲突
-        const STORAGE_KEY = isMobile ? 'mobile_selectedQuestions' : 'selectedQuestions';
-        
         // 从localStorage恢复已选题目
         function restoreSelectedQuestions() {
             try {
-                const savedQuestions = localStorage.getItem(STORAGE_KEY);
+        const savedQuestions = localStorage.getItem("selectedQuestions");
                 if (savedQuestions) {
                     const questionIds = JSON.parse(savedQuestions);
-                    selectedQuestions = new Set(questionIds);
-                    console.log('从localStorage恢复已选题目:', selectedQuestions.size, '设备类型:', isMobile ? '移动端' : '桌面端');
+            questionIds.forEach(id => selectedQuestions.add(parseInt(id)));
+            console.log("从localStorage恢复已选题目:", selectedQuestions.size);
                 }
             } catch (error) {
-                console.error('恢复已选题目出错:', error);
-                // 出错时重置为空集合
-                selectedQuestions = new Set();
-                // 清除可能损坏的数据
-                try {
-                    localStorage.removeItem(STORAGE_KEY);
-                } catch (e) {
-                    console.error('清除损坏数据失败:', e);
-                }
+        console.error("恢复已选题目出错:", error);
             }
         }
         
@@ -150,88 +1066,624 @@
         function saveSelectedQuestions() {
             try {
                 const questionIds = Array.from(selectedQuestions);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(questionIds));
-                console.log('已保存题目到localStorage:', questionIds.length, '设备类型:', isMobile ? '移动端' : '桌面端');
+        localStorage.setItem("selectedQuestions", JSON.stringify(questionIds));
+        console.log("保存题目到localStorage:", questionIds.length);
             } catch (error) {
-                console.error('保存已选题目出错:', error);
-                // 尝试清除存储并重新保存较少的数据
-                try {
-                    localStorage.clear();
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(selectedQuestions)));
-                } catch (e) {
-                    console.error('二次尝试保存失败:', e);
-                }
+        console.error("保存已选题目出错:", error);
             }
         }
 
         // 使用 DOMContentLoaded 确保在 DOM 加载完成后绑定事件
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('页面加载完成，设备类型:', isMobile ? '移动端' : '桌面端');
-            
             // 从localStorage恢复已选题目
             restoreSelectedQuestions();
-            
-            // 使用安全的DOM访问方式
-            const container = window.domSafe.getById('questionCards');
-            if (container) {
-                console.log('找到questionCards元素，添加点击事件');
-                container.addEventListener('click', function(e) {
-                    const target = e.target;
+            const container = document.getElementById('questionCards');
+            container.addEventListener('click', function(e) {
+                const target = e.target;
+                
+                // 处理选择按钮点击
+                if (target.classList.contains('select-btn')) {
+                    // 直接从按钮的父元素获取题目ID
+                    const questionCard = target.closest('.question-card');
+                    const questionId = parseInt(questionCard.dataset.questionId);
                     
-                    // 处理选择按钮点击
-                    if (target.classList.contains('select-btn')) {
-                        // 直接从按钮的父元素获取题目ID
-                        const questionCard = target.closest('.question-card');
-                        if (!questionCard) return; // 安全检查
-                        
-                        const questionId = parseInt(questionCard.dataset.questionId);
-                        if (isNaN(questionId)) return; // 安全检查
-                        
-                        // 切换选择状态
-                        if (selectedQuestions.has(questionId)) {
-                            selectedQuestions.delete(questionId);
-                            target.classList.remove('selected');
-                        } else {
-                            selectedQuestions.add(questionId);
-                            target.classList.add('selected');
-                        }
-                        
-                        // 安全地更新下载面板
-                        if (typeof updateDownloadPanel === 'function') {
-                            updateDownloadPanel();
-                        }
-                        
-                        // 保存到localStorage
-                        saveSelectedQuestions();
-                        return false; // 阻止事件冒泡和默认行为
+                    // 切换选择状态
+                    if (selectedQuestions.has(questionId)) {
+                        selectedQuestions.delete(questionId);
+                        target.classList.remove('selected');
+                    } else {
+                        selectedQuestions.add(questionId);
+                        target.classList.add('selected');
                     }
+                    updateDownloadPanel();
+                    // 保存到localStorage
+                    saveSelectedQuestions();
+                    return false; // 阻止事件冒泡和默认行为
+                }
 
-                    // 处理答案按钮点击
-                    if (target.classList.contains('answer-btn')) {
-                        const index = parseInt(target.getAttribute('data-index'));
-                        if (!isNaN(index) && typeof toggleAnswer === 'function') {
-                            toggleAnswer(index);
-                        }
-                    }
-                });
-            } else {
-                console.warn('未找到questionCards元素，跳过事件绑定');
-            }
+                // 处理答案按钮点击
+                if (target.classList.contains('answer-btn')) {
+                    const index = parseInt(target.getAttribute('data-index'));
+                    toggleAnswer(index);
+                }
+            });
             
+            // 加载题目数据
+            loadQuestions();
+        });
+
+        // 调试函数
+        function logDebug(message, data) {
+            console.log(`[Debug] ${message}`, data);
+        }
+
+        // 加载数据
+        async function loadQuestions() {
             try {
-                // 加载题目数据
-                if (typeof loadQuestions === 'function') {
-                    loadQuestions();
+                const response = await fetch('/api/questions');
+                if (!response.ok) throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                
+                const data = await response.json();
+                // 确保所有字段都有值，避免 undefined
+                allQuestions = data.map(q => ({
+                    ...q,
+                    educationStage: q.educationStage || '高中', // 默认设置为高中
+                    subject: q.subject || '',
+                    questionType: q.questionType || '',
+                    chapter: q.chapter || '',
+                    unit: q.unit || '',
+                    lesson: q.lesson || ''
+                }));
+                
+                console.log('成功加载题目数量:', allQuestions.length);
+                console.log('数据示例:', allQuestions[0]);
+                
+                document.getElementById('loading').style.display = 'none';
+                updateFilters();
+                
+                // 保存原始类别名称
+                const chapterSelect = document.getElementById('chapter');
+                const unitSelect = document.getElementById('unit');
+                const lessonSelect = document.getElementById('lesson');
+                
+                // 重置选择器显示类别名称
+                chapterSelect.innerHTML = '<option value="">章节</option>';
+                unitSelect.innerHTML = '<option value="">单元</option>';
+                lessonSelect.innerHTML = '<option value="">课程</option>';
+                
+                // 确保选择器被禁用
+                chapterSelect.disabled = true;
+                unitSelect.disabled = true;
+                lessonSelect.disabled = true;
+                
+                if(allQuestions.length > 0) {
+                    renderQuestions(allQuestions);
+                    document.getElementById('noQuestions').style.display = 'none';
+                } else {
+                    document.getElementById('noQuestions').style.display = 'block';
                 }
             } catch (error) {
-                console.error('加载题目失败:', error);
+                console.error('加载数据失败:', error);
+                alert('无法加载数据，请检查网络连接后刷新页面');
+            }
+        }
+
+        // 更新筛选条件
+        function updateFilters() {
+            // 获取所有可能的筛选值
+            const subjects = [...new Set(allQuestions.map(q => q.subject))].filter(Boolean);
+            
+            // 清空并填充科目选项
+            populateSelect('subject', subjects);
+            
+            // 重置其他选择器
+            resetDependentSelectors('subject');
+
+            // 添加筛选事件监听
+            document.querySelectorAll('.filter-box select').forEach(select => {
+                select.addEventListener('change', handleFilterChange);
+            });
+        }
+
+        // 处理筛选器变化
+        function handleFilterChange(event) {
+            const selectId = event.target.id;
+            const selectedValue = event.target.value;
+
+            // 如果是科目变化，更新题型选择器
+            if (selectId === 'subject') {
+                updateQuestionTypes();
             }
             
-            // 添加窗口关闭前保存
-            window.addEventListener('beforeunload', function() {
-                saveSelectedQuestions();
+            // 重置依赖的选择器
+            resetDependentSelectors(selectId);
+            
+            // 更新依赖的选择器
+            updateDependentSelector(selectId, selectedValue);
+            
+            // 确保历史科目的课程选择器始终可用
+            const currentSubject = document.getElementById('subject').value;
+            const currentChapter = document.getElementById('chapter').value;
+            const currentUnit = document.getElementById('unit').value;
+            if (currentSubject === '历史' && currentChapter && currentChapter.includes('必修一') && currentUnit) {
+                const lessonSelect = document.getElementById('lesson');
+                lessonSelect.disabled = false;
+            }
+            
+            // 筛选题目
+            filterQuestions();
+        }
+
+        // 重置依赖的选择器
+        function resetDependentSelectors(selectId) {
+            const hierarchy = ['subject', 'chapter', 'unit', 'lesson'];
+            const startIndex = hierarchy.indexOf(selectId);
+            
+            if (startIndex === -1) return;
+            
+            // 重置后续所有选择器
+            for (let i = startIndex + 1; i < hierarchy.length; i++) {
+                const select = document.getElementById(hierarchy[i]);
+                const categoryName = select.options[0].text; // 获取类别名称（如"章节"、"单元"、"课程"）
+                select.innerHTML = `<option value="">${categoryName}</option>`;
+                select.disabled = true;
+            }
+        }
+
+        // 更新依赖的选择器
+        function updateDependentSelector(currentSelectId, selectedValue) {
+            if (!selectedValue) return;
+
+            const hierarchy = ['subject', 'chapter', 'unit', 'lesson'];
+            const currentIndex = hierarchy.indexOf(currentSelectId);
+            
+            if (currentIndex === -1 || currentIndex === hierarchy.length - 1) return;
+
+            const nextSelectId = hierarchy[currentIndex + 1];
+            const nextSelect = document.getElementById(nextSelectId);
+            
+            // 获取当前选择的科目和章节
+            const currentSubject = document.getElementById('subject').value;
+            const currentChapter = document.getElementById('chapter').value;
+            const currentUnit = document.getElementById('unit').value;
+            
+            // 获取符合当前筛选条件的所有题目
+            const filteredQuestions = filterQuestionsBasedOnCurrentSelections();
+            
+            // 获取下一级的值，并确保它们是唯一的
+            const nextOptions = [];
+            
+            // 特殊处理历史科目的单元与课程对应关系
+            if (currentSubject === '历史' && currentSelectId === 'unit' && currentChapter.includes('必修一')) {
+                console.log('处理历史必修一的单元-课程关系');
+                
+                // 历史必修一的单元与课程映射关系
+                const historyUnitLessonMap = {
+                    '第一单元': ['第一课 古代中国的政治制度', '第二课 古代希腊罗马的政治制度', '第三课 近代西方资本主义政治制度的确立与发展'],
+                    '第二单元': ['第四课 近代中国反侵略、求民主的潮流', '第五课 马克思主义与中国人民的民主革命', '第六课 新民主主义革命与中国人民政治制度的新选择'],
+                    '第三单元': ['第七课 现代中国的政治建设与祖国统一', '第八课 当今世界政治格局的多极化趋势'],
+                    '第四单元': ['第九课 古代中国的经济', '第十课 古代希腊罗马的经济', '第十一课 中世纪欧洲的经济', '第十二课 工业革命与资本主义世界市场的形成和发展']
+                };
+                
+                // 根据当前选择的单元，获取对应的课程
+                if (currentUnit && historyUnitLessonMap[currentUnit]) {
+                    historyUnitLessonMap[currentUnit].forEach(lesson => {
+                        if (!nextOptions.includes(lesson)) {
+                            nextOptions.push(lesson);
+                        }
+                    });
+                }
+            } else {
+                // 常规处理逻辑
+                filteredQuestions.forEach(q => {
+                    // 确保科目匹配，避免历史科目显示政治科目的章节
+                    if (currentSubject && q.subject !== currentSubject) return;
+                    
+                    const value = q[nextSelectId];
+                    if (value && !nextOptions.includes(value)) {
+                        nextOptions.push(value);
+                    }
+                });
+            }
+            
+            // 如果有选项，填充下一级选择器并启用它
+            if (nextOptions.length > 0) {
+                populateSelect(nextSelectId, nextOptions);
+                nextSelect.disabled = false;
+            } else {
+                // 如果没有选项，保持禁用状态并显示类别名称
+                const categoryName = nextSelect.options[0].text;
+                nextSelect.innerHTML = `<option value="">${categoryName}</option>`;
+                nextSelect.disabled = true;
+            }
+            
+            // 确保历史科目的课程选择器始终可用
+            if (currentSubject === '历史' && currentChapter.includes('必修一') && currentUnit && nextSelectId === 'lesson') {
+                console.log('确保历史必修一的课程选择器可用');
+                nextSelect.disabled = false;
+            }
+        }
+
+        // 基于当前选择获取过滤后的题目
+        function filterQuestionsBasedOnCurrentSelections() {
+            const filters = {
+                educationStage: document.getElementById('educationStage').value,
+                subject: document.getElementById('subject').value,
+                chapter: document.getElementById('chapter').value,
+                unit: document.getElementById('unit').value,
+                lesson: document.getElementById('lesson').value
+            };
+
+            return allQuestions.filter(q => 
+                (!filters.educationStage || q.educationStage === filters.educationStage) &&
+                (!filters.subject || q.subject === filters.subject) &&
+                (!filters.chapter || q.chapter === filters.chapter) &&
+                (!filters.unit || q.unit === filters.unit) &&
+                (!filters.lesson || q.lesson === filters.lesson)
+            );
+        }
+
+        // 清理文本
+        function cleanText(text) {
+            if (!text) return '';
+
+            // 1. 替换常见HTML实体
+            text = text.replace(/&ldquo;/g, '"')
+                     .replace(/&rdquo;/g, '"')
+                     .replace(/&hellip;/g, '...')
+                     .replace(/&nbsp;/g, ' ')
+                     .replace(/&mdash;/g, '—')
+                     .replace(/&#?\w+;/g, ' ');
+
+            // 2. 去除行首数字编号
+            text = text.replace(/^\s*[\d一二三四五六七八九十]+[\.。．、\s]+/, '');
+            text = text.replace(/^\s*[\(（][\d一二三四五六七八九十]+[\)）]\s*/, '');
+
+            // 3. 合并多余的空格
+            text = text.replace(/\s+/g, ' ');
+
+            return text.trim();
+        }
+
+        // 格式化答案文本
+        function formatAnswer(text, idx) {
+            if (!text) return '';
+            
+            // 1. 清理基础文本
+            text = cleanText(text);
+            
+            // 2. 转换答案格式
+            let lines = [];
+            
+            // 提取答案字母
+            let answer = '';
+            let remainder = text;
+            
+            // 尝试匹配开头的数字编号和答案字母
+            const numMatch = text.match(/^(\d+[.．]\s*)([A-Z])(.*)/);
+            if (numMatch) {
+                answer = numMatch[2];
+                remainder = numMatch[3].trim();
+            } else {
+                // 尝试直接匹配答案字母
+                const letterMatch = text.match(/^([A-Z])(\s*)(.*)/);
+                if (letterMatch) {
+                    answer = letterMatch[1];
+                    remainder = letterMatch[3].trim();
+                }
+            }
+            
+            // 3. 添加答案行
+            if (answer) {
+                lines.push(answer);
+            }
+            
+            // 4. 处理解析部分
+            if (remainder) {
+                // 确保有【详解】标记
+                if (!remainder.includes('【详解】')) {
+                    remainder = '【详解】 ' + remainder;
+                }
+                
+                // 分离【详解】和具体解析内容
+                lines.push('【详解】');
+                lines.push(''); // 空行
+                
+                // 处理剩余解析文本
+                const explanation = remainder.replace(/【详解】/, '').trim();
+                if (explanation) {
+                    lines.push(explanation);
+                }
+            }
+            
+            return `
+                <div class="answer-content-lines">
+                    ${lines.map(line => `<p class="answer-line">${line}</p>`).join('')}
+                </div>
+            `;
+        }
+
+        // 将文本分行处理
+        function splitIntoLines(text) {
+            // 1. 清理文本
+            text = cleanText(text);
+            
+            // 2. 处理带数字序号的选项
+            // 将①②③④的选项分别放在不同行
+            text = text.replace(/(①.*?)(②.*?)(③.*?)(④.*?)(?=[A-D]．|$)/g, 
+                '$1<br>$2<br>$3<br>$4'
+            );
+
+            // 3. 处理带字母的选项
+            // 对于引用带序号选项的字母选项，将其保持在同一行
+            if (text.includes('①') || text.includes('②') || text.includes('③') || text.includes('④')) {
+                // 检测是否有引用序号的特殊格式 A．①③ 这种
+                const hasReferenceOptions = /[A-D]．[①②③④]/.test(text);
+                
+                if (hasReferenceOptions) {
+                    // 如果有引用序号的选项，则将ABCD的选项放在同一行
+                    text = text.replace(
+                        /(A．.*?)(B．.*?)(C．.*?)(D．.*?)$/g,
+                        '$1 $2 $3 $4'
+                    );
+                } else {
+                    // 如果没有引用序号的选项，则将ABCD的选项各自占一行
+                    text = text.replace(
+                        /(A．.*?)(B．.*?)(C．.*?)(D．.*?)$/g,
+                        '$1<br>$2<br>$3<br>$4'
+                    );
+                }
+            } else {
+                // 如果没有序号选项的问题，则将ABCD的选项各自占一行
+                text = text.replace(
+                    /(A．.*?)(B．.*?)(C．.*?)(D．.*?)$/g,
+                    '$1<br>$2<br>$3<br>$4'
+                );
+            }
+            
+            // 4. 处理括号的换行
+            text = text.replace(/（\s*）/g, '（ ）<br>');  // 空括号后换行
+
+            // 如果字符串开头出现 <br>，去掉
+            text = text.replace(/^<br>/, '');
+
+            // 去除多余空格
+            text = text.replace(/\s+/g, ' ');
+
+            return text;
+        }
+
+        function parseQuestion(questionText) {
+            if (!questionText) return { stem: '', options: [], hasNumberedOptions: false, combinedOptions: false };
+            
+            // 检查是否包含带序号的选项 (①, ②, ③, ④)
+            const hasNumberedOptions = /[①②③④]/.test(questionText);
+            
+            // 首先尝试找到所有选项标记 (A．, B．, C．, D．)
+            const optionMarkers = [...questionText.matchAll(/([A-D])．/g)];
+            
+            if (optionMarkers.length === 0) {
+                // 没有找到选项，整个文本作为题干
+                return { stem: splitIntoLines(questionText), options: [], hasNumberedOptions: false, combinedOptions: false };
+            }
+            
+            // 查找是否包含 A．①③ 类型的组合选项
+            const combinedOptionsMatch = /[A-D]．[①②③④]/.test(questionText);
+            
+            // 找到第一个选项的位置，之前的内容作为题干
+            const firstOptionIndex = optionMarkers[0].index;
+            const stem = splitIntoLines(questionText.substring(0, firstOptionIndex).trim());
+            
+            // 提取所有选项
+            const options = [];
+            const optionLetters = new Set(); // 用于跟踪已处理的选项字母
+            
+            // 如果存在带序号选项，尝试提取序号选项
+            let numberedOptions = [];
+            if (hasNumberedOptions) {
+                // 找出所有序号选项的文本和位置
+                const numberedMatches = [...stem.matchAll(/([①②③④])([^①②③④]+)/g)];
+                numberedMatches.forEach(match => {
+                    numberedOptions.push(match[0]);
+                });
+            }
+            
+            // 遍历所有选项标记
+            for (let i = 0; i < optionMarkers.length; i++) {
+                const currentMarker = optionMarkers[i];
+                const letter = currentMarker[1]; // 选项字母 (A, B, C, D)
+                
+                // 如果已经处理过这个字母，跳过
+                if (optionLetters.has(letter)) continue;
+                optionLetters.add(letter);
+                
+                // 计算选项内容的结束位置
+                let endIndex;
+                if (i < optionMarkers.length - 1) {
+                    // 如果不是最后一个选项，结束位置是下一个选项的开始
+                    endIndex = optionMarkers[i + 1].index;
+                } else {
+                    // 如果是最后一个选项，结束位置是文本结尾
+                    endIndex = questionText.length;
+                }
+                
+                // 提取选项文本
+                const optionText = questionText.substring(currentMarker.index, endIndex).trim();
+                
+                // 检查是否包含其他选项标记
+                const otherMarkerMatch = optionText.match(/^[A-D]．.*?([A-D]．)/);
+                if (otherMarkerMatch) {
+                    // 如果包含其他选项标记，只取到该标记之前的内容
+                    const cutIndex = optionText.indexOf(otherMarkerMatch[1]);
+                    options.push(optionText.substring(0, cutIndex).trim());
+                } else {
+                    options.push(optionText);
+                }
+            }
+            
+            // 确保选项按A、B、C、D顺序排列
+            const sortedOptions = [];
+            ['A', 'B', 'C', 'D'].forEach(letter => {
+                const option = options.find(opt => opt.startsWith(letter + '．'));
+                if (option) {
+                    sortedOptions.push(option);
+                }
             });
-        });
+            
+            return { 
+                stem, 
+                options: sortedOptions.length > 0 ? sortedOptions : options,
+                hasNumberedOptions,
+                combinedOptions: combinedOptionsMatch,
+                numberedOptions
+            };
+        }
+
+        function renderQuestions(questions) {
+            // 更新过滤后的问题列表
+            filteredQuestions = questions;
+            
+            // 计算当前页的问题
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageQuestions = questions.slice(startIndex, endIndex);
+
+            const container = document.getElementById('questionCards');
+            container.innerHTML = pageQuestions.map((q, idx) => {
+                // 计算实际索引（用于答案显示）
+                const globalIdx = startIndex + idx;
+                
+                // 解析题目文本，分离题干和选项
+                const { stem, options } = parseQuestion(q.question);
+                
+                // 检查题干中是否包含带序号的选项
+                let numberedOptionsHtml = '';
+                let combinedOptionsHtml = '';
+                
+                // 如果题干中包含序号选项 (①, ②, ③, ④)
+                if (stem.match(/[①②③④]/)) {
+                    // 提取序号选项
+                    const numberedMatches = [...stem.matchAll(/([①②③④][^①②③④]+)/g)];
+                    if (numberedMatches.length > 0) {
+                        numberedOptionsHtml = numberedMatches.map(match => {
+                            return `<div class="numbered-option">${match[0]}</div>`;
+                        }).join('');
+                        
+                        // 如果选项是 A．①③ 这种格式，则将它们放在一行
+                        if (options.some(opt => /^[A-D]．[①②③④]/.test(opt))) {
+                            combinedOptionsHtml = `
+                                <div class="combined-options">
+                                    ${options.map(opt => {
+                                        const optMatch = opt.match(/^([A-D])．/);
+                                        const label = optMatch ? optMatch[0] : '';
+                                        const optText = optMatch ? opt.substring(optMatch[0].length).trim() : opt;
+                                        return `<span class="combined-option">${label}${optText}</span>`;
+                                    }).join('')}
+                                </div>
+                            `;
+                        }
+                    }
+                }
+                
+                // 构造常规选项HTML
+                let optionsHtml = '';
+                
+                // 如果是组合选项模式，已在上面处理，返回空
+                if (combinedOptionsHtml) {
+                    optionsHtml = '';
+                } 
+                // 如果没有匹配到序号选项或者没有组合选项，则使用常规方式渲染
+                else {
+                    optionsHtml = options.map((opt, i) => {
+                        const optMatch = opt.match(/^([A-D])．/);
+                        const label = optMatch ? optMatch[0] : String.fromCharCode(65 + i) + '．';
+                        const optText = optMatch ? opt.substring(optMatch[0].length).trim() : opt;
+                        
+                        return `
+                            <div class="option">
+                                <span class="option-label">${label}</span>
+                                <span class="option-text">${optText}</span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // 添加章节和单元标签
+                const tags = [];
+                if (q.chapter) tags.push(q.chapter);
+                if (q.unit) tags.push(q.unit);
+                if (q.lesson) tags.push(q.lesson);
+                
+                // 不生成标签HTML，直接返回空字符串
+                const tagsHtml = '';
+
+                return `
+                    <div class="question-item" data-question-id="${q.id}">
+                        <div class="question-header">
+                            <span class="question-type">[${q.questionType || '单选题'}]</span>
+                        </div>
+                        ${tagsHtml}
+                        <div class="question-stem">
+                            ${numberedOptionsHtml ? stem.replace(/[①②③④][^①②③④]+/g, '') : stem}
+                        </div>
+                        ${numberedOptionsHtml ? `<div class="question-options">${numberedOptionsHtml.replace(/([①②③④])([^①②③④]+)/g, '<strong>$1</strong>$2')}</div>` : ''}
+                        <div class="question-options">
+                            ${combinedOptionsHtml || optionsHtml}
+                        </div>
+                        <div class="question-actions">
+                            <button class="answer-btn mobile-btn" onclick="toggleAnswer(${globalIdx})">
+                                <span class="btn-text">解析</span>
+                            </button>
+                          
+                            <button class="select-btn mobile-btn ${selectedQuestions.has(q.id) ? 'selected' : ''}" 
+                                    onclick="toggleSelect(${q.id})">
+                                <span class="btn-text">${selectedQuestions.has(q.id) ? '已选择' : '组卷'}</span>
+                            </button>
+                        </div>
+                        <div class="answer-content" id="answer-${globalIdx}">
+                            <h4>答案与解析：</h4>
+                            <div>${formatAnswer(q.answer, globalIdx)}</div>
+                            ${q.has_answer_image ? `
+                                <div class="answer-image">
+                                    <img src="${q.answer_image_url}" alt="答案图片" style="max-width: 100%;">
+                                </div>` : ''
+                            }
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 更新分页控制
+            updatePaginationControls();
+            
+            // 显示或隐藏"无题目"提示
+            if (pageQuestions.length === 0) {
+                document.getElementById('noQuestions').style.display = 'block';
+            } else {
+                document.getElementById('noQuestions').style.display = 'none';
+            }
+            
+            // 更新下载面板
+            updateDownloadPanel();
+            
+            // 保存到localStorage
+            saveSelectedQuestions();
+                    // 保存到localStorage
+                    saveSelectedQuestions();
+        }
+
+        // 切换答案显示和隐藏
+        window.toggleAnswer = function(index) {
+            const answerDiv = document.getElementById(`answer-${index}`);
+            if (answerDiv) {
+                // 切换显示状态
+                if (answerDiv.style.display === 'block') {
+                    answerDiv.style.display = 'none';
+                } else {
+                    answerDiv.style.display = 'block';
+                }
+            }
+        }
 
         // 切换选择
         window.toggleSelect = function(questionId) {
@@ -241,8 +1693,8 @@
                 selectedQuestions.add(questionId);
             }
             
-            // 更新选择状态 - 使用安全方法
-            const buttons = window.domSafe.queryAll(`.question-item[data-question-id="${questionId}"] .select-btn`);
+            // 更新选择状态
+            const buttons = document.querySelectorAll(`.question-item[data-question-id="${questionId}"] .select-btn`);
             buttons.forEach(button => {
                 if (selectedQuestions.has(questionId)) {
                     button.classList.add('selected');
@@ -253,63 +1705,84 @@
                 }
             });
             
-            // 安全地更新下载面板
-            if (typeof updateDownloadPanel === 'function') {
-                updateDownloadPanel();
-            }
+            // 更新下载面板
+            updateDownloadPanel();
             
+            // 保存到localStorage
+            saveSelectedQuestions();
             // 保存到localStorage
             saveSelectedQuestions();
         }
 
-        // 清空已选题目
-        window.clearSelectedQuestions = function() {
-            // 清空选中题目集合
-            selectedQuestions.clear();
+        // 更新下载面板
+        function updateDownloadPanel() {
+            const countElement = document.getElementById('selectedCount');
+            const count = selectedQuestions.size;
             
-            // 安全地更新下载面板
-            if (typeof updateDownloadPanel === 'function') {
-                updateDownloadPanel();
+            if (countElement) {
+                countElement.textContent = count;
+            }
+        }
+
+        // 更新分页信息和控制按钮状态
+        function updatePaginationControls() {
+            const totalPages = Math.ceil(filteredQuestions.length / itemsPerPage);
+            const pageInfoEl = document.getElementById('pageInfo');
+            const prevPageEl = document.getElementById('prevPage');
+            const nextPageEl = document.getElementById('nextPage');
+            
+            if (pageInfoEl) pageInfoEl.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
+            if (prevPageEl) prevPageEl.disabled = currentPage === 1;
+            if (nextPageEl) nextPageEl.disabled = currentPage >= totalPages;
+        }
+
+        // 切换页面
+        window.changePage = function(delta) {
+            const totalPages = Math.ceil(filteredQuestions.length / itemsPerPage);
+            const newPage = currentPage + delta;
+            
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                renderQuestions(filteredQuestions);
+                updatePaginationControls();
+            }
+        }
+
+        // 生成试卷
+        // 显示试卷标题输入对话框
+        window.showPaperTitleDialog = function() {
+            if (selectedQuestions.size === 0) {
+                alert('请至少选择一道题目');
+                return;
             }
             
-            // 更新题目渲染状态，清除选中标记
-            const selectedButtons = window.domSafe.queryAll('.select-btn.selected');
-            selectedButtons.forEach(btn => {
-                btn.classList.remove('selected');
-                // 添加恢复按钮文本
-                btn.innerHTML = '<span class="btn-text">组卷</span>';
-            });
-            
-            // 关闭弹窗
-            const paperTitleModal = window.domSafe.getById('paperTitleModal');
-            if (paperTitleModal) {
-                paperTitleModal.style.display = 'none';
-            }
+            document.getElementById('paperTitleModal').style.display = 'flex';
+            document.getElementById('paperTitleInput').focus();
+        }
+        
+        // 关闭标题对话框
+        window.closeTitleDialog = function() {
+            document.getElementById('paperTitleModal').style.display = 'none';
             
             // 从localStorage中也清除
-            try {
-                localStorage.removeItem(STORAGE_KEY);
-            } catch (e) {
-                console.error('清除localStorage失败:', e);
-            }
+            localStorage.removeItem("selectedQuestions");
+        }
             
-            // 提示用户
-            alert('已清空所有已选题目');
+        // 确认标题并生成试卷
+        window.confirmTitle = function() {
+            generatePaper();
         }
 
         // 生成试卷
         window.generatePaper = function() {
-            const titleInput = window.domSafe.getById('paperTitleInput');
-            const paperTitle = titleInput ? titleInput.value.trim() || '我的试卷' : '我的试卷';
+            const titleInput = document.getElementById('paperTitleInput');
+            const paperTitle = titleInput.value.trim() || '我的试卷';
             
-            const paperTitleModal = window.domSafe.getById('paperTitleModal');
-            if (paperTitleModal) {
-                paperTitleModal.style.display = 'none';
-            }
+            document.getElementById('paperTitleModal').style.display = 'none';
             
-            if (titleInput) {
-                titleInput.value = '';
-            }
+            // 从localStorage中也清除
+            localStorage.removeItem("selectedQuestions");
+            titleInput.value = '';
             
             fetch('/generate_paper', {
                 method: 'POST',
@@ -337,21 +1810,12 @@
                 
                 // 下载成功后清空已选题目
                 selectedQuestions.clear();
-                
-                // 安全地更新下载面板
-                if (typeof updateDownloadPanel === 'function') {
-                    updateDownloadPanel();
-                }
-                
-                // 从localStorage中也清除
-                try {
-                    localStorage.removeItem(STORAGE_KEY);
-                } catch(e) {
-                    console.error('清除localStorage失败:', e);
-                }
+                updateDownloadPanel();
+                    // 保存到localStorage
+                    saveSelectedQuestions();
                 
                 // 更新题目渲染状态，清除选中标记
-                const selectedButtons = window.domSafe.queryAll('.select-btn.selected');
+                const selectedButtons = document.querySelectorAll('.select-btn.selected');
                 selectedButtons.forEach(btn => {
                     btn.classList.remove('selected');
                     // 添加恢复按钮文本
@@ -363,183 +1827,499 @@
             });
         }
 
-        // 其他函数保持不变
-    </script>
-<script>
-// localStorage修复脚本
-(function() {
-    // 使用window.onload确保在页面完全加载后执行
-    window.addEventListener("load", function() {
-        console.log("localStorage修复脚本已加载");
-        
-        // 确保selectedQuestions已定义
-        if (typeof window.selectedQuestions === 'undefined') {
-            window.selectedQuestions = new Set();
-            console.log('创建了selectedQuestions集合');
+        // 添加面板拖动功能
+        const downloadPanel = document.getElementById('downloadPanel');
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        downloadPanel.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', dragEnd);
+        downloadPanel.addEventListener('click', function(e) {
+            if (!isDragging) {
+                showPaperTitleDialog();
+            }
+        });
+
+        function dragStart(e) {
+            initialX = e.clientX - xOffset;
+            initialY = e.clientY - yOffset;
+
+            if (e.target === downloadPanel) {
+                isDragging = true;
+            }
         }
-        
-        // 确保domSafe已定义
-        if (!window.domSafe) {
-            window.domSafe = {
-                getById: function(id) { 
-                    try { return document.getElementById(id); } 
-                    catch(e) { return null; }
-                },
-                queryAll: function(selector) { 
-                    try { return document.querySelectorAll(selector); } 
-                    catch(e) { return []; }
-                }
-            };
-            console.log('创建了domSafe工具');
-        }
-        
-        // 从localStorage恢复已选题目
-        try {
-            const savedQuestions = localStorage.getItem('selectedQuestions');
-            if (savedQuestions) {
-                const questionIds = JSON.parse(savedQuestions);
-                questionIds.forEach(id => window.selectedQuestions.add(parseInt(id)));
-                console.log('从localStorage恢复已选题目:', window.selectedQuestions.size);
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
                 
-                // 更新UI
-                if (typeof window.updateDownloadPanel === 'function') {
-                    window.updateDownloadPanel();
-                }
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                const rect = downloadPanel.getBoundingClientRect();
+                const maxX = window.innerWidth - rect.width;
+                const maxY = window.innerHeight - rect.height;
+
+                // 限制在窗口范围内
+                currentX = Math.min(Math.max(currentX, 0), maxX);
+                currentY = Math.min(Math.max(currentY, 0), maxY);
+
+                setTranslate(currentX, currentY, downloadPanel);
             }
-        } catch (error) {
-            console.error('恢复已选题目出错:', error);
         }
-        
-        // 保存已选题目到localStorage的函数
-        window.saveSelectedQuestions = function() {
-            try {
-                const questionIds = Array.from(window.selectedQuestions);
-                localStorage.setItem('selectedQuestions', JSON.stringify(questionIds));
-                console.log('保存题目到localStorage:', questionIds.length);
-            } catch (error) {
-                console.error('保存已选题目出错:', error);
+
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        }
+
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+
+        // 添加触摸设备支持
+        downloadPanel.addEventListener('touchstart', dragStart);
+        document.addEventListener('touchmove', drag);
+        document.addEventListener('touchend', dragEnd);
+
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
             }
-        };
-        
-        // 拦截toggleSelect函数
-        if (typeof window.toggleSelect === 'function') {
-            const originalToggleSelect = window.toggleSelect;
-            window.toggleSelect = function(questionId) {
-                try {
-                    // 调用原始函数
-                    originalToggleSelect(questionId);
-                    // 保存到localStorage
-                    window.saveSelectedQuestions();
-                } catch (e) {
-                    console.error('toggleSelect执行失败:', e);
-                }
-            };
-            console.log('已增强toggleSelect函数');
+
+            if (e.target === downloadPanel) {
+                isDragging = true;
+            }
         }
-        
-        // 拦截clearSelectedQuestions函数
-        if (typeof window.clearSelectedQuestions === 'function') {
-            const originalClearSelectedQuestions = window.clearSelectedQuestions;
-            window.clearSelectedQuestions = function() {
-                try {
-                    // 调用原始函数
-                    originalClearSelectedQuestions();
-                    // 从localStorage中清除
-                    localStorage.removeItem('selectedQuestions');
-                    console.log('已清除localStorage中的selectedQuestions');
-                } catch (e) {
-                    console.error('clearSelectedQuestions执行失败:', e);
-                }
-            };
-            console.log('已增强clearSelectedQuestions函数');
-        }
-        
-        // 拦截generatePaper函数
-        if (typeof window.generatePaper === 'function') {
-            const originalGeneratePaper = window.generatePaper;
-            window.generatePaper = function() {
-                try {
-                    // 调用原始函数
-                    originalGeneratePaper();
-                    // 从localStorage中清除
-                    localStorage.removeItem('selectedQuestions');
-                    console.log('生成试卷后已清除localStorage中的selectedQuestions');
-                } catch (e) {
-                    console.error('generatePaper执行失败:', e);
-                }
-            };
-            console.log('已增强generatePaper函数');
-        }
-        
-        // 为所有选择按钮添加点击事件
-        setTimeout(function() {
-            try {
-                const selectButtons = window.domSafe.queryAll('.select-btn');
-                if (selectButtons.length > 0) {
-                    selectButtons.forEach(btn => {
-                        btn.addEventListener('click', function() {
-                            // 保存到localStorage
-                            setTimeout(window.saveSelectedQuestions, 100);
-                        });
-                    });
-                    console.log('已为', selectButtons.length, '个选择按钮添加点击事件');
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
                 } else {
-                    console.log('未找到选择按钮，跳过事件绑定');
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
                 }
-            } catch (e) {
-                console.error('添加选择按钮事件失败:', e);
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                const rect = downloadPanel.getBoundingClientRect();
+                const maxX = window.innerWidth - rect.width;
+                const maxY = window.innerHeight - rect.height;
+
+                currentX = Math.min(Math.max(currentX, 0), maxX);
+                currentY = Math.min(Math.max(currentY, 0), maxY);
+
+                setTranslate(currentX, currentY, downloadPanel);
             }
-        }, 1000);
-    });
-})();
+        }
+
+        // 恢复populateSelect函数和extractChapterNumber函数
+        function populateSelect(id, options) {
+            const select = document.getElementById(id);
+            const firstOptionText = select.options[0].text; // 保存第一个选项的文本
+            select.innerHTML = `<option value="">${firstOptionText}</option>`;
+            
+            // 特殊处理：直接检查是否有"必修一 中国特色社会主义"的重复项
+            const isChapter = id === 'chapter';
+            const specialText = '必修一 中国特色社会主义';
+            let hasSpecialText = false;
+            
+            // 使用简单的数组来存储唯一的选项文本
+            const uniqueTexts = [];
+            
+            // 处理所有选项
+            options.forEach(opt => {
+                if (!opt) return; // 跳过空值
+                
+                // 规范化文本（去除空格和不可见字符）
+                const cleanText = opt.trim()
+                    .replace(/\s+/g, ' ')
+                    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '');
+                
+                if (!cleanText) return; // 跳过空字符串
+                
+                // 特殊处理"必修一 中国特色社会主义"
+                if (isChapter && cleanText.includes(specialText)) {
+                    if (hasSpecialText) return; // 如果已经有了这个特殊文本，跳过
+                    hasSpecialText = true;
+                }
+                
+                // 检查是否已经有相同的文本
+                if (!uniqueTexts.includes(cleanText)) {
+                    uniqueTexts.push(cleanText);
+                }
+            });
+            
+            // 获取当前选择的科目
+            const currentSubject = document.getElementById('subject').value;
+            
+            // 添加章节排序逻辑，处理政治和历史学科章节顺序
+            if (id === 'chapter') {
+                // 输出原始章节列表，帮助调试
+                console.log('排序前的章节列表:', JSON.stringify(uniqueTexts));
+                
+                // 定义政治科目具有明确顺序的章节名称
+                const politicsChapterOrder = {
+                    '必修一 中国特色社会主义': 1,
+                    '必修二 经济与社会': 2,
+                    '必修三 政治与法治': 3,
+                    '必修四 哲学与文化': 4,
+                    '选择性必修1 当代国际政治与经济': 5,
+                    '选择性必修2 法律与生活': 6,
+                    '选择性必修3 逻辑与思维': 7
+                };
+                
+                // 定义历史科目的章节顺序
+                const historyChapterOrder = {
+                    '必修一 中外历史纲要': 1,
+                    '必修二 中外历史纲要': 2,
+                    '必修三 中外历史纲要': 3,
+                    '选择性必修一 国家制度与社会治理': 4,
+                    '选择性必修二 经济与社会生活': 5,
+                    '选择性必修三 文化交流与传播': 6
+                };
+                
+                // 根据当前科目选择合适的排序规则
+                const chapterOrder = currentSubject === '政治' ? politicsChapterOrder : 
+                                    currentSubject === '历史' ? historyChapterOrder : null;
+                
+                // 自定义排序逻辑
+                uniqueTexts.sort((a, b) => {
+                    // 如果有特定科目的排序规则
+                    if (chapterOrder) {
+                        // 检查是否有明确定义顺序的章节
+                        const orderA = chapterOrder[a] || null;
+                        const orderB = chapterOrder[b] || null;
+                        
+                        // 如果两者都有预定义顺序，直接比较
+                        if (orderA !== null && orderB !== null) {
+                            return orderA - orderB;
+                        }
+                        
+                        // 如果只有一个有预定义顺序，有预定义顺序的排在前面
+                        if (orderA !== null) return -1;
+                        if (orderB !== null) return 1;
+                    }
+                    
+                    // 如果都没有预定义顺序，检查是否包含"必修"或"选择性必修"
+                    const isOptionalA = a.includes('选择性必修');
+                    const isOptionalB = b.includes('选择性必修');
+                    const isRequiredA = a.includes('必修');
+                    const isRequiredB = b.includes('必修');
+                    
+                    // 必修排在选择性必修前面
+                    if (isRequiredA && isOptionalB) return -1;
+                    if (isOptionalA && isRequiredB) return 1;
+                    
+                    // 如果都是必修或都是选择性必修，按数字排序
+                    if ((isRequiredA && isRequiredB) || (isOptionalA && isOptionalB)) {
+                        const numA = extractChapterNumber(a);
+                        const numB = extractChapterNumber(b);
+                        return numA - numB;
+                    }
+                    
+                    // 其他情况按字母顺序排序
+                    return a.localeCompare(b);
+                });
+                
+                // 在控制台输出排序后的章节列表，方便调试
+                console.log('章节排序结果:', JSON.stringify(uniqueTexts));
+            }
+            // 特殊排序逻辑，处理单元排序
+            else if (id === 'unit') {
+                // 输出原始单元列表，帮助调试
+                console.log('排序前的单元列表:', JSON.stringify(uniqueTexts));
+                
+                // 定义政治科目具有明确顺序的单元名称
+                const politicsUnitOrder = {
+                    '第一单元': 1,
+                    '第二单元 只有社会主义才能救中国': 2,
+                    '第二单元 人民当家作主': 2,
+                    '第三单元 只有中国特色社会主义才能发展中国': 3,
+                    '第四单元': 4
+                };
+                
+                // 定义历史科目的单元顺序
+                const historyUnitOrder = {
+                    '第一单元': 1,
+                    '第二单元': 2,
+                    '第三单元': 3,
+                    '第四单元': 4,
+                    '第五单元': 5,
+                    '第六单元': 6
+                };
+                
+                // 根据当前科目选择合适的排序规则
+                const unitOrder = currentSubject === '政治' ? politicsUnitOrder : 
+                                 currentSubject === '历史' ? historyUnitOrder : null;
+                
+                // 自定义排序逻辑
+                uniqueTexts.sort((a, b) => {
+                    // 如果有特定科目的排序规则
+                    if (unitOrder) {
+                        // 检查a和b是否在预定义顺序中
+                        let orderA = null;
+                        let orderB = null;
+                        
+                        // 检查a是否在预定义顺序中
+                        for (const [key, value] of Object.entries(unitOrder)) {
+                            if (a.includes(key)) {
+                                orderA = value;
+                                break;
+                            }
+                        }
+                        
+                        // 检查b是否在预定义顺序中
+                        for (const [key, value] of Object.entries(unitOrder)) {
+                            if (b.includes(key)) {
+                                orderB = value;
+                                break;
+                            }
+                        }
+                        
+                        // 如果两者都有预定义顺序，直接比较
+                        if (orderA !== null && orderB !== null) {
+                            return orderA - orderB;
+                        }
+                        
+                        // 如果只有一个有预定义顺序，有预定义顺序的排在前面
+                        if (orderA !== null) return -1;
+                        if (orderB !== null) return 1;
+                    }
+                    
+                    // 提取单元序号的函数
+                    const getUnitNumber = (text) => {
+                        // 尝试匹配"第X单元"格式，X可以是一二三四五六七八九十等中文数字
+                        const cnMatch = text.match(/第([一二三四五六七八九十]+)单元/);
+                        if (cnMatch) {
+                            const numMap = {
+                                '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, 
+                                '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+                                '十一': 11, '十二': 12
+                            };
+                            return numMap[cnMatch[1]] || 999;
+                        }
+                        
+                        // 尝试匹配"第1单元"、"第2单元"等阿拉伯数字格式
+                        const arabicMatch = text.match(/第(\d+)单元/);
+                        if (arabicMatch) {
+                            return parseInt(arabicMatch[1]) || 999;
+                        }
+                        
+                        // 如果单元名称不包含序号格式，则放在最后
+                        return 9999;
+                    };
+                    
+                    // 正常按单元序号排序
+                    const numA = getUnitNumber(a);
+                    const numB = getUnitNumber(b);
+                    return numA - numB;
+                });
+                
+                // 在控制台输出排序后的单元列表，方便调试
+                console.log('单元排序结果:', JSON.stringify(uniqueTexts));
+            } 
+            // 添加课程的特殊排序逻辑
+            else if (id === 'lesson') {
+                console.log('排序前的课程列表:', JSON.stringify(uniqueTexts));
+                
+                // 自定义排序逻辑
+                uniqueTexts.sort((a, b) => {
+                    // 提取课程序号的函数
+                    const getLessonNumber = (text) => {
+                        // 尝试匹配"第X课"格式，X可以是一二三四五六七八九十等中文数字
+                        const cnMatch = text.match(/第([一二三四五六七八九十]+)课/);
+                        if (cnMatch) {
+                            const numMap = {
+                                '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, 
+                                '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+                                '十一': 11, '十二': 12, '十三': 13, '十四': 14, '十五': 15,
+                                '十六': 16, '十七': 17, '十八': 18, '十九': 19, '二十': 20
+                            };
+                            return numMap[cnMatch[1]] || 999;
+                        }
+                        
+                        // 尝试匹配"第1课"、"第2课"等阿拉伯数字格式
+                        const arabicMatch = text.match(/第(\d+)课/);
+                        if (arabicMatch) {
+                            return parseInt(arabicMatch[1]) || 999;
+                        }
+                        
+                        // 如果课程名称不包含序号格式，则放在最后
+                        return 9999;
+                    };
+                    
+                    // 按课程序号排序
+                    const numA = getLessonNumber(a);
+                    const numB = getLessonNumber(b);
+                    return numA - numB;
+                });
+                
+                // 在控制台输出排序后的课程列表，方便调试
+                console.log('课程排序结果:', JSON.stringify(uniqueTexts));
+            } else {
+                // 其他下拉菜单按原有的字母顺序排序
+                uniqueTexts.sort();
+            }
+            
+            // 将排序后的选项添加到选择器
+            uniqueTexts.forEach(text => {
+                const option = document.createElement('option');
+                option.value = text;
+                option.textContent = text;
+                select.appendChild(option);
+            });
+        }
+
+        // 辅助函数：提取章节数字
+        function extractChapterNumber(text) {
+            const match = text.match(/[一二三四五六七八九十]+|(\d+)/);
+            if (!match) return 999;
+            
+            if (/\d+/.test(match[0])) {
+                return parseInt(match[0]);
+            }
+            
+            const numMap = {
+                '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+                '六': 6, '七': 7, '八': 8, '九': 9, '十': 10
+            };
+            return numMap[match[0]] || 999;
+        }
+
+        // 添加题型数据
+        const questionTypes = {
+            '语文': ['文言文阅读', '现代文阅读', '古诗词鉴赏', '名篇名句默写', '语言文字运用', '作文'],
+            '数学': ['单项选择题', '多项选择题', '填空题', '解答题', '证明题', '应用题'],
+            '英语': ['听力理解', '阅读理解', '完形填空', '语法填空', '短文改错', '书面表达'],
+            '物理': ['选择题', '实验题', '计算题', '作图题', '论述题', '创新设计题'],
+            '化学': ['选择题', '物质推断题', '实验综合题', '工艺流程题', '反应原理题', '结构分析题'],
+            '生物': ['选择题', '实验探究题', '遗传分析题', '生态综合题', '生理调节题', '生物技术题'],
+            '政治': ['选择题', '材料分析题'],
+            '历史': ['选择题', '材料解析题', '历史小论文', '时空定位题', '史实辨析题', '历史地图题'],
+            '地理': ['选择题', '读图分析题', '区位分析题', '地理计算题', '自然灾害题', '区域发展题']
+        };
+
+        // 更新题型选择器
+        function updateQuestionTypes() {
+            const subject = document.getElementById('subject').value;
+            const typeSelect = document.getElementById('questionType');
+            const firstOptionText = typeSelect.options[0].text; // 保存第一个选项的文本
+            typeSelect.innerHTML = `<option value="">${firstOptionText}</option>`;
+            
+            if (subject && questionTypes[subject]) {
+                questionTypes[subject].forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    typeSelect.appendChild(option);
+                });
+            }
+        }
+
+        // 筛选题目
+        function filterQuestions() {
+            const filters = {
+                educationStage: document.getElementById('educationStage').value,
+                subject: document.getElementById('subject').value,
+                chapter: document.getElementById('chapter').value,
+                unit: document.getElementById('unit').value,
+                lesson: document.getElementById('lesson').value,
+                questionType: document.getElementById('questionType').value
+            };
+            
+            // 特殊处理历史科目的单元和课程筛选
+            const isHistorySubject = filters.subject === '历史';
+            const isHistoryChapter = filters.chapter && filters.chapter.includes('必修一');
+            const hasHistoryUnit = filters.unit && (filters.unit.includes('第一单元') || 
+                                                  filters.unit.includes('第二单元') || 
+                                                  filters.unit.includes('第三单元') || 
+                                                  filters.unit.includes('第四单元'));
+            
+            // 如果是历史科目的必修一章节，并且选择了单元，则放宽筛选条件
+            if (isHistorySubject && isHistoryChapter && hasHistoryUnit) {
+                console.log('历史科目特殊筛选处理:', filters.unit);
+                
+                // 使用宽松的筛选条件，只匹配科目和章节，忽略单元和课程的精确匹配
+                const filtered = allQuestions.filter(q => 
+                    (!filters.educationStage || q.educationStage === filters.educationStage) &&
+                    (!filters.subject || q.subject === filters.subject) &&
+                    (!filters.chapter || q.chapter === filters.chapter) &&
+                    (!filters.questionType || q.questionType === filters.questionType)
+                );
+                
+                // 输出筛选结果数量，帮助调试
+                console.log('历史科目筛选结果数量:', filtered.length);
+                
+                // 重置到第一页
+                currentPage = 1;
+                renderQuestions(filtered);
+                return;
+            }
+            
+            // 常规筛选逻辑
+            const filtered = allQuestions.filter(q => 
+                (!filters.educationStage || q.educationStage === filters.educationStage) &&
+                (!filters.subject || q.subject === filters.subject) &&
+                (!filters.chapter || q.chapter === filters.chapter) &&
+                (!filters.unit || q.unit === filters.unit) &&
+                (!filters.lesson || q.lesson === filters.lesson) &&
+                (!filters.questionType || q.questionType === filters.questionType)
+            );
+
+            // 重置到第一页
+            currentPage = 1;
+            renderQuestions(filtered);
+        }
+
+        // 清空已选题目
+        window.clearSelectedQuestions = function() {
+            // 清空选中题目集合
+            selectedQuestions.clear();
+            
+            // 更新购物车显示
+            updateDownloadPanel();
+                    // 保存到localStorage
+                    saveSelectedQuestions();
+            
+            // 更新题目渲染状态，清除选中标记
+            const selectedButtons = document.querySelectorAll('.select-btn.selected');
+            selectedButtons.forEach(btn => {
+                btn.classList.remove('selected');
+                // 添加恢复按钮文本
+                btn.innerHTML = '<span class="btn-text">组卷</span>';
+            });
+            
+            // 关闭弹窗
+            document.getElementById('paperTitleModal').style.display = 'none';
+            
+            // 从localStorage中也清除
+            localStorage.removeItem("selectedQuestions");
+            
+            // 提示用户
+            alert('已清空所有已选题目');
+        }
 </script>
     <!-- 添加客户端修复脚本 -->
     <script src="/static/js/fix_client_html.js?v=20250402"></script>
-    
-    <!-- 防错脚本，最后加载 -->
-    <script>
-    (function() {
-        // 全局错误处理
-        window.addEventListener('error', function(event) {
-            console.error('全局错误:', event.message, 'at', event.filename, ':', event.lineno);
-            return false; // 阻止默认处理
-        });
-        
-        // 检查页面元素
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('防错脚本检查DOM元素...');
-            
-            // 检查关键元素是否存在
-            const criticalElements = ['questionCards', 'paperTitleModal', 'paperTitleInput'];
-            
-            criticalElements.forEach(id => {
-                const element = document.getElementById(id);
-                if (!element) {
-                    console.warn(`警告: 页面缺少关键元素 #${id}`);
-                }
-            });
-            
-            // 防止未定义的函数调用
-            ['updateDownloadPanel', 'toggleAnswer', 'loadQuestions'].forEach(fnName => {
-                if (typeof window[fnName] !== 'function') {
-                    console.warn(`警告: 函数 ${fnName} 未定义，创建空函数`);
-                    window[fnName] = function() {
-                        console.log(`调用了未实现的函数: ${fnName}`);
-                    };
-                }
-            });
-        });
-        
-        // 检查安全工具是否可用
-        if (!window.domSafe) {
-            console.warn('domSafe工具未定义，创建默认实现');
-            window.domSafe = {
-                getById: function(id) { return document.getElementById(id); },
-                queryAll: function(selector) { return document.querySelectorAll(selector); },
-                query: function(selector) { return document.querySelector(selector); }
-            };
-        }
-    })();
-    </script>
 </body>
 </html>

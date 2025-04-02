@@ -1132,13 +1132,13 @@
             {% if page <= 1 %}
                 <span class="pagination-button" style="opacity: 0.5; cursor: not-allowed;">上一页</span>
             {% else %}
-                <a href="javascript:void(0)" onclick="navigateWithAllFilters({{ page-1 }})" class="pagination-button" data-page="{{ page-1 }}">上一页</a>
+                <a href="javascript:void(0)" onclick="navigateWithFilters('{{ page-1 }}')" class="pagination-button" data-page="{{ page-1 }}">上一页</a>
             {% endif %}
             <span class="pagination-info">第 {{ page }}/{{ pagination.pages }}页</span>
             {% if page >= pagination.pages %}
                 <span class="pagination-button" style="opacity: 0.5; cursor: not-allowed;">下一页</span>
             {% else %}
-                <a href="javascript:void(0)" onclick="navigateWithAllFilters({{ page+1 }})" class="pagination-button" data-page="{{ page+1 }}">下一页</a>
+                <a href="javascript:void(0)" onclick="navigateWithFilters('{{ page+1 }}')" class="pagination-button" data-page="{{ page+1 }}">下一页</a>
             {% endif %}
         {% else %}
             <span class="pagination-info">共 {{ total }} 份试卷</span>
@@ -1194,6 +1194,18 @@
             year: null,
             keyword: null // 添加关键词搜索字段
         };
+        
+        // 从URL参数初始化已选筛选条件
+        function initializeFiltersFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // 遍历所有可能的筛选条件
+            for (const key in selectedFilters) {
+                if (urlParams.has(key)) {
+                    selectedFilters[key] = urlParams.get(key);
+                }
+            }
+        }
 
         // 初始化分页
         let currentPage = 1;
@@ -1202,6 +1214,8 @@
 
         // 初始化动态筛选选项
         document.addEventListener('DOMContentLoaded', function() {
+            // 从URL初始化筛选条件
+            initializeFiltersFromUrl();
             // 获取所有试卷数据
             allPapers = Array.from(document.querySelectorAll('#papers-container tr')).map(row => {
                 const cells = row.querySelectorAll('td');
@@ -1262,6 +1276,9 @@
             
             // 显示分页控制区域
             document.getElementById('paginationControls').style.display = 'flex';
+            
+            // 更新筛选标签显示
+            updateFilterTags();
         });
 
         // 显示筛选模态框
@@ -1295,6 +1312,7 @@
                     if (selectedFilters[filterType] === option) {
                         selectedFilters[filterType] = null;
                     } else {
+                        // 保留其他筛选条件，只更新当前类型的筛选条件
                         selectedFilters[filterType] = option;
                     }
                     
@@ -1463,6 +1481,8 @@
         // 更新筛选标签
         function updateFilterTags() {
             const filterTags = document.getElementById('filterTags');
+            if (!filterTags) return;
+            
             filterTags.innerHTML = '';
             
             let hasFilters = false;
@@ -1505,12 +1525,12 @@
                         
                         // 如果是关键词搜索，清空搜索框
                         if (filterType === 'keyword') {
-                            document.getElementById('searchInput').value = '';
+                            const searchInput = document.getElementById('searchInput');
+                            if (searchInput) searchInput.value = '';
                         }
                         
                         // 重新应用筛选和更新标签
                         applyFilters();
-                        updateFilterTags();
                         
                         // 阻止冒泡
                         e.stopPropagation();
@@ -1521,7 +1541,10 @@
             }
             
             // 显示或隐藏筛选条件容器
-            document.getElementById('activeFilters').style.display = hasFilters ? 'block' : 'none';
+            const activeFilters = document.getElementById('activeFilters');
+            if (activeFilters) {
+                activeFilters.style.display = hasFilters ? 'block' : 'none';
+            }
         }
 
         // 显示试卷分页数据
