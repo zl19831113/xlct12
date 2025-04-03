@@ -1205,7 +1205,7 @@
             const currentSubject = document.getElementById('subject').value;
             const currentChapter = document.getElementById('chapter').value;
             const currentUnit = document.getElementById('unit').value;
-            if (currentSubject === '历史' && currentChapter && currentChapter.includes('必修一') && currentUnit) {
+            if (currentSubject === '历史' && currentChapter && currentUnit) {
                 const lessonSelect = document.getElementById('lesson');
                 lessonSelect.disabled = false;
             }
@@ -1247,6 +1247,9 @@
             const currentChapter = document.getElementById('chapter').value;
             const currentUnit = document.getElementById('unit').value;
             
+            // 保持变量名称一致性，避免错误
+            let actualSelectedValue = selectedValue;
+            
             // 获取符合当前筛选条件的所有题目
             const filteredQuestions = filterQuestionsBasedOnCurrentSelections();
             
@@ -1278,6 +1281,54 @@
                 filteredQuestions.forEach(q => {
                     // 确保科目匹配，避免历史科目显示政治科目的章节
                     if (currentSubject && q.subject !== currentSubject) return;
+                    
+                    // 历史科目的特殊处理：章节过滤
+                    if (currentSubject === '历史' && nextSelectId === 'chapter') {
+                        const value = q[nextSelectId];
+                        
+                        // 只显示指定的章节
+                        if (value && (
+                            value === '必修一 中外历史纲要上' || 
+                            value === '必修二 中外历史纲要下' || 
+                            value === '选择性必修一 国家制度与社会治理'
+                        )) {
+                            if (!nextOptions.includes(value)) {
+                                nextOptions.push(value);
+                            }
+                        }
+                    }
+                    
+                    // 特殊处理：第三单元 经济全球化 只显示在选择性必修1 当代国际经济与政治章节下
+                    if (currentSubject === '政治' && nextSelectId === 'unit') {
+                        const value = q[nextSelectId];
+                        if (value && value.includes('第三单元 经济全球化')) {
+                            // 只有当前章节是选择性必修1时才显示
+                            if (currentChapter && (currentChapter.includes('选择性必修1') || currentChapter.includes('当代国际经济与政治'))) {
+                                if (!nextOptions.includes(value)) {
+                                    nextOptions.push(value);
+                                }
+                            }
+                            return; // 跳过后续处理
+                        }
+                    }
+                    
+                    // 特殊处理：必修四 哲学与文化 下的第三单元：文化传承与文化创新 只显示特定课程
+                    if (currentSubject === '政治' && nextSelectId === 'lesson' && 
+                        currentChapter && currentChapter.includes('必修四 哲学与文化') &&
+                        currentUnit && currentUnit.includes('第三单元') && currentUnit.includes('文化传承与文化创新')) {
+                        const value = q[nextSelectId];
+                        // 只显示第一课和第二课
+                        if (value && (value.includes('第一课 文化传承与文化创新') || 
+                                      value.includes('第二课 文化传承与文化创新材料分析题'))) {
+                            if (!nextOptions.includes(value)) {
+                                nextOptions.push(value);
+                            }
+                            return; // 跳过后续处理
+                        } else {
+                            // 如果不是第一课或第二课，则不显示
+                            return;
+                        }
+                    }
                     
                     const value = q[nextSelectId];
                     if (value && !nextOptions.includes(value)) {
@@ -1944,7 +1995,7 @@
             let hasSpecialText = false;
             
             // 使用简单的数组来存储唯一的选项文本
-            const uniqueTexts = [];
+            let uniqueTexts = [];
             
             // 处理所有选项
             options.forEach(opt => {
@@ -1990,22 +2041,44 @@
                 
                 // 定义历史科目的章节顺序
                 const historyChapterOrder = {
-                    '必修一 中外历史纲要': 1,
-                    '必修二 中外历史纲要': 2,
-                    '必修三 中外历史纲要': 3,
-                    '选择性必修一 国家制度与社会治理': 4,
-                    '选择性必修二 经济与社会生活': 5,
-                    '选择性必修三 文化交流与传播': 6
+                    '必修一 中外历史纲要上': 1,
+                    '必修二 中外历史纲要下': 2,
+                    '选择性必修一 国家制度与社会治理': 3
                 };
                 
                 // 根据当前科目选择合适的排序规则
                 const chapterOrder = currentSubject === '政治' ? politicsChapterOrder : 
                                     currentSubject === '历史' ? historyChapterOrder : null;
                 
+                // 历史科目的特殊处理
+                if (currentSubject === '历史') {
+                    
+                    // 只保留指定的章节
+                    uniqueTexts = uniqueTexts.filter(text => 
+                        text === '必修一 中外历史纲要上' || 
+                        text === '必修二 中外历史纲要下' || 
+                        text === '选择性必修一 国家制度与社会治理'
+                    );
+                }
+                
                 // 自定义排序逻辑
                 uniqueTexts.sort((a, b) => {
-                    // 如果有特定科目的排序规则
-                    if (chapterOrder) {
+                    // 政治科目的特殊处理
+                    if (currentSubject === '政治') {
+                        // 严格按照预定义的顺序排列
+                        const orderA = politicsChapterOrder[a] || 999;
+                        const orderB = politicsChapterOrder[b] || 999;
+                        return orderA - orderB;
+                    }
+                    // 历史科目的特殊处理
+                    else if (currentSubject === '历史') {
+                        // 严格按照预定义的顺序排列
+                        const orderA = historyChapterOrder[a] || 999;
+                        const orderB = historyChapterOrder[b] || 999;
+                        return orderA - orderB;
+                    }
+                    // 其他科目的处理
+                    else if (chapterOrder) {
                         // 检查是否有明确定义顺序的章节
                         const orderA = chapterOrder[a] || null;
                         const orderB = chapterOrder[b] || null;
@@ -2052,10 +2125,16 @@
                 // 定义政治科目具有明确顺序的单元名称
                 const politicsUnitOrder = {
                     '第一单元': 1,
+                    '第一单元 各具特色的国家': 1,
+                    '第二单元': 2,
                     '第二单元 只有社会主义才能救中国': 2,
                     '第二单元 人民当家作主': 2,
+                    '第二单元 世界多极化': 2,
+                    '第三单元': 3,
                     '第三单元 只有中国特色社会主义才能发展中国': 3,
-                    '第四单元': 4
+                    '第三单元 经济全球化': 3,
+                    '第四单元': 4,
+                    '第四单元 国际组织': 4
                 };
                 
                 // 定义历史科目的单元顺序
@@ -2074,6 +2153,33 @@
                 
                 // 自定义排序逻辑
                 uniqueTexts.sort((a, b) => {
+                    // 获取当前选择的章节
+                    const currentChapter = document.getElementById('chapter').value;
+                    
+                    // 特殊处理选择性必修1当代国际经济与政治章节的单元排序
+                    if (currentSubject === '政治' && currentChapter && currentChapter.includes('选择性必修1')) {
+                        // 定义选择性必修1章节的单元顺序
+                        const optionalUnit1Order = {
+                            '第一单元 各具特色的国家': 1,
+                            '第二单元 世界多极化': 2,
+                            '第三单元 经济全球化': 3,
+                            '第四单元 国际组织': 4
+                        };
+                        
+                        // 检查a和b是否在选择性必修1的单元顺序中
+                        const orderA = optionalUnit1Order[a] || null;
+                        const orderB = optionalUnit1Order[b] || null;
+                        
+                        // 如果两者都有预定义顺序，直接比较
+                        if (orderA !== null && orderB !== null) {
+                            return orderA - orderB;
+                        }
+                        
+                        // 如果只有一个有预定义顺序，有预定义顺序的排在前面
+                        if (orderA !== null) return -1;
+                        if (orderB !== null) return 1;
+                    }
+                    
                     // 如果有特定科目的排序规则
                     if (unitOrder) {
                         // 检查a和b是否在预定义顺序中
@@ -2215,7 +2321,7 @@
             '化学': ['选择题', '物质推断题', '实验综合题', '工艺流程题', '反应原理题', '结构分析题'],
             '生物': ['选择题', '实验探究题', '遗传分析题', '生态综合题', '生理调节题', '生物技术题'],
             '政治': ['选择题', '材料分析题'],
-            '历史': ['选择题', '材料解析题', '历史小论文', '时空定位题', '史实辨析题', '历史地图题'],
+            '历史': ['选择题', '材料分析题', '小论文'],
             '地理': ['选择题', '读图分析题', '区位分析题', '地理计算题', '自然灾害题', '区域发展题']
         };
 
