@@ -1,12 +1,12 @@
 /**
- * 客户端修复脚本 - 处理HTML实体和题目排序问题
- * 版本: 1.1.0
- * 日期: 2025-04-02
+ * 客户端修复脚本 - 处理HTML实体、题目排序和A4格式排版
+ * 版本: 1.2.0
+ * 日期: 2025-04-04
  */
 (function() {
     // 使用window.onload确保在所有资源加载完成后执行
     window.onload = function() {
-        console.log('客户端修复脚本已加载');
+        console.log('客户端修复脚本已加载 版本 1.2.0');
         
         // 1. 修复HTML实体问题
         function fixHtmlEntities() {
@@ -190,14 +190,189 @@
                     // 在生成试卷前确保题目排序正确
                     fixHtmlEntities();
                     fixQuestionOrder();
+                    
+                    // 添加生成文档的类，修改呈现样式
+                    document.body.classList.add('generating-paper');
+                    updatePageStyles();
+                    
                     console.log('试卷生成前预处理完成');
                     
-                    // 调用原始生成函数
-                    return originalGeneratePaper.apply(this, arguments);
+                    // 使用延时从而在生成前看到好的排版
+                    setTimeout(function() {
+                        // 调用原始生成函数
+                        const result = originalGeneratePaper.apply(this, arguments);
+                        
+                        // 在生成后恢复样式
+                        setTimeout(function() {
+                            document.body.classList.remove('generating-paper');
+                        }, 1000);
+                        
+                        return result;
+                    }, 500);
                 };
                 
                 console.log('试卷生成功能增强完成');
             }
+        }
+        
+        // 7. 更新页面样式为A4排版格式
+        function updatePageStyles() {
+            // 创建样式元素
+            const styleElement = document.createElement('style');
+            styleElement.type = 'text/css';
+            styleElement.id = 'a4-paper-styles';
+            
+            // A4纸张样式和字体设置
+            const styles = `
+                /* 页面设置 - A4纸张 */
+                #paper-container {
+                    width: 210mm;
+                    /* 页面大小修正 */
+                    margin: 0 auto;
+                    padding: 25.4mm;
+                    background-color: white;
+                    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                }
+                
+                /* 标题样式：宋体，15磅，加粗，居中 */
+                #paper-container h1 {
+                    font-family: 宋体, SimSun, sans-serif;
+                    font-size: 15pt;
+                    font-weight: bold;
+                    text-align: center;
+                    margin-bottom: 20px;
+                }
+                
+                /* 章节标题（如“一、单选题”）：宋体，10.5磅，加粗，左对齐 */
+                #paper-container .section-title {
+                    font-family: 宋体, SimSun, sans-serif;
+                    font-size: 10.5pt;
+                    font-weight: bold;
+                    text-align: left;
+                    margin-top: 15px;
+                    margin-bottom: 10px;
+                }
+                
+                /* 题目内容：宋体，10.5磅，左对齐 */
+                #paper-container .question-item,
+                #paper-container .question-text,
+                #paper-container .question-stem {
+                    font-family: 宋体, SimSun, sans-serif;
+                    font-size: 10.5pt;
+                    text-align: left;
+                    line-height: 1.5;
+                    margin-bottom: 5px;
+                }
+                
+                /* 选项内容：与题目内容相同的字体和字号 */
+                #paper-container .option-text,
+                #paper-container .option {
+                    font-family: 宋体, SimSun, sans-serif;
+                    font-size: 10.5pt;
+                    line-height: 1.5;
+                }
+                
+                /* 当生成文档时修改选择器 */
+                body.generating-paper {
+                    background-color: white;
+                }
+                
+                body.generating-paper .filter-sidebar,
+                body.generating-paper .header,
+                body.generating-paper #downloadPanel,
+                body.generating-paper .pagination-controls {
+                    display: none !important;
+                }
+                
+                body.generating-paper .main-container {
+                    padding: 0;
+                    margin: 0;
+                    width: 210mm;
+                    max-width: 210mm;
+                }
+                
+                body.generating-paper .content-area {
+                    width: 100%;
+                    padding: 0;
+                }
+                
+                body.generating-paper #paper-container {
+                    box-shadow: none;
+                }
+            `;
+            
+            styleElement.textContent = styles;
+            document.head.appendChild(styleElement);
+            
+            // 检查是否需要添加章节标题
+            const paperContainer = document.getElementById('paper-container');
+            if (paperContainer) {
+                // 找出所有题型
+                const questionTypes = {};
+                const questionItems = paperContainer.querySelectorAll('.question-item');
+                
+                questionItems.forEach(item => {
+                    const type = item.getAttribute('data-question-type') || '未分类';
+                    if (!questionTypes[type]) {
+                        questionTypes[type] = [];
+                    }
+                    questionTypes[type].push(item);
+                });
+                
+                // 如果找到了题目并且有至少一种题型，添加章节标题
+                if (Object.keys(questionTypes).length > 0) {
+                    const chineseNumbers = {
+                        1: '一',
+                        2: '二',
+                        3: '三',
+                        4: '四',
+                        5: '五',
+                        6: '六',
+                        7: '七',
+                        8: '八',
+                        9: '九',
+                        10: '十'
+                    };
+                    
+                    // 定义题型顺序
+                    const typeOrder = [
+                        '单选题', '多选题', '判断题', '填空题', '解答题', 
+                        '主观题', '计算题', '论述题', '作文',
+                        '诗词鉴赏', '文言文阅读', '现代文阅读',
+                        '未分类'
+                    ];
+                    
+                    // 排序题型
+                    const orderedTypes = [];
+                    typeOrder.forEach(type => {
+                        if (questionTypes[type]) {
+                            orderedTypes.push(type);
+                        }
+                    });
+                    
+                    // 添加没有在预定义顺序中的题型
+                    Object.keys(questionTypes).forEach(type => {
+                        if (!orderedTypes.includes(type)) {
+                            orderedTypes.push(type);
+                        }
+                    });
+                    
+                    console.log('检测到题型：', orderedTypes);
+                    
+                    // 为每个题型添加标题
+                    orderedTypes.forEach((type, index) => {
+                        const sectionTitle = document.createElement('div');
+                        sectionTitle.className = 'section-title';
+                        sectionTitle.textContent = `${chineseNumbers[index+1] || (index+1)}、${type}`;
+                        
+                        // 找到该题型的第一道题
+                        const firstQuestion = questionTypes[type][0];
+                        firstQuestion.parentNode.insertBefore(sectionTitle, firstQuestion);
+                    });
+                }
+            }
+            
+            console.log('A4纸张样式已应用');
         }
         
         // 5. 监听动态添加的题目
@@ -275,13 +450,14 @@
                 fixPdfDownload();
                 enhanceGeneratePaper();     // 增强试卷生成功能
                 setupMutationObserver();
+                updatePageStyles();         // 应用A4纸张样式
                 
                 // 每隔5秒检查一次，确保动态加载的内容也被处理
                 setInterval(function() {
                     fixHtmlEntities();
                 }, 5000);
                 
-                console.log('客户端修复脚本初始化完成，版本1.1.0');
+                console.log('客户端修复脚本初始化完成，版本1.2.0');
             } catch (error) {
                 console.error('客户端修复脚本出错:', error);
             }
