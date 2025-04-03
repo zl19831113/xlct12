@@ -1341,6 +1341,12 @@ def generate_paper():
         answer_heading = doc.add_heading('参考答案', 0)
         answer_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
+        # 设置标题字体为宋体和大小
+        for run in answer_heading.runs:
+            run.font.name = '宋体'
+            run.font.size = Pt(15)
+            run.font.bold = True
+        
         # 检查是否有选择题
         choice_questions = []
         question_indices = []
@@ -1388,8 +1394,9 @@ def generate_paper():
                     num_paragraph = num_cell.paragraphs[0]
                     num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     run = num_paragraph.runs[0]
+                    run.font.name = '宋体'
                     run.font.bold = True
-                    run.font.size = Pt(15)
+                    run.font.size = Pt(10.5)
                     
                     # 设置单元格垂直居中
                     num_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
@@ -1400,7 +1407,8 @@ def generate_paper():
                     ans_paragraph = ans_cell.paragraphs[0]
                     ans_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     run = ans_paragraph.runs[0]
-                    run.font.size = Pt(15)
+                    run.font.name = '宋体'
+                    run.font.size = Pt(10.5)
                     
                     # 设置单元格垂直居中
                     ans_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
@@ -1412,7 +1420,13 @@ def generate_paper():
         doc.add_paragraph().paragraph_format.space_after = Pt(16)
         
         # 添加答案与解析标题
-        doc.add_heading('答案与解析', 1)
+        explanation_heading = doc.add_heading('答案与解析', 1)
+        
+        # 设置标题字体为宋体和大小
+        for run in explanation_heading.runs:
+            run.font.name = '宋体'
+            run.font.size = Pt(15)
+            run.font.bold = True
         
         # 添加每道题的解析，不留空白
         for i, q in enumerate(questions, 1):
@@ -1458,16 +1472,21 @@ def generate_paper():
             p = doc.add_paragraph()
             p.style = 'Normal'
             p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
+            p.paragraph_format.line_spacing = 1.5  # 设置行距为1.5倍
             run = p.add_run(f"第{i}题：")
+            run.font.name = '宋体'
             run.font.bold = True
-            run.font.size = Pt(15)
+            run.font.size = Pt(10.5)
             
             # 添加答案选项行（如果有）
             if letter_answer:
                 p = doc.add_paragraph()
                 p.style = 'Normal'
                 p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
-                p.add_run(letter_answer).font.size = Pt(18)  # 增大到 18pt
+                p.paragraph_format.line_spacing = 1.5  # 设置行距为1.5倍
+                run = p.add_run(letter_answer)
+                run.font.name = '宋体'
+                run.font.size = Pt(10.5)
             
             # 添加详解部分
             if '【详解】' in detailed_explanation:
@@ -1508,15 +1527,18 @@ def generate_paper():
                     p = doc.add_paragraph()
                     p.style = 'Normal'
                     p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
+                    p.paragraph_format.line_spacing = 1.5  # 设置行距为1.5倍
                     
                     # 添加详解标签
                     tag_run = p.add_run('【详解】')
+                    tag_run.font.name = '宋体'
                     tag_run.font.bold = True
-                    tag_run.font.size = Pt(15)
+                    tag_run.font.size = Pt(10.5)
                     
                     # 添加处理后的详解文本（无空行）
                     content_run = p.add_run(explanation_text)
-                    content_run.font.size = Pt(15)
+                    content_run.font.name = '宋体'
+                    content_run.font.size = Pt(10.5)
             elif detailed_explanation.strip():
                 # 如果没有详解标签但有内容
                 # 移除所有多余空行
@@ -1534,15 +1556,18 @@ def generate_paper():
                 if not letter_answer and '【详解】' not in clean_text:
                     # 直接显示答案文本作为主观题答案
                     content_run = p.add_run(clean_text)
-                    content_run.font.size = Pt(15)
+                    content_run.font.name = '宋体'
+                    content_run.font.size = Pt(10.5)
                 else:
                     # 如果有选项答案或者显示含详解标记，则添加标准详解标记
                     tag_run = p.add_run('【详解】')
+                    tag_run.font.name = '宋体'
                     tag_run.font.bold = True
-                    tag_run.font.size = Pt(15)
+                    tag_run.font.size = Pt(10.5)
                     
                     content_run = p.add_run(clean_text)
-                    content_run.font.size = Pt(15)
+                    content_run.font.name = '宋体'
+                    content_run.font.size = Pt(10.5)
 
         # 返回 Word
         buffer = BytesIO()
