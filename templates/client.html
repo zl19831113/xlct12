@@ -38,6 +38,19 @@
             box-sizing: border-box;
         }
         
+        /* 默认样式（移动端） */
+        .content-area {
+            width: 100%;
+        }
+        
+        /* 只在标准或大屏幕设备上有内边距 */
+        @media (min-width: 992px) {
+            .content-area {
+                margin-left: 300px; /* 留出筛选栏的空间 */
+                width: calc(100% - 300px);
+            }
+        }
+        
         /* 对话框样式 */
         .modal-overlay {
             display: none;
@@ -114,13 +127,19 @@
         .filter-sidebar {
             width: 280px;
             flex-shrink: 0;
-            margin-top: 16px;
-            position: sticky;
-            top: 20px; /* 减小顶部距离 */
-            align-self: flex-start; /* 确保在flex容器中对齐到顶部 */
-            max-height: calc(100vh - 60px); /* 调整最大高度 */
+            max-height: calc(100vh - 100px);
             overflow-y: auto;
-            z-index: 10; /* 确保在滚动时显示在其他内容之上 */
+        }
+        
+        /* 只在标准或大屏幕设备上有固定底部定位 */
+        @media (min-width: 992px) {
+            .filter-sidebar {
+                position: fixed;
+                left: max(calc((100% - 1200px) / 2 + 16px), 16px);
+                bottom: 30px;
+                max-height: calc(100vh - 150px);
+                z-index: 100;
+            }
         }
 
         .filter-box {
