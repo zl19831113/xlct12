@@ -116,9 +116,11 @@
             flex-shrink: 0;
             margin-top: 16px;
             position: sticky;
-            top: 80px;
-            max-height: calc(100vh - 100px);
+            top: 20px; /* 减小顶部距离 */
+            align-self: flex-start; /* 确保在flex容器中对齐到顶部 */
+            max-height: calc(100vh - 60px); /* 调整最大高度 */
             overflow-y: auto;
+            z-index: 10; /* 确保在滚动时显示在其他内容之上 */
         }
 
         .filter-box {
