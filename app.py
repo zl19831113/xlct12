@@ -973,26 +973,35 @@ def generate_paper():
         # 添加set_cell_border函数到generate_paper函数内部
         def set_cell_border(table):
             """Set cell borders for Word table"""
-            from docx.oxml import OxmlElement
-            from docx.oxml.ns import qn
-            
-            # 设置表格的全部单元格边框
-            tbl = table._tbl
-            for row in table.rows:
-                for cell in row.cells:
-                    tcPr = cell._tc.get_or_add_tcPr()
-                    # 给单元格添加边框
-                    tcBorders = OxmlElement('w:tcBorders')
-                    for border_name in ['top', 'left', 'bottom', 'right']:
-                        border = OxmlElement(f'w:{border_name}')
-                        border.set(qn('w:val'), 'single')
-                        border.set(qn('w:sz'), '4')  # 1pt = 8 units
-                        border.set(qn('w:space'), '0')
-                        border.set(qn('w:color'), '000000')  # 黑色边框
-                        tcBorders.append(border)
+            try:
+                from docx.oxml import OxmlElement
+                from docx.oxml.ns import qn
+                
+                # 检查表格是否有效
+                if not hasattr(table, 'rows') or len(table.rows) == 0:
+                    print("警告: 传入set_cell_border的表格无效或为空")
+                    return
                     
-                    tcPr.append(tcBorders)
-                    
+                # 设置表格的全部单元格边框
+                tbl = table._tbl
+                for row in table.rows:
+                    for cell in row.cells:
+                        tcPr = cell._tc.get_or_add_tcPr()
+                        # 给单元格添加边框
+                        tcBorders = OxmlElement('w:tcBorders')
+                        for border_name in ['top', 'left', 'bottom', 'right']:
+                            border = OxmlElement(f'w:{border_name}')
+                            border.set(qn('w:val'), 'single')
+                            border.set(qn('w:sz'), '4')  # 1pt = 8 units
+                            border.set(qn('w:space'), '0')
+                            border.set(qn('w:color'), '000000')  # 黑色边框
+                            tcBorders.append(border)
+                        
+                        tcPr.append(tcBorders)
+            except Exception as e:
+                print(f"设置表格边框时出错: {str(e)}")
+                # 忽略错误，不影响文档生成
+        
         print("Starting paper generation process...")
         # 1) 获取选中的题目 ID 和试卷标题
         data = request.get_json()
@@ -1149,64 +1158,81 @@ def generate_paper():
             
             # 如果是英语试卷且有听力部分，添加二维码
             if is_english_paper and audio_files:
-                # 创建表格，用于放置标题和二维码
-                header_table = doc.add_table(rows=1, cols=2)
-                header_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-                
-                # 设置表格宽度
-                header_table.autofit = False
-                header_table.width = Inches(6.0)
-                
-                # 左侧单元格：标题
-                title_cell = header_table.cell(0, 0)
-                title_cell.width = Inches(4.5)  # 标题占75%宽度
-                title_paragraph = title_cell.paragraphs[0]
-                title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                title_paragraph.style = doc.styles['Title Bold']
-                title_paragraph.add_run(paper_title)
-                
-                # 右侧单元格：二维码
-                qr_cell = header_table.cell(0, 1)
-                qr_cell.width = Inches(1.5)  # 二维码占25%宽度
-                qr_paragraph = qr_cell.paragraphs[0]
-                qr_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                
-                # 生成二维码
-                base_url = request.host_url.rstrip('/')  # 获取当前主机URL
-                qr_url = f"{base_url}/audio_player/{paper_uuid}"
-                
-                # 创建二维码图像
-                qr = qrcode.QRCode(
-                    version=1,
-                    error_correction=qrcode.constants.ERROR_CORRECT_L,
-                    box_size=10,
-                    border=4,
-                )
-                qr.add_data(qr_url)
-                qr.make(fit=True)
-                img = qr.make_image(fill_color="black", back_color="white")
-                
-                # 保存二维码到临时文件
-                img_buffer = BytesIO()
-                img.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
-                
-                # 添加二维码图像到文档
-                qr_pic = qr_paragraph.add_run().add_picture(img_buffer, width=Inches(1.2))
-                
-                # 添加扫描提示
-                scan_paragraph = qr_cell.add_paragraph()
-                scan_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                scan_run = scan_paragraph.add_run("扫码收听\n听力音频")
-                scan_run.font.size = Pt(9)
-                scan_run.font.bold = True
-                
-                # 去除表格边框
-                header_table.style = 'Table Grid'
-                for cell in header_table.cells:
-                    for paragraph in cell.paragraphs:
-                        for border in ['top', 'left', 'bottom', 'right']:
-                            cell._tc.get_or_add_tcPr().first_child_found_in("w:tcBorders").find(f"w:{border}").set(qn('w:val'), 'nil')
+                title_paragraph = None  # 初始化标题段落引用
+                try:
+                    # 创建表格，用于放置标题和二维码
+                    header_table = doc.add_table(rows=1, cols=2)
+                    header_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+                    
+                    # 设置表格宽度
+                    header_table.autofit = False
+                    header_table.width = Inches(6.0)
+                    
+                    # 左侧单元格：标题
+                    title_cell = header_table.cell(0, 0)
+                    title_cell.width = Inches(4.5)  # 标题占75%宽度
+                    title_paragraph = title_cell.paragraphs[0]
+                    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    title_paragraph.style = doc.styles['Title Bold']
+                    title_paragraph.add_run(paper_title)
+                    
+                    # 右侧单元格：二维码
+                    qr_cell = header_table.cell(0, 1)
+                    qr_cell.width = Inches(1.5)  # 二维码占25%宽度
+                    qr_paragraph = qr_cell.paragraphs[0]
+                    qr_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    
+                    # 生成二维码
+                    base_url = request.host_url.rstrip('/')  # 获取当前主机URL
+                    qr_url = f"{base_url}/audio_player/{paper_uuid}"
+                    
+                    # 创建二维码图像
+                    qr = qrcode.QRCode(
+                        version=1,
+                        error_correction=qrcode.constants.ERROR_CORRECT_L,
+                        box_size=10,
+                        border=4,
+                    )
+                    qr.add_data(qr_url)
+                    qr.make(fit=True)
+                    img = qr.make_image(fill_color="black", back_color="white")
+                    
+                    # 保存二维码到临时文件
+                    img_buffer = BytesIO()
+                    img.save(img_buffer, format='PNG')
+                    img_buffer.seek(0)
+                    
+                    # 添加二维码图像到文档
+                    qr_pic = qr_paragraph.add_run().add_picture(img_buffer, width=Inches(1.2))
+                    
+                    # 添加扫描提示
+                    scan_paragraph = qr_cell.add_paragraph()
+                    scan_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    scan_run = scan_paragraph.add_run("扫码收听\n听力音频")
+                    scan_run.font.size = Pt(9)
+                    scan_run.font.bold = True
+                    
+                    # 去除表格边框
+                    try:
+                        header_table.style = 'Table Grid'
+                        # 使用更安全的方式处理边框
+                        from docx.oxml.ns import qn
+                        for cell in header_table.cells:
+                            tc_pr = cell._tc.get_or_add_tcPr()
+                            tc_borders = tc_pr.first_child_found_in("w:tcBorders")
+                            if tc_borders:
+                                for border in ['top', 'left', 'bottom', 'right']:
+                                    border_elem = tc_borders.find(f"w:{border}")
+                                    if border_elem is not None:
+                                        border_elem.set(qn('w:val'), 'nil')
+                    except Exception as border_err:
+                        print(f"处理表格边框时出错: {border_err}")
+                except Exception as qr_err:
+                    print(f"创建二维码和表格时出错: {qr_err}")
+                    # 创建普通标题作为备用
+                    title_paragraph = doc.add_paragraph(paper_title)
+                    title_paragraph.style = doc.styles['Title Bold']
+                    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
             else:
                 # 添加标题（宋体，15磅，加粗，居中）
                 title_paragraph = doc.add_paragraph(paper_title)
@@ -1658,56 +1684,70 @@ def generate_paper():
                 if choice_questions:
                     # 计算需要多少行（每行10题）
                     rows_needed = math.ceil(len(choice_questions) / 10)
+                    cols_needed = min(len(choice_questions), 10)
+                    
+                    # 确保至少有一行一列
+                    rows_needed = max(1, rows_needed)
+                    cols_needed = max(1, cols_needed)
                     
                     # 创建表格
-                    table = doc.add_table(rows=rows_needed * 2, cols=min(len(choice_questions), 10))
-                    table.style = 'Table Grid'
-                    table.alignment = WD_TABLE_ALIGNMENT.CENTER
-                    
-                    # 设置表格宽度
-                    table.autofit = False
-                    
-                    # 设置行高
-                    for row in table.rows:
-                        row.height = Pt(28)  # 设置行高，确保足够的垂直空间
-                        row.height_rule = 1  # 1表示固定高度
-                    
-                    # 填充表格内容
-                    current_cell_index = 0
-                    
-                    for q_idx in range(len(choice_questions)):
-                        row_idx = (q_idx // 10) * 2
-                        col_idx = q_idx % 10
+                    try:
+                        table = doc.add_table(rows=rows_needed * 2, cols=cols_needed)
+                        table.style = 'Table Grid'
+                        table.alignment = WD_TABLE_ALIGNMENT.CENTER
                         
-                        # 确保我们不会超出表格范围
-                        if col_idx < len(table.columns):
-                            # 题号单元格
-                            num_cell = table.cell(row_idx, col_idx)
-                            num_cell.text = str(question_indices[q_idx])
-                            num_paragraph = num_cell.paragraphs[0]
-                            num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                            run = num_paragraph.runs[0]
-                            run.font.name = '宋体'
-                            run.font.bold = True
-                            run.font.size = Pt(10.5)
+                        # 设置表格宽度
+                        table.autofit = False
+                        
+                        # 设置行高
+                        for row in table.rows:
+                            row.height = Pt(28)  # 设置行高，确保足够的垂直空间
+                            row.height_rule = 1  # 1表示固定高度
+                        
+                        # 填充表格内容
+                        current_cell_index = 0
+                        
+                        for q_idx in range(len(choice_questions)):
+                            if q_idx >= cols_needed * rows_needed:
+                                # 防止超出表格范围
+                                break
+                                
+                            row_idx = (q_idx // cols_needed) * 2
+                            col_idx = q_idx % cols_needed
                             
-                            # 设置单元格垂直居中
-                            num_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                            
-                            # 答案单元格
-                            ans_cell = table.cell(row_idx + 1, col_idx)
-                            ans_cell.text = choice_answers[q_idx]
-                            ans_paragraph = ans_cell.paragraphs[0]
-                            ans_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                            run = ans_paragraph.runs[0]
-                            run.font.name = '宋体'
-                            run.font.size = Pt(10.5)
-                            
-                            # 设置单元格垂直居中
-                            ans_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                    
-                    # 设置表格边框
-                    set_cell_border(table)
+                            # 确保我们不会超出表格范围
+                            if row_idx < len(table.rows) and col_idx < cols_needed:
+                                # 题号单元格
+                                num_cell = table.cell(row_idx, col_idx)
+                                num_cell.text = str(question_indices[q_idx])
+                                num_paragraph = num_cell.paragraphs[0]
+                                num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                                run = num_paragraph.runs[0]
+                                run.font.name = '宋体'
+                                run.font.bold = True
+                                run.font.size = Pt(10.5)
+                                
+                                # 设置单元格垂直居中
+                                num_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                                
+                                # 答案单元格
+                                if row_idx + 1 < len(table.rows):
+                                    ans_cell = table.cell(row_idx + 1, col_idx)
+                                    ans_cell.text = choice_answers[q_idx]
+                                    ans_paragraph = ans_cell.paragraphs[0]
+                                    ans_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                                    run = ans_paragraph.runs[0]
+                                    run.font.name = '宋体'
+                                    run.font.size = Pt(10.5)
+                                    
+                                    # 设置单元格垂直居中
+                                    ans_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                        
+                        # 设置表格边框
+                        set_cell_border(table)
+                    except Exception as table_error:
+                        print(f"表格创建过程中出错: {str(table_error)}")
+                        # 记录错误但继续执行，不让表格错误影响整个文档生成
                 
                 # 添加表格后的空白 - 减少空白量
                 doc.add_paragraph().paragraph_format.space_after = Pt(16)
