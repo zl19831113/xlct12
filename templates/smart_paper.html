@@ -1066,7 +1066,7 @@
                     question_ids: questionIds,
                     paper_title: paperTitle,
                     has_audio: audioFiles && audioFiles.length > 0,
-                    audio_files: audioFiles || []
+                    audio_files: audioFiles
                 })
             })
             .then(response => {
@@ -1079,26 +1079,28 @@
                 // 创建下载链接
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                const fileExtension = audioFiles && audioFiles.length > 0 ? '.zip' : '.docx';
                 a.href = url;
-                a.download = paperTitle + fileExtension;
+                
+                // 根据内容类型设置文件扩展名
+                const contentType = blob.type;
+                let fileExtension = '.docx';
+                if (contentType === 'application/zip') {
+                    fileExtension = '.zip';
+                    showMessage('试卷和听力音频已打包成功！', 'success');
+                } else {
+                    showMessage('试卷生成成功！', 'success');
+                }
+                
+                a.download = `${paperTitle}${fileExtension}`;
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-
-                // 更新UI状态
-                document.getElementById('generateButton').innerHTML = '生成试卷';
+                
                 document.getElementById('generateButton').disabled = false;
-                document.getElementById('statusMessage').textContent = '试卷生成成功！';
-                document.getElementById('statusMessage').style.color = 'green';
             })
             .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('generateButton').innerHTML = '生成试卷';
                 document.getElementById('generateButton').disabled = false;
-                document.getElementById('statusMessage').textContent = error.message;
-                document.getElementById('statusMessage').style.color = 'red';
+                showMessage('下载试卷失败：' + error.message, 'error');
             });
         }
     </script>

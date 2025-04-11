@@ -999,10 +999,14 @@ def generate_paper():
 
         question_ids = data.get('question_ids', [])
         paper_title = data.get('paper_title', '试卷')
-
+        has_audio = data.get('has_audio', False)  # 是否包含音频文件
+        audio_files = data.get('audio_files', [])  # 音频文件列表
+        
         # 添加日志：打印接收到的数据
         print(f"Received question IDs: {question_ids}")
         print(f"Received paper title: {paper_title}")
+        print(f"Has audio files: {has_audio}")
+        print(f"Audio files count: {len(audio_files)}")
 
         # ---> ADDED: Limit the number of questions
         MAX_QUESTIONS_LIMIT = 200
@@ -1033,6 +1037,13 @@ def generate_paper():
             # 按照原始顺序排列题目
             questions = [question_map[qid] for qid in question_ids if qid in question_map]
             print(f"Final question count for paper: {len(questions)}")
+            
+            # 检查是否是英语听力试卷
+            is_english_listening = False
+            if len(questions) > 0 and questions[0].subject == '英语' and has_audio:
+                is_english_listening = True
+                print("This is an English listening paper with audio files")
+            
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             traceback.print_exc() # Ensure traceback is printed
@@ -1040,6 +1051,10 @@ def generate_paper():
 
         # Wrap document creation and population in a larger try block
         try:
+            # 创建临时目录用于存放文件
+            temp_dir = tempfile.mkdtemp()
+            docx_path = os.path.join(temp_dir, f"{paper_title}.docx")
+            
             # 2) 创建 Word 文档
             doc = Document()
             
@@ -1785,69 +1800,7 @@ def generate_paper():
             # 添加日志：文件生成完成，准备发送
             print(f"Word document generated successfully for title: {paper_title}. Preparing to send.")
 
-            # 检查是否是英语科目并且有音频文件需要打包
-            has_audio = data.get('has_audio', False)
-            if has_audio and any(q.subject == '英语' and q.question_type == '听力理解' and (q.audio_content or q.audio_file_path) for q in questions):
-                # 创建临时目录用于存放文件
-                temp_dir = tempfile.mkdtemp()
-                try:
-                    # 保存Word文档到临时目录
-                    docx_path = os.path.join(temp_dir, f"{paper_title}.docx")
-                    with open(docx_path, 'wb') as f:
-                        f.write(file_stream.getvalue())
-
-                    # 收集音频文件信息
-                    audio_files = []
-                    for q in questions:
-                        if q.subject == '英语' and q.question_type == '听力理解':
-                            if q.audio_content or q.audio_file_path:
-                                audio_files.append({
-                                    'id': q.id,
-                                    'filename': q.audio_filename or f'audio_{q.id}.mp3',
-                                    'path': q.audio_file_path,
-                                    'content': q.audio_content
-                                })
-                    
-                    # 创建ZIP文件
-                    zip_path = os.path.join(temp_dir, f"{paper_title}.zip")
-                    with zipfile.ZipFile(zip_path, 'w') as zip_file:
-                        # 添加Word文档
-                        zip_file.write(docx_path, f"{paper_title}.docx")
-                        
-                        # 添加音频文件
-                        for audio_file in audio_files:
-                            if audio_file.get('content'):
-                                # 如果有二进制内容，写入临时文件后添加到ZIP
-                                audio_filename = audio_file.get('filename')
-                                temp_audio_path = os.path.join(temp_dir, audio_filename)
-                                with open(temp_audio_path, 'wb') as f:
-                                    f.write(audio_file['content'])
-                                zip_file.write(temp_audio_path, f"听力音频/{audio_filename}")
-                            elif audio_file.get('path') and os.path.exists(audio_file['path']):
-                                # 如果有文件路径，直接添加到ZIP
-                                audio_filename = audio_file.get('filename')
-                                zip_file.write(audio_file['path'], f"听力音频/{audio_filename}")
-                    
-                    # 读取生成的ZIP文件
-                    with open(zip_path, 'rb') as f:
-                        zip_data = f.read()
-                    
-                    # 清理临时目录
-                    shutil.rmtree(temp_dir)
-                    
-                    # 返回ZIP文件
-                    response = make_response(zip_data)
-                    response.headers.set('Content-Type', 'application/zip')
-                    response.headers.set('Content-Disposition', f'attachment; filename="{paper_title}.zip"')
-                    return response
-                    
-                except Exception as pack_error:
-                    print(f"Error packaging audio files with document: {str(pack_error)}")
-                    traceback.print_exc()
-                    # 如果打包失败，清理临时目录并继续使用原始文档返回
-                    shutil.rmtree(temp_dir)
-            
-            # 如果不是英语听力题或没有音频文件，直接返回Word文档
+            # 发送文件
             safe_title = paper_title + '.docx'
             return send_file(
                 file_stream,
