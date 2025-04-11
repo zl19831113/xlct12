@@ -1108,15 +1108,15 @@ def generate_paper():
             style.paragraph_format.line_spacing = 1.5  # 1.5倍行距
             style.paragraph_format.space_after = Pt(0)  # 默认段落间距
             
-            # 创建标题样式（宋体，20磅，加粗，居中）
+            # 创建标题样式（宋体，15磅，加粗，居中）
             title_style = doc.styles.add_style('Title Bold', WD_STYLE_TYPE.PARAGRAPH)
             title_style.base_style = doc.styles['Normal']
             title_style.font.name = '宋体'
             title_style.font.bold = True
-            title_style.font.size = Pt(20) # 调大字号从15变为20
+            title_style.font.size = Pt(15)
             title_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            title_style.paragraph_format.space_before = Pt(10)
-            title_style.paragraph_format.space_after = Pt(20) # 增加标题后的间距从10变为20
+            title_style.paragraph_format.space_before = Pt(0)
+            title_style.paragraph_format.space_after = Pt(10)
             
             # 创建章节标题样式（宋体，10.5磅，加粗，左对齐）
             section_style = doc.styles.add_style('Section Title', WD_STYLE_TYPE.PARAGRAPH)
@@ -1171,19 +1171,16 @@ def generate_paper():
                     # 左侧单元格：标题
                     title_cell = header_table.cell(0, 0)
                     title_cell.width = Inches(4.5)  # 标题占75%宽度
+                    title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER # 垂直居中
                     title_paragraph = title_cell.paragraphs[0]
                     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    title_paragraph.style = 'Title Bold'  # 使用自定义标题样式
-                    
-                    # 自定义标题样式，替代表格内部的Title Bold样式
-                    title_run = title_paragraph.add_run(paper_title)
-                    title_run.font.name = '宋体'
-                    title_run.font.bold = True
-                    title_run.font.size = Pt(20)
+                    title_paragraph.style = doc.styles['Title Bold']
+                    title_paragraph.add_run(paper_title)
                     
                     # 右侧单元格：二维码
                     qr_cell = header_table.cell(0, 1)
                     qr_cell.width = Inches(1.5)  # 二维码占25%宽度
+                    qr_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER # 垂直居中
                     qr_paragraph = qr_cell.paragraphs[0]
                     qr_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     
@@ -1217,64 +1214,32 @@ def generate_paper():
                     scan_run.font.size = Pt(9)
                     scan_run.font.bold = True
                     
-                    # 去除表格边框 - 完全隐藏表格线
+                    # 去除表格边框
                     try:
-                        # 设置表格为无边框
-                        header_table.style = 'Table Grid'  # 先应用网格样式获取边框属性
-                        
-                        # 然后完全清除所有边框
+                        header_table.style = 'Table Grid'
+                        # 使用更安全的方式处理边框
                         from docx.oxml.ns import qn
                         for cell in header_table.cells:
                             tc_pr = cell._tc.get_or_add_tcPr()
-                            
-                            # 创建或获取边框元素
                             tc_borders = tc_pr.first_child_found_in("w:tcBorders")
-                            if not tc_borders:
-                                tc_borders = OxmlElement('w:tcBorders')
-                                tc_pr.append(tc_borders)
-                            
-                            # 明确设置所有边框为无
-                            for border in ['top', 'left', 'bottom', 'right']:
-                                border_elem = tc_borders.find(f"w:{border}")
-                                if border_elem is not None:
-                                    tc_borders.remove(border_elem)
-                                
-                                new_border = OxmlElement(f'w:{border}')
-                                new_border.set(qn('w:val'), 'nil')  # 'nil'表示无边框
-                                new_border.set(qn('w:sz'), '0')     # 宽度为0
-                                new_border.set(qn('w:space'), '0')  # 间距为0
-                                new_border.set(qn('w:color'), 'auto')
-                                tc_borders.append(new_border)
-                        
-                        # 确保表格整体也没有边框
-                        tbl_pr = header_table._element.find('.//{w:tblPr}')
-                        if tbl_pr:
-                            tbl_borders = tbl_pr.find('.//{w:tblBorders}')
-                            if tbl_borders:
-                                tbl_pr.remove(tbl_borders)
+                            if tc_borders:
+                                for border in ['top', 'left', 'bottom', 'right']:
+                                    border_elem = tc_borders.find(f"w:{border}")
+                                    if border_elem is not None:
+                                        border_elem.set(qn('w:val'), 'nil')
                     except Exception as border_err:
                         print(f"处理表格边框时出错: {border_err}")
                 except Exception as qr_err:
                     print(f"创建二维码和表格时出错: {qr_err}")
                     # 创建普通标题作为备用
-                    title_paragraph = doc.add_paragraph()
+                    title_paragraph = doc.add_paragraph(paper_title)
+                    title_paragraph.style = doc.styles['Title Bold']
                     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    title_run = title_paragraph.add_run(paper_title)
-                    title_run.font.name = '宋体'
-                    title_run.font.bold = True
-                    title_run.font.size = Pt(20)
-                    title_paragraph.paragraph_format.space_before = Pt(10)
-                    title_paragraph.paragraph_format.space_after = Pt(20)
             else:
-                # 添加标题（宋体，20磅，加粗，居中）
-                title_paragraph = doc.add_paragraph()
+                # 添加标题（宋体，15磅，加粗，居中）
+                title_paragraph = doc.add_paragraph(paper_title)
+                title_paragraph.style = doc.styles['Title Bold']
                 title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                title_run = title_paragraph.add_run(paper_title)
-                title_run.font.name = '宋体'
-                title_run.font.bold = True
-                title_run.font.size = Pt(20)
-                title_paragraph.paragraph_format.space_before = Pt(10)
-                title_paragraph.paragraph_format.space_after = Pt(20)
 
             # 3) 对题目按类型分组并添加章节标题
             try:
@@ -1821,7 +1786,8 @@ def generate_paper():
                     # 添加题号行
                     p = doc.add_paragraph()
                     p.style = 'Normal'
-                    p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
+                    p.paragraph_format.space_after = Pt(3)  # 减少段落后的空白
+                    p.paragraph_format.line_spacing = 1.15  # 适中的行距
                     run = p.add_run(f"第{i}题：")
                     run.font.bold = True
                     run.font.size = Pt(10.5)
@@ -1830,7 +1796,8 @@ def generate_paper():
                     if letter_answer:
                         p = doc.add_paragraph()
                         p.style = 'Normal'
-                        p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
+                        p.paragraph_format.space_after = Pt(3)  # 减少段落后的空白
+                        p.paragraph_format.line_spacing = 1.15  # 适中的行距
                         
                         # 特殊处理英语听力理解题型的答案，显示全部答案选项
                         if q.subject == '英语' and q.question_type == '听力理解':
@@ -1864,8 +1831,8 @@ def generate_paper():
                             # 创建新段落
                             p = doc.add_paragraph()
                             p.style = 'Normal'
-                            p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
-                            p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
+                            p.paragraph_format.space_after = Pt(6)  # 适中的段落间距
+                            p.paragraph_format.line_spacing = 1.15  # 适中的行距
                             
                             # 添加详解标签
                             tag_run = p.add_run('【详解】')
@@ -1891,8 +1858,8 @@ def generate_paper():
                             # 直接显示所有文本作为答案
                             p = doc.add_paragraph()
                             p.style = 'Normal'
-                            p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
-                            p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
+                            p.paragraph_format.space_after = Pt(6)  # 适中的段落间距
+                            p.paragraph_format.line_spacing = 1.15  # 适中的行距
                             
                             # 如果没有选项答案且没有详解标记，则不添加详解标记
                             if not letter_answer and '【详解】' not in clean_text:
@@ -1924,8 +1891,8 @@ def generate_paper():
                         # 直接显示所有文本作为答案
                         p = doc.add_paragraph()
                         p.style = 'Normal'
-                        p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
-                        p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
+                        p.paragraph_format.space_after = Pt(6)  # 适中的段落间距
+                        p.paragraph_format.line_spacing = 1.15  # 适中的行距
                         
                         # 如果没有选项答案且没有详解标记，则不添加详解标记
                         if not letter_answer and '【详解】' not in clean_text:
@@ -2987,9 +2954,10 @@ def generate_smart_paper():
         # 获取筛选条件
         education_stage = data.get('educationStage')
         subject = data.get('subject')
-        chapter = data.get('chapter', '')
-        unit = data.get('unit', '')
-        lesson = data.get('lesson', '')
+        # 忽略 chapter, unit, lesson，除非是英语听力
+        chapter = data.get('chapter', '') # 保留用于英语听力子题型
+        # unit = data.get('unit', '') # 忽略
+        # lesson = data.get('lesson', '') # 忽略
         question_types = data.get('questionTypes', [])
         paper_title = data.get('paperTitle', '智能组卷试题')
         
@@ -3003,16 +2971,17 @@ def generate_smart_paper():
         # 增强随机性 - 重置随机种子为当前时间
         random.seed(datetime.now().timestamp())
             
-        # 构建查询条件
+        # 构建查询条件 - 只根据学段和科目筛选基础题目池
         query = SU.query.filter(SU.education_stage == education_stage)
         query = query.filter(SU.subject == subject)
         
-        if chapter:
-            query = query.filter(SU.chapter == chapter)
-        if unit:
-            query = query.filter(SU.unit == unit)
-        if lesson:
-            query = query.filter(SU.lesson == lesson)
+        # # 不再根据 chapter, unit, lesson 过滤
+        # if chapter:
+        #     query = query.filter(SU.chapter == chapter)
+        # if unit:
+        #     query = query.filter(SU.unit == unit)
+        # if lesson:
+        #     query = query.filter(SU.lesson == lesson)
             
         # 获取题型和数量
         question_count_map = {}
@@ -3052,7 +3021,7 @@ def generate_smart_paper():
             q_count = type_info.get('count', 0)
             q_chapter = type_info.get('chapter', '')
             
-            # 构建查询
+            # 构建查询 - 从已按学段和科目筛选的基础查询开始
             type_query = query.filter(SU.question_type == q_type)
             
             # 如果是英语听力子类型，添加章节筛选
@@ -3103,7 +3072,7 @@ def generate_smart_paper():
             'success': True,
             'question_ids': selected_questions,
             'paper_title': paper_title,
-            'audio_files': audio_files
+            'audio_files': audio_files # 保留音频文件信息以供二维码使用
         })
     except Exception as e:
         print(f"Error in generate_smart_paper: {str(e)}")
