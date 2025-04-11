@@ -2876,8 +2876,6 @@ def get_chapters():
     education_stage = request.args.get('education_stage')
     subject = request.args.get('subject')
     
-    print(f"获取章节API: 学段={education_stage}, 科目={subject}")
-    
     if not education_stage or not subject:
         return jsonify({'error': '需要学段和科目参数'}), 400
     
@@ -2892,7 +2890,6 @@ def get_chapters():
     # 提取章节名称并过滤掉None值
     chapter_list = [ch[0] for ch in chapters if ch[0]]
     
-    print(f"章节查询结果: 找到{len(chapter_list)}个章节")
     return jsonify({'chapters': chapter_list})
 
 @app.route('/api/get_units', methods=['GET'])
@@ -2900,8 +2897,6 @@ def get_units():
     education_stage = request.args.get('education_stage')
     subject = request.args.get('subject')
     chapter = request.args.get('chapter')
-    
-    print(f"获取单元API: 学段={education_stage}, 科目={subject}, 章节={chapter}")
     
     if not education_stage or not subject or not chapter:
         return jsonify({'error': '需要学段、科目和章节参数'}), 400
@@ -2918,12 +2913,6 @@ def get_units():
     # 提取单元名称并过滤掉None值
     unit_list = [u[0] for u in units if u[0]]
     
-    print(f"单元查询结果: 找到{len(unit_list)}个单元")
-    
-    # 打印查询到的单元列表，用于调试
-    if len(unit_list) > 0:
-        print(f"单元列表: {', '.join(unit_list[:10])}" + ("..." if len(unit_list) > 10 else ""))
-    
     return jsonify({'units': unit_list})
 
 @app.route('/api/get_lessons', methods=['GET'])
@@ -2932,8 +2921,6 @@ def get_lessons():
     subject = request.args.get('subject')
     chapter = request.args.get('chapter')
     unit = request.args.get('unit')
-    
-    print(f"获取课程API: 学段={education_stage}, 科目={subject}, 章节={chapter}, 单元={unit}")
     
     if not education_stage or not subject or not chapter or not unit:
         return jsonify({'error': '需要学段、科目、章节和单元参数'}), 400
@@ -2951,7 +2938,6 @@ def get_lessons():
     # 提取课程名称并过滤掉None值
     lesson_list = [l[0] for l in lessons if l[0]]
     
-    print(f"课程查询结果: 找到{len(lesson_list)}个课程")
     return jsonify({'lessons': lesson_list})
 
 if __name__ == '__main__':
