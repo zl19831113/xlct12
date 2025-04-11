@@ -36,6 +36,7 @@
             padding: 0 16px 16px 16px;
             width: 100%;
             box-sizing: border-box;
+            align-items: flex-start;
         }
         
         /* 默认样式（移动端） */
@@ -48,6 +49,7 @@
             .content-area {
                 margin-left: 300px; /* 留出筛选栏的空间 */
                 width: calc(100% - 300px);
+                padding-top: 0; /* 确保和左侧筛选栏顶部对齐 */
             }
         }
         
@@ -57,6 +59,7 @@
             flex-shrink: 0;
             max-height: calc(100vh - 100px);
             overflow-y: auto;
+            margin-top: 0; /* 确保和右侧内容顶部对齐 */
         }
         
         /* 只在标准或大屏幕设备上有固定底部定位 */
@@ -64,7 +67,7 @@
             .filter-sidebar {
                 position: fixed;
                 left: max(calc((100% - 1200px) / 2 + 16px), 16px);
-                bottom: 30px;
+                top: 100px; /* 从顶部开始固定，而不是从底部 */
                 max-height: calc(100vh - 150px);
                 z-index: 100;
             }
@@ -391,17 +394,46 @@
         
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
+            console.log("页面初始化开始...");
+            
             // 初始化拖拽功能
             initDragAndDrop();
             
             // 初始化题型数量变化监听
             initCountInputListeners();
             
-            // 加载题目数据
-            loadQuestions();
-            
-            // 绑定生成按钮事件
-            document.getElementById('generateButton').addEventListener('click', generatePaper);
+            try {
+                // 加载题目数据
+                loadQuestions();
+                
+                // 绑定筛选器事件
+                document.getElementById('educationStage').addEventListener('change', handleFilterChange);
+                document.getElementById('subject').addEventListener('change', handleFilterChange);
+                
+                // 设置默认学段和科目
+                if (document.getElementById('educationStage').value && 
+                    document.getElementById('subject').value) {
+                    // 如果已有选择，触发筛选器更新
+                    handleFilterChange();
+                }
+                
+                // 绑定生成按钮事件
+                document.getElementById('generateButton').addEventListener('click', generatePaper);
+                
+                console.log("页面初始化完成");
+            } catch (error) {
+                console.error("页面初始化错误:", error);
+                showMessage("页面初始化出错，请刷新重试", "error");
+            }
+        });
+        
+        // 禁用控制台错误提示显示
+        window.addEventListener('error', function(event) {
+            // 忽略特定错误消息
+            if (event.message && event.message.includes("Receiving end does not exist")) {
+                event.preventDefault();
+                return false;
+            }
         });
         
         // 初始化拖拽功能
@@ -559,9 +591,17 @@
         
         // 更新章节选择器
         function updateChapters(educationStage, subject) {
+            // 显示加载状态
+            document.getElementById('chapter').innerHTML = '<option value="">加载中...</option>';
+            
             // 使用fetch获取数据
             fetch(`/api/get_chapters?education_stage=${encodeURIComponent(educationStage)}&subject=${encodeURIComponent(subject)}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取章节失败');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     const chapterSelect = document.getElementById('chapter');
                     chapterSelect.innerHTML = '<option value="">选择章节</option>';
@@ -581,54 +621,11 @@
                     document.getElementById('lesson').innerHTML = '<option value="">选择课程</option>';
                     document.getElementById('lesson').disabled = true;
                     
-                    // 设置章节变化事件
+                    // 手动设置章节变化事件
                     chapterSelect.onchange = function() {
                         const selectedChapter = this.value;
                         if (selectedChapter) {
-                            // 请求单元数据
-                            fetch(`/api/get_units?education_stage=${encodeURIComponent(educationStage)}&subject=${encodeURIComponent(subject)}&chapter=${encodeURIComponent(selectedChapter)}`)
-                                .then(response => response.json())
-                                .then(data => {
-                                    const unitSelect = document.getElementById('unit');
-                                    unitSelect.innerHTML = '<option value="">选择单元</option>';
-                                    unitSelect.disabled = false;
-                                    
-                                    if (data.units && data.units.length > 0) {
-                                        data.units.forEach(unit => {
-                                            const option = document.createElement('option');
-                                            option.value = unit;
-                                            option.textContent = unit;
-                                            unitSelect.appendChild(option);
-                                        });
-                                    }
-                                    
-                                    // 设置单元变化事件
-                                    unitSelect.onchange = function() {
-                                        const selectedUnit = this.value;
-                                        if (selectedUnit) {
-                                            // 请求课程数据
-                                            fetch(`/api/get_lessons?education_stage=${encodeURIComponent(educationStage)}&subject=${encodeURIComponent(subject)}&chapter=${encodeURIComponent(selectedChapter)}&unit=${encodeURIComponent(selectedUnit)}`)
-                                                .then(response => response.json())
-                                                .then(data => {
-                                                    const lessonSelect = document.getElementById('lesson');
-                                                    lessonSelect.innerHTML = '<option value="">选择课程</option>';
-                                                    lessonSelect.disabled = false;
-                                                    
-                                                    if (data.lessons && data.lessons.length > 0) {
-                                                        data.lessons.forEach(lesson => {
-                                                            const option = document.createElement('option');
-                                                            option.value = lesson;
-                                                            option.textContent = lesson;
-                                                            lessonSelect.appendChild(option);
-                                                        });
-                                                    }
-                                                });
-                                        } else {
-                                            document.getElementById('lesson').innerHTML = '<option value="">选择课程</option>';
-                                            document.getElementById('lesson').disabled = true;
-                                        }
-                                    };
-                                });
+                            updateUnits(educationStage, subject, selectedChapter);
                         } else {
                             document.getElementById('unit').innerHTML = '<option value="">选择单元</option>';
                             document.getElementById('unit').disabled = true;
@@ -636,6 +633,87 @@
                             document.getElementById('lesson').disabled = true;
                         }
                     };
+                })
+                .catch(error => {
+                    console.error('获取章节失败:', error);
+                    document.getElementById('chapter').innerHTML = '<option value="">选择章节 (加载失败)</option>';
+                });
+        }
+        
+        // 更新单元选择器
+        function updateUnits(educationStage, subject, chapter) {
+            const unitSelect = document.getElementById('unit');
+            // 显示加载状态
+            unitSelect.innerHTML = '<option value="">加载中...</option>';
+            unitSelect.disabled = false;
+            
+            // 请求单元数据
+            fetch(`/api/get_units?education_stage=${encodeURIComponent(educationStage)}&subject=${encodeURIComponent(subject)}&chapter=${encodeURIComponent(chapter)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取单元失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    unitSelect.innerHTML = '<option value="">选择单元</option>';
+                    
+                    if (data.units && data.units.length > 0) {
+                        data.units.forEach(unit => {
+                            const option = document.createElement('option');
+                            option.value = unit;
+                            option.textContent = unit;
+                            unitSelect.appendChild(option);
+                        });
+                    }
+                    
+                    // 手动设置单元变化事件
+                    unitSelect.onchange = function() {
+                        const selectedUnit = this.value;
+                        if (selectedUnit) {
+                            updateLessons(educationStage, subject, chapter, selectedUnit);
+                        } else {
+                            document.getElementById('lesson').innerHTML = '<option value="">选择课程</option>';
+                            document.getElementById('lesson').disabled = true;
+                        }
+                    };
+                })
+                .catch(error => {
+                    console.error('获取单元失败:', error);
+                    unitSelect.innerHTML = '<option value="">选择单元 (加载失败)</option>';
+                });
+        }
+        
+        // 更新课程选择器
+        function updateLessons(educationStage, subject, chapter, unit) {
+            const lessonSelect = document.getElementById('lesson');
+            // 显示加载状态
+            lessonSelect.innerHTML = '<option value="">加载中...</option>';
+            lessonSelect.disabled = false;
+            
+            // 请求课程数据
+            fetch(`/api/get_lessons?education_stage=${encodeURIComponent(educationStage)}&subject=${encodeURIComponent(subject)}&chapter=${encodeURIComponent(chapter)}&unit=${encodeURIComponent(unit)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取课程失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    lessonSelect.innerHTML = '<option value="">选择课程</option>';
+                    
+                    if (data.lessons && data.lessons.length > 0) {
+                        data.lessons.forEach(lesson => {
+                            const option = document.createElement('option');
+                            option.value = lesson;
+                            option.textContent = lesson;
+                            lessonSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('获取课程失败:', error);
+                    lessonSelect.innerHTML = '<option value="">选择课程 (加载失败)</option>';
                 });
         }
         
