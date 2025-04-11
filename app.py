@@ -101,25 +101,8 @@ import pandas as pd
 import traceback
 from math import radians, cos, sin, asin, sqrt
 from functools import wraps
-import os
-import re
-import traceback
-import uuid
-import json
-import math
-import hashlib
 import tempfile
 import shutil
-from datetime import datetime
-from collections import defaultdict
-from docx import Document
-from docx.shared import Pt, Cm, Inches, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_PARAGRAPH_ALIGNMENT
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired
-from pydub import AudioSegment  # 导入音频处理库
 
 # 清理和拆分问题文本，分离题干、序号部分和选项部分
 def clean_and_split_question(question_text):
@@ -2846,187 +2829,159 @@ def generate_smart_paper():
         # 获取题型和数量
         question_count_map = {}
         
-        # 检查是否有听力子类型的特殊处理
-        has_listening = False
-        listening_subtypes = {}
+        # 音频文件ID列表，用于英语听力题
+        audio_files = []
         
+        # 处理题型条件和特殊的英语听力题型
         for item in question_types:
             q_type = item.get('type')
             q_count = item.get('count', 0)
-            
-            # 检查是否有子类型（听力题特殊处理）
-            q_subtype = item.get('subtype')
+            q_chapter = item.get('chapter', '')  # 获取章节参数，用于英语听力子题型
             
             if q_type and q_count > 0:
-                if q_subtype:
-                    # 听力题子类型处理
-                    has_listening = True
-                    if q_type not in listening_subtypes:
-                        listening_subtypes[q_type] = []
-                    
-                    listening_subtypes[q_type].append({
-                        'subtype': q_subtype,
+                # 如果是英语听力题型的子类型，需要特殊处理
+                if subject == '英语' and q_type == '听力理解' and q_chapter:
+                    # 为子类型创建唯一键
+                    sub_type_key = f"{q_type}_{q_chapter}"
+                    question_count_map[sub_type_key] = {
+                        'type': q_type,
+                        'chapter': q_chapter,
                         'count': q_count
-                    })
+                    }
                 else:
                     # 普通题型
-                    question_count_map[q_type] = q_count
+                    question_count_map[q_type] = {
+                        'type': q_type,
+                        'count': q_count
+                    }
         
         # 初始化题目结果列表
         selected_questions = []
         
-        # 处理普通题型
-        for q_type, count in question_count_map.items():
-            # 找出该类型的所有符合条件的题目
-            type_questions = query.filter(SU.question_type == q_type).all()
+        # 按照题型顺序选择题目
+        for key, type_info in question_count_map.items():
+            q_type = type_info.get('type')
+            q_count = type_info.get('count', 0)
+            q_chapter = type_info.get('chapter', '')
+            
+            # 构建查询
+            type_query = query.filter(SU.question_type == q_type)
+            
+            # 如果是英语听力子类型，添加章节筛选
+            if q_chapter:
+                type_query = type_query.filter(SU.chapter == q_chapter)
+            
+            # 查询所有符合条件的题目
+            type_questions = type_query.all()
             
             # 增强随机性 - 打乱题目顺序
             shuffled_questions = list(type_questions)
             random.shuffle(shuffled_questions)
             
             # 如果题目数量不足，使用所有可用题目
-            if len(shuffled_questions) <= count:
-                selected_questions.extend([q.id for q in shuffled_questions])
+            if len(shuffled_questions) <= q_count:
+                for q in shuffled_questions:
+                    selected_questions.append(q.id)
+                    # 如果是英语听力题，记录音频文件
+                    if subject == '英语' and q_type == '听力理解' and q.audio_filename:
+                        audio_files.append({
+                            'id': q.id,
+                            'filename': q.audio_filename,
+                            'path': q.audio_file_path
+                        })
             else:
                 # 随机选择指定数量的题目（使用打乱后的列表）
-                selected_ids = [q.id for q in shuffled_questions[:count]]
-                selected_questions.extend(selected_ids)
+                selected_subset = shuffled_questions[:q_count]
+                for q in selected_subset:
+                    selected_questions.append(q.id)
+                    # 如果是英语听力题，记录音频文件
+                    if subject == '英语' and q_type == '听力理解' and q.audio_filename:
+                        audio_files.append({
+                            'id': q.id,
+                            'filename': q.audio_filename,
+                            'path': q.audio_file_path
+                        })
         
-        # 处理听力题子类型
-        for listening_type, subtypes in listening_subtypes.items():
-            for subtype_info in subtypes:
-                subtype = subtype_info['subtype']
-                count = subtype_info['count']
-                
-                # 找出该类型和章节的所有听力题
-                listening_questions = query.filter(
-                    SU.question_type == listening_type,
-                    SU.chapter == subtype
-                ).all()
-                
-                # 增强随机性 - 打乱题目顺序
-                shuffled_listening = list(listening_questions)
-                random.shuffle(shuffled_listening)
-                
-                # 如果题目数量不足，使用所有可用题目
-                if len(shuffled_listening) <= count:
-                    selected_questions.extend([q.id for q in shuffled_listening])
-                else:
-                    # 随机选择指定数量的题目
-                    selected_ids = [q.id for q in shuffled_listening[:count]]
-                    selected_questions.extend(selected_ids)
-        
-        # 进一步打乱最终题目顺序
-        random.shuffle(selected_questions)
-        
-        # 检查是否有音频文件
-        has_audio = False
-        if subject == '英语':
-            # 检查是否有音频文件
-            audio_count = SU.query.filter(
-                SU.id.in_(selected_questions),
-                SU.audio_file_path.isnot(None)
-            ).count()
-            
-            has_audio = audio_count > 0
+        # 进一步打乱最终题目顺序（但保持听力题可能是有序的，取决于需求）
+        if subject != '英语':
+            random.shuffle(selected_questions)
         
         # 如果没有选中任何题目
         if not selected_questions:
             return jsonify({'error': '未找到符合条件的题目'}), 404
             
-        # 返回选中的题目ID和标题
+        # 返回选中的题目ID、标题和音频文件信息
         return jsonify({
             'success': True,
             'question_ids': selected_questions,
             'paper_title': paper_title,
-            'has_audio': has_audio
+            'audio_files': audio_files
         })
     except Exception as e:
+        print(f"Error in generate_smart_paper: {str(e)}")
         traceback.print_exc()
         return jsonify({'error': f'生成试卷失败: {str(e)}'}), 500
 
-@app.route('/generate_paper_audio', methods=['POST'])
-def generate_paper_audio():
+@app.route('/api/package_audio_files', methods=['POST'])
+def package_audio_files():
+    """打包英语听力音频文件为ZIP文件"""
     try:
-        # 获取请求数据
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data received'}), 400
             
-        question_ids = data.get('question_ids', [])
-        paper_title = data.get('paper_title', '试卷')
+        audio_files = data.get('audio_files', [])
+        paper_title = data.get('paper_title', '听力音频')
         
-        if not question_ids:
-            return jsonify({'error': 'No question IDs provided'}), 400
+        if not audio_files:
+            return jsonify({'error': '无音频文件'}), 400
         
-        # 查询所有带音频的题目
-        audio_questions = SU.query.filter(
-            SU.id.in_(question_ids),
-            SU.audio_file_path.isnot(None)
-        ).all()
-        
-        if not audio_questions:
-            return jsonify({'error': '所选题目中没有音频文件'}), 404
-        
-        # 创建临时目录保存音频文件
+        # 创建临时目录用于存放音频文件
         temp_dir = tempfile.mkdtemp()
+        zip_path = os.path.join(temp_dir, f"{paper_title}_听力音频.zip")
         
-        try:
-            # 创建列表存储音频文件路径
-            audio_files = []
-            
-            # 提取音频文件到临时目录
-            for i, q in enumerate(audio_questions):
-                if q.audio_content:
-                    # 如果有二进制音频内容，保存到临时文件
-                    temp_file = os.path.join(temp_dir, f"audio_{i+1}.mp3")
-                    with open(temp_file, 'wb') as f:
-                        f.write(q.audio_content)
-                    audio_files.append(temp_file)
-                elif q.audio_file_path:
-                    # 如果有音频文件路径，检查是否存在
-                    if os.path.exists(q.audio_file_path):
-                        audio_files.append(q.audio_file_path)
-            
-            if not audio_files:
-                return jsonify({'error': '无法加载音频文件'}), 404
-            
-            # 合并音频文件
-            combined_audio = os.path.join(temp_dir, "combined_audio.mp3")
-            
-            # 使用pydub合并音频
-            combined = AudioSegment.empty()
-            for audio_file in audio_files:
-                try:
-                    sound = AudioSegment.from_mp3(audio_file)
-                    combined += sound
-                    # 添加1秒空白间隔
-                    combined += AudioSegment.silent(duration=1000)
-                except Exception as e:
-                    print(f"Error processing audio file {audio_file}: {str(e)}")
+        # 创建ZIP文件
+        with zipfile.ZipFile(zip_path, 'w') as zip_file:
+            # 添加每个音频文件到ZIP
+            for idx, audio_file in enumerate(audio_files, 1):
+                file_id = audio_file.get('id')
+                filename = audio_file.get('filename', f'audio_{idx}.mp3')
+                file_path = audio_file.get('path')
+                
+                # 从数据库查询音频内容
+                question = SU.query.get(file_id)
+                if question and question.audio_content:
+                    # 将音频内容写入临时文件
+                    temp_audio_path = os.path.join(temp_dir, filename)
+                    with open(temp_audio_path, 'wb') as f:
+                        f.write(question.audio_content)
+                    
+                    # 添加到ZIP
+                    zip_file.write(temp_audio_path, filename)
+                elif file_path and os.path.exists(file_path):
+                    # 如果数据库没有内容但有文件路径
+                    zip_file.write(file_path, filename)
+                else:
+                    # 跳过不存在的音频
                     continue
-            
-            # 保存合并后的音频
-            combined.export(combined_audio, format="mp3")
-            
-            # 以二进制模式读取合并后的音频
-            with open(combined_audio, 'rb') as f:
-                audio_data = f.read()
-            
-            # 创建响应
-            response = make_response(audio_data)
-            response.headers.set('Content-Type', 'audio/mpeg')
-            response.headers.set('Content-Disposition', f'attachment; filename="{paper_title}_听力.mp3"')
-            
-            return response
-            
-        finally:
-            # 清理临时目录
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            
+        
+        # 读取生成的ZIP文件
+        with open(zip_path, 'rb') as f:
+            zip_data = f.read()
+        
+        # 清理临时文件
+        shutil.rmtree(temp_dir)
+        
+        # 返回ZIP文件
+        response = make_response(zip_data)
+        response.headers.set('Content-Type', 'application/zip')
+        response.headers.set('Content-Disposition', f'attachment; filename="{paper_title}_听力音频.zip"')
+        
+        return response
     except Exception as e:
+        print(f"Error in package_audio_files: {str(e)}")
         traceback.print_exc()
-        return jsonify({'error': f'生成音频失败: {str(e)}'}), 500
+        return jsonify({'error': f'打包音频文件失败: {str(e)}'}), 500
 
 @app.route('/api/get_chapters', methods=['GET'])
 def get_chapters():

@@ -7,60 +7,48 @@
     <link rel="stylesheet" href="/static/css/header.css">
     <style>
         :root {
-            --primary-color: #4a6fc2;
-            --secondary-color: #f5f8fe;
-            --accent-color: #6b8dd6;
-            --success-color: #4caf50;
-            --warning-color: #ffb74d;
-            --error-color: #e57373;
-            --bg-color: #ffffff;
-            --bg-light: #f9fafc;
-            --text-primary: #333333;
-            --text-secondary: #757575;
-            --text-subheading: #5c5c5c;
-            --border-color: #e1e8f0;
-            --border-radius: 8px;
-            --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            --primary-color: #2F80ED;
+            --secondary-color: #E6F0FF;
+            --background-main: #FFFFFF;
+            --background-subtle: #F9FAFB;
+            --text-main: #333333;
+            --text-heading: #000000;
+            --text-subheading: #444444;
+            --border-color: #E0E0E0;
+            --box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            --border-radius: 6px;
+            --padding: 16px;
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            line-height: 1.6;
+            font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
             margin: 0;
             padding: 0;
-            color: var(--text-primary);
-            background-color: var(--bg-light);
+            background-color: #f5f7fa;
+            color: #333;
         }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 16px;
+
+        .main-container {
             display: flex;
-            flex-wrap: wrap;
+            gap: 16px;
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 16px 16px 16px;
+            width: 100%;
+            box-sizing: border-box;
         }
         
-        .main-content {
-            flex: 1;
-            min-width: 0;
-            margin-left: 300px; /* 为侧边栏预留空间 */
+        /* 默认样式（移动端） */
+        .content-area {
+            width: 100%;
         }
         
-        /* 标题样式 */
-        .page-title {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 24px;
-            color: var(--primary-color);
-        }
-        
-        /* 卡片样式 */
-        .card {
-            background-color: var(--bg-color);
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            padding: 20px;
-            margin-bottom: 20px;
+        /* 只在标准或大屏幕设备上有内边距 */
+        @media (min-width: 992px) {
+            .content-area {
+                margin-left: 300px; /* 留出筛选栏的空间 */
+                width: calc(100% - 300px);
+            }
         }
         
         /* 左侧筛选侧边栏样式 */
@@ -81,249 +69,77 @@
                 z-index: 100;
             }
         }
-        
-        /* 筛选部分样式 */
-        .filter-section {
-            margin-bottom: 20px;
-        }
-        
-        .section-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            color: var(--text-primary);
-        }
-        
-        .filter-input-group {
-            margin-bottom: 15px;
-        }
-        
-        .filter-input-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: var(--text-subheading);
-        }
-        
-        .filter-input-group select,
-        .filter-input-group input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid var(--border-color);
+
+        .filter-box {
+            background-color: var(--background-main);
             border-radius: var(--border-radius);
-            background-color: var(--bg-color);
-            color: var(--text-primary);
-            transition: border-color 0.2s;
+            box-shadow: var(--box-shadow);
+            margin-bottom: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
         }
-        
-        .filter-input-group select:focus,
-        .filter-input-group input:focus {
+
+        .filter-box-content {
+            padding: var(--padding);
+        }
+
+        .filter-item {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .filter-item:last-child {
+            border-bottom: none;
+        }
+
+        .filter-item label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-subheading);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 14px;
+            background-color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--text-main);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            background-image: linear-gradient(to bottom, #ffffff, #f8f9fa);
+        }
+
+        select:hover {
             border-color: var(--primary-color);
-            outline: none;
         }
-        
-        .filter-input-group select:disabled {
-            background-color: #f3f3f3;
+
+        select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.2);
+        }
+
+        select:disabled {
+            background-color: var(--background-subtle);
             cursor: not-allowed;
+            color: rgba(0, 0, 0, 0.25);
         }
         
         /* 题型选择部分样式 */
-        .question-types-container {
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
             margin-bottom: 20px;
-        }
-        
-        .question-type-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            background-color: var(--bg-color);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            margin-bottom: 10px;
-            cursor: move;
-            transition: background-color 0.2s;
-        }
-        
-        .question-type-item:hover {
-            background-color: var(--secondary-color);
-        }
-        
-        .question-type-item.dragging {
-            opacity: 0.5;
-            background-color: var(--accent-color);
-            color: white;
-        }
-        
-        .type-info {
-            display: flex;
-            align-items: center;
-        }
-        
-        .drag-handle {
-            margin-right: 10px;
-            color: var(--text-secondary);
-            cursor: grab;
-        }
-        
-        .question-count-input {
-            width: 60px;
-            padding: 5px;
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            text-align: center;
-        }
-        
-        /* 听力题型组样式 */
-        .question-type-group {
-            margin-bottom: 10px;
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            padding: 8px;
-            background-color: var(--bg-light);
-        }
-        
-        .question-type-header {
-            margin-bottom: 8px;
-            padding-bottom: 5px;
+            padding-bottom: 10px;
             border-bottom: 1px solid var(--border-color);
         }
         
-        .listening-subtype {
-            margin-left: 10px;
-            background-color: var(--bg-color);
-            border-radius: var(--border-radius);
-            margin-bottom: 5px;
-            padding: 5px;
-        }
-        
-        /* 按钮样式 */
-        .button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: var(--border-radius);
-            font-weight: 500;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        .button-primary {
-            background-color: var(--primary-color);
-            color: white;
-        }
-        
-        .button-primary:hover {
-            background-color: var(--accent-color);
-        }
-        
-        .button-primary:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        
-        /* 题目生成结果部分 */
-        .generation-result {
-            margin-top: 20px;
-            display: none;
-        }
-        
-        .result-actions {
-            margin-top: 15px;
-            display: flex;
-            gap: 10px;
-        }
-        
-        /* 消息提示 */
-        .message {
-            padding: 10px 15px;
-            border-radius: var(--border-radius);
-            margin-bottom: 15px;
-        }
-        
-        .message-info {
-            background-color: #e3f2fd;
-            border-left: 4px solid #2196f3;
-            color: #0d47a1;
-        }
-        
-        .message-success {
-            background-color: #e8f5e9;
-            border-left: 4px solid #4caf50;
-            color: #1b5e20;
-        }
-        
-        .message-error {
-            background-color: #ffebee;
-            border-left: 4px solid #f44336;
-            color: #b71c1c;
-        }
-        
-        /* 加载指示器 */
-        .loading-indicator {
-            display: none;
-            text-align: center;
-            margin: 20px 0;
-        }
-        
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            border-left-color: var(--primary-color);
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            margin: 0 auto 10px;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        /* 移动设备适配 */
-        @media (max-width: 991px) {
-            .container {
-                flex-direction: column;
-            }
-            
-            .filter-sidebar {
-                width: 100%;
-                position: static;
-                margin-bottom: 20px;
-                max-height: none;
-            }
-            
-            .main-content {
-                margin-left: 0;
-            }
-        }
-        
-        /* 纸张预览样式 */
-        .paper-preview {
-            background-color: white;
-            padding: 30px;
-            max-width: 800px;
-            margin: 0 auto;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-            border-radius: 2px;
-        }
-        
-        /* 题目列表样式 */
-        .question-list {
-            counter-reset: question;
-        }
-        
-        .question-item {
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 1px dashed #e0e0e0;
-        }
-        
-        .question-item:before {
-            counter-increment: question;
-            content: counter(question) ". ";
-            font-weight: bold;
-        }
-        
+        /* 试卷标题输入框样式 */
         .paper-title-input-container {
             margin-bottom: 20px;
             padding: 12px;
@@ -343,8 +159,192 @@
             width: 100%;
             padding: 10px;
             border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
+            border-radius: 4px;
             font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        .question-types-container {
+            background-color: var(--background-main);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: var(--padding);
+            margin-bottom: 20px;
+        }
+        
+        .question-type-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s;
+            cursor: grab;
+        }
+        
+        .question-type-item:last-child {
+            border-bottom: none;
+        }
+        
+        .question-type-item:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        .question-type-name {
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .question-count-input {
+            width: 70px;
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .drag-handle {
+            color: #999;
+            cursor: grab;
+            margin-right: 10px;
+        }
+        
+        .generate-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        .generate-button:hover {
+            background-color: #1C66B3;
+        }
+        
+        .generate-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .required-mark {
+            color: #ff4d4f;
+            margin-left: 2px;
+        }
+        
+        /* 拖动中的元素样式 */
+        .dragging {
+            opacity: 0.5;
+            background-color: var(--secondary-color);
+        }
+        
+        /* 进度显示 */
+        .progress-container {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: var(--primary-color);
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 消息提示样式 */
+        .message-box {
+            padding: 16px;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .message-box.error {
+            background-color: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #ff4d4f;
+        }
+        
+        .message-box.success {
+            background-color: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #52c41a;
+        }
+        
+        /* CSS变量 */
+        :root {
+            --primary-color: #1976d2;
+            --secondary-color: #f5f5f5;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --text-hint: #999;
+            --border-color: #ddd;
+            --border-radius: 8px;
+            --error-color: #d32f2f;
+            --success-color: #388e3c;
+            --hover-color: #e3f2fd;
+        }
+        
+        /* 英语听力题型样式 */
+        .listening-type-container {
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+        
+        .listening-header {
+            background-color: #e3f2fd; /* 淡蓝色背景 */
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .listening-subtypes {
+            padding: 12px;
+            background-color: #f9f9f9;
+        }
+        
+        .listening-subtype-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            background-color: white;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .listening-subtype-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .subtype-name {
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+        
+        .listening-subtype-input {
+            width: 60px;
+            text-align: center;
         }
     </style>
 </head>
@@ -352,46 +352,47 @@
     <!-- 引入公共头部组件 -->
     {% include 'header.html' %}
 
-    <div class="container">
-        <!-- 左侧筛选栏 -->
+    <div class="main-container">
         <div class="filter-sidebar">
-            <div class="card">
-                <h2 class="section-title">筛选条件</h2>
-                
-                <!-- 基础筛选 -->
-                <div class="filter-section">
-                    <div class="filter-input-group">
-                        <label for="educationStage">学段</label>
-                        <select id="educationStage">
+            <div class="filter-box">
+                <div class="filter-box-content">
+                    <div class="filter-item">
+                        <label for="educationStage">学段 <span class="required-mark">*</span></label>
+                        <select id="educationStage" onchange="handleFilterChange(event)">
                             <option value="">选择学段</option>
                             <option value="小学">小学</option>
                             <option value="初中">初中</option>
-                            <option value="高中">高中</option>
+                            <option value="高中" selected>高中</option>
                         </select>
                     </div>
-                    
-                    <div class="filter-input-group">
-                        <label for="subject">科目</label>
-                        <select id="subject" disabled>
+                    <div class="filter-item">
+                        <label for="subject">科目 <span class="required-mark">*</span></label>
+                        <select id="subject" onchange="updateQuestionTypes()">
                             <option value="">选择科目</option>
+                            <option value="语文">语文</option>
+                            <option value="数学">数学</option>
+                            <option value="英语">英语</option>
+                            <option value="物理">物理</option>
+                            <option value="化学">化学</option>
+                            <option value="生物">生物</option>
+                            <option value="政治">政治</option>
+                            <option value="历史">历史</option>
+                            <option value="地理">地理</option>
                         </select>
                     </div>
-                    
-                    <div class="filter-input-group">
+                    <div class="filter-item">
                         <label for="chapter">章节</label>
                         <select id="chapter" disabled>
                             <option value="">选择章节</option>
                         </select>
                     </div>
-                    
-                    <div class="filter-input-group">
+                    <div class="filter-item">
                         <label for="unit">单元</label>
                         <select id="unit" disabled>
                             <option value="">选择单元</option>
                         </select>
                     </div>
-                    
-                    <div class="filter-input-group">
+                    <div class="filter-item">
                         <label for="lesson">课程</label>
                         <select id="lesson" disabled>
                             <option value="">选择课程</option>
@@ -399,6 +400,11 @@
                     </div>
                 </div>
             </div>
+        </div>
+        
+        <div class="content-area">
+            <!-- 消息提示框 -->
+            <div id="messageBox" class="message-box"></div>
             
             <!-- 题型选择部分 -->
             <div class="question-types-container">
@@ -422,36 +428,18 @@
                     </div>
                 </div>
                 
-                <div id="totalCountDisplay">总题目数：<span id="totalCount">0</span>/50</div>
-                
-                <button id="generateBtn" class="button button-primary" onclick="generatePaper()" disabled>生成试卷</button>
+                <div class="total-count">
+                    已选择: <span id="totalCount">0</span> / 50 题
+                </div>
             </div>
-        </div>
-        
-        <!-- 主内容区域 -->
-        <div class="main-content">
-            <div class="card">
-                <h1 class="page-title">智能试卷组卷</h1>
-                
-                <p>根据筛选条件自动生成试卷，可选择题型和数量。</p>
-                
-                <!-- 显示生成进度 -->
-                <div id="loadingIndicator" class="loading-indicator">
-                    <div class="spinner"></div>
-                    <p>正在生成试卷，请稍候...</p>
-                </div>
-                
-                <!-- 消息提示 -->
-                <div id="messageBox" class="message" style="display: none;"></div>
-                
-                <!-- 生成结果 -->
-                <div id="generationResult" class="generation-result">
-                    <h3>试卷已生成</h3>
-                    <div class="result-actions">
-                        <button id="downloadBtn" class="button button-primary" onclick="downloadPaper()">下载试卷(Word)</button>
-                        <button id="audioDownloadBtn" class="button button-primary" onclick="downloadAudio()" style="display: none;">下载听力音频(MP3)</button>
-                    </div>
-                </div>
+            
+            <!-- 生成按钮部分 -->
+            <button id="generateButton" class="generate-button" disabled>智能组卷</button>
+            
+            <!-- 加载进度显示 -->
+            <div id="progressContainer" class="progress-container">
+                <div class="spinner"></div>
+                <p>正在生成试卷，请稍候...</p>
             </div>
         </div>
     </div>
@@ -474,7 +462,7 @@
             loadQuestions();
             
             // 绑定生成按钮事件
-            document.getElementById('generateBtn').addEventListener('click', generatePaper);
+            document.getElementById('generateButton').addEventListener('click', generatePaper);
         });
         
         // 初始化拖拽功能
@@ -541,21 +529,28 @@
         
         // 更新总题目数量
         function updateTotalCount() {
-            const inputs = document.querySelectorAll('.question-count-input');
             let total = 0;
             
-            inputs.forEach(input => {
+            // 计算普通题型数量
+            const countInputs = document.querySelectorAll('.question-count-input:not(.listening-subtype-input)');
+            countInputs.forEach(input => {
                 total += parseInt(input.value) || 0;
             });
             
-            const totalCountElement = document.getElementById('totalCount');
-            totalCountElement.textContent = total;
+            // 计算听力子题型数量
+            const listeningSubtypeInputs = document.querySelectorAll('.listening-subtype-input');
+            listeningSubtypeInputs.forEach(input => {
+                total += parseInt(input.value) || 0;
+            });
             
-            // 如果超过50题，高亮显示
+            // 更新显示
+            document.getElementById('totalCount').textContent = total;
+            
+            // 更新状态
             if (total > 50) {
-                totalCountElement.style.color = '#ff4d4f';
+                document.getElementById('totalCountContainer').classList.add('error');
             } else {
-                totalCountElement.style.color = '';
+                document.getElementById('totalCountContainer').classList.remove('error');
             }
             
             return total;
@@ -567,7 +562,7 @@
             const subject = document.getElementById('subject').value;
             const totalCount = updateTotalCount();
             
-            const generateButton = document.getElementById('generateBtn');
+            const generateButton = document.getElementById('generateButton');
             
             if (educationStage && subject && totalCount > 0 && totalCount <= 50) {
                 generateButton.disabled = false;
@@ -815,185 +810,129 @@
                         </div>
                         <input type="number" class="question-count-input" min="0" max="20" value="10" data-type="单选题">
                     </div>
-                    <div class="question-type-item" data-type="多选题" draggable="true">
-                        <div class="type-info">
-                            <span class="drag-handle">☰</span>
-                            <span class="question-type-name">多选题</span>
-                        </div>
-                        <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="多选题">
-                    </div>
-                    <div class="question-type-item" data-type="判断题" draggable="true">
-                        <div class="type-info">
-                            <span class="drag-handle">☰</span>
-                            <span class="question-type-name">判断题</span>
-                        </div>
-                        <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="判断题">
-                    </div>
-                    <div class="question-type-item" data-type="填空题" draggable="true">
-                        <div class="type-info">
-                            <span class="drag-handle">☰</span>
-                            <span class="question-type-name">填空题</span>
-                        </div>
-                        <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="填空题">
-                    </div>
-                    <div class="question-type-item" data-type="解答题" draggable="true">
-                        <div class="type-info">
-                            <span class="drag-handle">☰</span>
-                            <span class="question-type-name">解答题</span>
-                        </div>
-                        <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="解答题">
-                    </div>
                 `;
+                updateTotalCount();
                 return;
             }
             
-            // 英语科目特殊处理
-            if (subject === '英语') {
-                handleEnglishSubject(educationStage);
-                return;
-            }
+            // 过滤当前学段和科目的题目
+            const filteredQuestions = allQuestions.filter(q => 
+                q.educationStage === educationStage && q.subject === subject);
             
-            // 获取该学段和科目下的所有题型
-            const availableTypes = [...new Set(
-                allQuestions
-                    .filter(q => q.educationStage === educationStage && q.subject === subject)
-                    .map(q => q.question_type)
-            )].filter(Boolean);
+            // 获取可用题型
+            let questionTypes = [...new Set(filteredQuestions.map(q => q.questionType))].filter(Boolean);
             
-            // 按照选择题、填空题、解答题等特定顺序排序
-            const orderedTypes = orderQuestionTypes(availableTypes);
+            // 确保选择题始终排在最前面
+            const choiceQuestionTypes = ['单选题', '多选题', '选择题'];
             
-            // 生成题型选择器HTML
-            const html = orderedTypes.map(type => `
-                <div class="question-type-item" data-type="${type}" draggable="true">
-                    <div class="type-info">
-                        <span class="drag-handle">☰</span>
-                        <span class="question-type-name">${type}</span>
-                    </div>
-                    <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="${type}">
-                </div>
-            `).join('');
+            // 移除所有选择题类型
+            questionTypes = questionTypes.filter(type => !choiceQuestionTypes.includes(type));
             
-            document.getElementById('questionTypesContainer').innerHTML = html;
+            // 从筛选结果中找出所有存在的选择题类型
+            const availableChoiceTypes = choiceQuestionTypes.filter(type => 
+                filteredQuestions.some(q => q.questionType === type)
+            );
             
-            // 重新绑定拖拽事件
-            initDragAndDrop();
-        }
-        
-        // 为英语科目处理特殊题型
-        function handleEnglishSubject(educationStage) {
+            // 将选择题类型放在最前面
+            orderedTypes = [...availableChoiceTypes, ...questionTypes];
+            
+            // 更新题型列表
             const container = document.getElementById('questionTypesContainer');
+            container.innerHTML = '';
             
-            // 获取所有英语题型
-            const allEnglishTypes = [...new Set(
-                allQuestions
-                    .filter(q => q.educationStage === educationStage && q.subject === '英语')
-                    .map(q => q.question_type)
-            )].filter(Boolean);
+            // 英语学科特殊处理，判断是否有听力题型
+            const isEnglishSubject = (subject === '英语');
+            const hasListeningType = isEnglishSubject && questionTypes.includes('听力理解');
             
-            // 获取所有听力类型的章节（子类型）
-            const listeningSubtypes = [...new Set(
-                allQuestions
-                    .filter(q => 
-                        q.educationStage === educationStage && 
-                        q.subject === '英语' && 
-                        (q.question_type === '听力理解' || q.question_type.includes('听力'))
-                    )
-                    .map(q => q.chapter)
-            )].filter(Boolean).sort();
-            
-            // 按照选择题、听力题等特定顺序排序
-            const orderedTypes = orderQuestionTypes(allEnglishTypes);
-            
-            let html = '';
-            
-            // 生成题型选择器HTML
             orderedTypes.forEach(type => {
-                // 特殊处理听力理解题型
-                if (type === '听力理解' || type.includes('听力')) {
-                    // 先添加主听力题型
-                    html += `
-                        <div class="question-type-group listening-group">
-                            <div class="question-type-header">
-                                <span class="question-type-name"><strong>${type}</strong></span>
-                            </div>
-                    `;
+                // 如果是英语学科的听力理解题型，创建特殊的子题型选择器
+                if (isEnglishSubject && type === '听力理解') {
+                    // 创建听力题型的容器
+                    const listeningContainer = document.createElement('div');
+                    listeningContainer.className = 'listening-type-container';
                     
-                    // 添加听力子类型
-                    if (listeningSubtypes.length > 0) {
-                        listeningSubtypes.forEach(subtype => {
-                            html += `
-                                <div class="question-type-item listening-subtype" data-type="${type}" data-subtype="${subtype}" draggable="true">
-                                    <div class="type-info">
-                                        <span class="drag-handle">☰</span>
-                                        <span class="question-type-name">${subtype}</span>
-                                    </div>
-                                    <input type="number" class="question-count-input" min="0" max="20" value="5" 
-                                           data-type="${type}" data-subtype="${subtype}">
-                                </div>
-                            `;
-                        });
-                    } else {
-                        // 如果没有子类型，就只添加主类型
-                        html += `
-                            <div class="question-type-item" data-type="${type}" draggable="true">
-                                <div class="type-info">
-                                    <span class="drag-handle">☰</span>
-                                    <span class="question-type-name">${type}</span>
-                                </div>
-                                <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="${type}">
-                            </div>
-                        `;
-                    }
-                    
-                    html += `</div>`;
-                } else {
-                    // 非听力题型正常处理
-                    html += `
-                        <div class="question-type-item" data-type="${type}" draggable="true">
-                            <div class="type-info">
-                                <span class="drag-handle">☰</span>
-                                <span class="question-type-name">${type}</span>
-                            </div>
-                            <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="${type}">
+                    // 添加听力主题型标题
+                    const listeningHeader = document.createElement('div');
+                    listeningHeader.className = 'listening-header';
+                    listeningHeader.innerHTML = `
+                        <div class="type-info">
+                            <span class="drag-handle">☰</span>
+                            <span class="question-type-name">${type}</span>
                         </div>
                     `;
+                    listeningContainer.appendChild(listeningHeader);
+                    
+                    // 添加听力子题型选择器
+                    const subTypesContainer = document.createElement('div');
+                    subTypesContainer.className = 'listening-subtypes';
+                    
+                    // 获取听力三种常见子类型的章节
+                    const listeningChapters = ['听短对话选答案', '听长对话选答案', '听短文选答案'];
+                    
+                    // 为每个子类型创建选择器
+                    listeningChapters.forEach(chapter => {
+                        // 检查该章节是否在数据中存在
+                        const hasChapter = filteredQuestions.some(q => 
+                            q.questionType === '听力理解' && q.chapter === chapter
+                        );
+                        
+                        // 如果存在，则添加该子类型
+                        if (hasChapter) {
+                            const subTypeItem = document.createElement('div');
+                            subTypeItem.className = 'listening-subtype-item';
+                            subTypeItem.setAttribute('data-type', '听力理解');
+                            subTypeItem.setAttribute('data-chapter', chapter);
+                            
+                            subTypeItem.innerHTML = `
+                                <div class="subtype-info">
+                                    <span class="subtype-name">${chapter}</span>
+                                </div>
+                                <input type="number" class="question-count-input listening-subtype-input" 
+                                       min="0" max="10" value="3" 
+                                       data-type="听力理解" 
+                                       data-chapter="${chapter}">
+                            `;
+                            
+                            subTypesContainer.appendChild(subTypeItem);
+                        }
+                    });
+                    
+                    // 如果有子类型，则添加到容器
+                    if (subTypesContainer.children.length > 0) {
+                        listeningContainer.appendChild(subTypesContainer);
+                        container.appendChild(listeningContainer);
+                        
+                        // 添加事件监听器，当子类型计数变化时更新总数
+                        const subTypeInputs = listeningContainer.querySelectorAll('.listening-subtype-input');
+                        subTypeInputs.forEach(input => {
+                            input.addEventListener('change', updateTotalCount);
+                        });
+                    }
+                } 
+                // 其他题型正常处理
+                else if (type !== '听力理解' || !isEnglishSubject) {
+                    const item = document.createElement('div');
+                    item.className = 'question-type-item';
+                    item.setAttribute('data-type', type);
+                    item.setAttribute('draggable', 'true');
+                    
+                    item.innerHTML = `
+                        <div class="type-info">
+                            <span class="drag-handle">☰</span>
+                            <span class="question-type-name">${type}</span>
+                        </div>
+                        <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="${type}">
+                    `;
+                    
+                    container.appendChild(item);
                 }
             });
             
-            container.innerHTML = html;
-            
-            // 重新绑定拖拽事件
+            // 初始化拖拽功能
             initDragAndDrop();
-        }
-        
-        // 将题型按照特定顺序排序
-        function orderQuestionTypes(types) {
-            const typeOrder = [
-                '选择题', '单选题', '多选题', 
-                '听力理解', '听力', '短对话听力', '长对话听力', '短文听力',
-                '阅读理解', '完形填空', 
-                '填空题', '判断题', '解答题', '作文'
-            ];
             
-            // 按照预定义顺序排序
-            const orderedTypes = [];
-            
-            // 先添加有序类型
-            typeOrder.forEach(orderType => {
-                if (types.includes(orderType)) {
-                    orderedTypes.push(orderType);
-                }
-            });
-            
-            // 再添加其他类型
-            types.forEach(type => {
-                if (!orderedTypes.includes(type)) {
-                    orderedTypes.push(type);
-                }
-            });
-            
-            return orderedTypes;
+            // 更新总数
+            updateTotalCount();
         }
         
         // 显示消息
@@ -1024,59 +963,59 @@
             
             // 获取题型和数量
             const questionTypes = [];
-            const typeItems = document.querySelectorAll('.question-type-item');
             
+            // 处理普通题型
+            const typeItems = document.querySelectorAll('.question-type-item');
             typeItems.forEach(item => {
                 const type = item.getAttribute('data-type');
                 const countInput = item.querySelector('.question-count-input');
-                const count = parseInt(countInput.value, 10) || 0;
-                
-                // 检查是否有子类型（听力题特殊处理）
-                const subtype = item.getAttribute('data-subtype');
+                const count = parseInt(countInput.value) || 0;
                 
                 if (count > 0) {
-                    if (subtype) {
-                        // 听力题子类型
-                        questionTypes.push({
-                            type: type,
-                            subtype: subtype,
-                            count: count
-                        });
-                    } else {
-                        // 普通题型
-                        questionTypes.push({
-                            type: type,
-                            count: count
-                        });
-                    }
+                    questionTypes.push({
+                        type: type,
+                        count: count
+                    });
                 }
             });
             
-            // 验证数据
+            // 处理英语听力子题型
+            const listeningSubtypeItems = document.querySelectorAll('.listening-subtype-item');
+            listeningSubtypeItems.forEach(item => {
+                const type = item.getAttribute('data-type');
+                const chapter = item.getAttribute('data-chapter');
+                const countInput = item.querySelector('.listening-subtype-input');
+                const count = parseInt(countInput.value) || 0;
+                
+                if (count > 0) {
+                    questionTypes.push({
+                        type: type,
+                        count: count,
+                        chapter: chapter
+                    });
+                }
+            });
+            
+            // 验证
             if (!educationStage || !subject) {
                 showMessage('请选择学段和科目', 'error');
                 return;
             }
             
             if (questionTypes.length === 0) {
-                showMessage('请至少选择一种题型', 'error');
+                showMessage('请至少选择一种题型并设置数量', 'error');
                 return;
             }
             
-            // 显示加载中提示
-            document.getElementById('loadingIndicator').style.display = 'block';
-            document.getElementById('generateBtn').disabled = true;
+            const totalCount = updateTotalCount();
+            if (totalCount > 50) {
+                showMessage('题目总数不能超过50道', 'error');
+                return;
+            }
             
-            // 准备发送数据
-            const requestData = {
-                educationStage,
-                subject,
-                chapter,
-                unit,
-                lesson,
-                questionTypes,
-                paperTitle
-            };
+            // 显示进度
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('generateButton').disabled = true;
             
             // 发送请求
             fetch('/api/generate_smart_paper', {
@@ -1084,137 +1023,109 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(requestData)
+                body: JSON.stringify({
+                    educationStage: educationStage,
+                    subject: subject,
+                    chapter: chapter,
+                    unit: unit,
+                    lesson: lesson,
+                    questionTypes: questionTypes,
+                    paperTitle: paperTitle
+                })
             })
             .then(response => response.json())
             .then(data => {
-                document.getElementById('loadingIndicator').style.display = 'none';
-                document.getElementById('generateBtn').disabled = false;
+                document.getElementById('progressContainer').style.display = 'none';
                 
                 if (data.error) {
                     showMessage(data.error, 'error');
+                    document.getElementById('generateButton').disabled = false;
                     return;
                 }
                 
                 if (data.success) {
-                    // 显示成功消息
-                    showMessage('试卷生成成功', 'success');
-                    
-                    // 保存生成的ID和试卷标题，用于生成试卷
-                    window.generatedPaperData = {
-                        question_ids: data.question_ids,
-                        paper_title: data.paper_title,
-                        has_audio: data.has_audio // 是否包含音频文件
-                    };
-                    
-                    // 显示下载选项
-                    document.getElementById('generationResult').style.display = 'block';
-                    
-                    // 如果是英语听力，添加音频下载按钮
-                    const hasAudio = data.has_audio || (subject === "英语" && questionTypes.some(t => 
-                        t.type.includes("听力") || t.subtype?.includes("听力")));
-                    
-                    const audioDownloadBtn = document.getElementById('audioDownloadBtn');
-                    if (hasAudio) {
-                        audioDownloadBtn.style.display = 'inline-block';
-                    } else {
-                        audioDownloadBtn.style.display = 'none';
-                    }
+                    // 调用生成试卷API
+                    generateFinalPaper(data.question_ids, paperTitle, data.audio_files);
                 }
             })
             .catch(error => {
-                document.getElementById('loadingIndicator').style.display = 'none';
-                document.getElementById('generateBtn').disabled = false;
-                showMessage('服务器错误，请稍后重试', 'error');
-                console.error('Error:', error);
+                document.getElementById('progressContainer').style.display = 'none';
+                document.getElementById('generateButton').disabled = false;
+                showMessage('生成试卷失败：' + error.message, 'error');
             });
         }
         
-        // 下载试卷
-        function downloadPaper() {
-            if (!window.generatedPaperData) {
-                showMessage('请先生成试卷', 'error');
-                return;
-            }
-            
-            document.getElementById('downloadBtn').disabled = true;
-            document.getElementById('loadingIndicator').style.display = 'block';
-            
+        // 生成最终试卷
+        function generateFinalPaper(questionIds, paperTitle, audioFiles) {
             fetch('/generate_paper', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(window.generatedPaperData)
+                body: JSON.stringify({
+                    question_ids: questionIds,
+                    paper_title: paperTitle,
+                    has_audio: audioFiles && audioFiles.length > 0
+                })
             })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                    return response.json().then(err => { throw new Error(err.error || '生成试卷失败'); });
                 }
                 return response.blob();
             })
             .then(blob => {
-                document.getElementById('loadingIndicator').style.display = 'none';
-                document.getElementById('downloadBtn').disabled = false;
-                
                 // 创建下载链接
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = window.generatedPaperData.paper_title + '.docx';
+                a.download = `${paperTitle}.docx`;
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
-            })
-            .catch(error => {
-                document.getElementById('loadingIndicator').style.display = 'none';
-                document.getElementById('downloadBtn').disabled = false;
-                showMessage('下载失败，请重试', 'error');
-                console.error('Download error:', error);
-            });
-        }
-        
-        // 下载音频
-        function downloadAudio() {
-            if (!window.generatedPaperData) {
-                showMessage('请先生成试卷', 'error');
-                return;
-            }
-            
-            document.getElementById('audioDownloadBtn').disabled = true;
-            document.getElementById('loadingIndicator').style.display = 'block';
-            
-            fetch('/generate_paper_audio', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(window.generatedPaperData)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                
+                // 如果有音频文件，提供音频下载链接
+                if (audioFiles && audioFiles.length > 0) {
+                    // 创建音频打包下载链接
+                    fetch('/api/package_audio_files', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            audio_files: audioFiles,
+                            paper_title: paperTitle
+                        })
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('音频打包失败');
+                        }
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const audioUrl = window.URL.createObjectURL(blob);
+                        const audioLink = document.createElement('a');
+                        audioLink.href = audioUrl;
+                        audioLink.download = `${paperTitle}_听力音频.zip`;
+                        document.body.appendChild(audioLink);
+                        audioLink.click();
+                        window.URL.revokeObjectURL(audioUrl);
+                        
+                        showMessage('试卷和听力音频生成成功！', 'success');
+                    })
+                    .catch(error => {
+                        showMessage('试卷生成成功，但听力音频下载失败：' + error.message, 'warning');
+                    });
+                } else {
+                    showMessage('试卷生成成功！', 'success');
                 }
-                return response.blob();
-            })
-            .then(blob => {
-                document.getElementById('loadingIndicator').style.display = 'none';
-                document.getElementById('audioDownloadBtn').disabled = false;
                 
-                // 创建下载链接
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = window.generatedPaperData.paper_title + '_听力.mp3';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
+                document.getElementById('generateButton').disabled = false;
             })
             .catch(error => {
-                document.getElementById('loadingIndicator').style.display = 'none';
-                document.getElementById('audioDownloadBtn').disabled = false;
-                showMessage('音频下载失败，请重试', 'error');
-                console.error('Audio download error:', error);
+                document.getElementById('generateButton').disabled = false;
+                showMessage('下载试卷失败：' + error.message, 'error');
             });
         }
     </script>
