@@ -1057,16 +1057,6 @@
         
         // 生成最终试卷
         function generateFinalPaper(questionIds, paperTitle, audioFiles) {
-            // 显示"正在生成试卷"的消息
-            showMessage('正在生成试卷，请稍候...', 'info');
-            
-            // 设置生成按钮为禁用状态
-            document.getElementById('generateButton').disabled = true;
-            
-            // 检查是否包含音频文件（英语听力题）
-            const hasAudio = audioFiles && audioFiles.length > 0;
-            console.log("是否包含音频文件:", hasAudio, "音频文件数量:", audioFiles ? audioFiles.length : 0);
-            
             fetch('/generate_paper', {
                 method: 'POST',
                 headers: {
@@ -1075,63 +1065,67 @@
                 body: JSON.stringify({
                     question_ids: questionIds,
                     paper_title: paperTitle,
-                    has_audio: hasAudio
+                    has_audio: audioFiles && audioFiles.length > 0
                 })
             })
             .then(response => {
                 if (!response.ok) {
                     return response.json().then(err => { throw new Error(err.error || '生成试卷失败'); });
                 }
-                console.log("服务器成功响应，准备下载文件");
                 return response.blob();
             })
             .then(blob => {
-                console.log("获取到文件blob，大小:", blob.size, "字节");
-                
-                // 检查文件大小
-                if (blob.size < 100) {
-                    console.warn("警告: 下载的文件大小异常小 (" + blob.size + " 字节)");
-                    showMessage('警告: 下载的文件可能不完整，请重试', 'warning');
-                }
-                
                 // 创建下载链接
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                
-                // 设置文件名
-                let filename = paperTitle;
-                if (hasAudio) {
-                    filename += '.zip';  // 如果包含音频，则下载ZIP文件
-                    console.log("下载包含音频的ZIP文件");
-                } else {
-                    filename += '.docx';  // 否则下载Word文档
-                    console.log("下载Word文档");
-                }
-                a.download = filename;
-                
-                // 模拟点击下载
+                a.download = `${paperTitle}.docx`;
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
                 
-                // 恢复生成按钮状态
-                document.getElementById('generateButton').disabled = false;
-                
-                // 如果包含音频文件，也提供单独下载音频包的选项
-                if (hasAudio) {
-                    showMessage('试卷生成成功！已包含听力音频文件', 'success');
+                // 如果有音频文件，提供音频下载链接
+                if (audioFiles && audioFiles.length > 0) {
+                    // 创建音频打包下载链接
+                    fetch('/api/package_audio_files', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            audio_files: audioFiles,
+                            paper_title: paperTitle
+                        })
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('音频打包失败');
+                        }
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const audioUrl = window.URL.createObjectURL(blob);
+                        const audioLink = document.createElement('a');
+                        audioLink.href = audioUrl;
+                        audioLink.download = `${paperTitle}_听力音频.zip`;
+                        document.body.appendChild(audioLink);
+                        audioLink.click();
+                        window.URL.revokeObjectURL(audioUrl);
+                        
+                        showMessage('试卷和听力音频生成成功！', 'success');
+                    })
+                    .catch(error => {
+                        showMessage('试卷生成成功，但听力音频下载失败：' + error.message, 'warning');
+                    });
                 } else {
                     showMessage('试卷生成成功！', 'success');
                 }
+                
+                document.getElementById('generateButton').disabled = false;
             })
             .catch(error => {
-                console.error('Error generating paper:', error);
-                showMessage('生成试卷时出错: ' + error.message, 'error');
-                
-                // 恢复生成按钮状态
                 document.getElementById('generateButton').disabled = false;
+                showMessage('下载试卷失败：' + error.message, 'error');
             });
         }
     </script>
