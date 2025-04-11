@@ -139,6 +139,31 @@
             border-bottom: 1px solid var(--border-color);
         }
         
+        /* 试卷标题输入框样式 */
+        .paper-title-input-container {
+            margin-bottom: 20px;
+            padding: 12px;
+            background-color: var(--secondary-color);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+        }
+        
+        .paper-title-input-container label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-subheading);
+        }
+        
+        .paper-title-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
         .question-types-container {
             background-color: var(--background-main);
             border-radius: var(--border-radius);
@@ -324,6 +349,12 @@
             <div class="question-types-container">
                 <h2 class="section-title">题型和题目数量选择</h2>
                 <p>请选择您需要的题型和数量，拖动可调整题型顺序。总题目数量不超过50题。</p>
+                
+                <!-- 添加试卷名称输入框 -->
+                <div class="paper-title-input-container">
+                    <label for="paperTitleInput">试卷名称</label>
+                    <input type="text" id="paperTitleInput" class="paper-title-input" placeholder="请输入试卷名称" value="智能组卷试题">
+                </div>
                 
                 <div id="questionTypesContainer">
                     <!-- 题型列表将通过JavaScript动态生成 -->
@@ -627,36 +658,21 @@
                 q.educationStage === educationStage && q.subject === subject);
             
             // 获取可用题型
-            const questionTypes = [...new Set(filteredQuestions.map(q => q.questionType))].filter(Boolean);
+            let questionTypes = [...new Set(filteredQuestions.map(q => q.questionType))].filter(Boolean);
             
-            // 根据科目调整题型顺序
-            let orderedTypes = [];
+            // 确保选择题始终排在最前面
+            const choiceQuestionTypes = ['单选题', '多选题', '选择题'];
             
-            // 语文题型顺序
-            if (subject === '语文') {
-                const priorityTypes = ['单选题', '阅读理解', '作文', '文言文阅读', '现代文阅读', '诗词鉴赏'];
-                orderedTypes = arrangeQuestionTypes(questionTypes, priorityTypes);
-            }
-            // 数学题型顺序
-            else if (subject === '数学') {
-                const priorityTypes = ['单选题', '填空题', '解答题', '计算题'];
-                orderedTypes = arrangeQuestionTypes(questionTypes, priorityTypes);
-            }
-            // 英语题型顺序
-            else if (subject === '英语') {
-                const priorityTypes = ['单选题', '阅读理解', '完形填空', '写作'];
-                orderedTypes = arrangeQuestionTypes(questionTypes, priorityTypes);
-            }
-            // 政治题型顺序
-            else if (subject === '政治') {
-                const priorityTypes = ['单选题', '多选题', '材料分析题'];
-                orderedTypes = arrangeQuestionTypes(questionTypes, priorityTypes);
-            }
-            // 默认顺序
-            else {
-                const defaultPriority = ['单选题', '多选题', '填空题', '解答题', '主观题'];
-                orderedTypes = arrangeQuestionTypes(questionTypes, defaultPriority);
-            }
+            // 移除所有选择题类型
+            questionTypes = questionTypes.filter(type => !choiceQuestionTypes.includes(type));
+            
+            // 从筛选结果中找出所有存在的选择题类型
+            const availableChoiceTypes = choiceQuestionTypes.filter(type => 
+                filteredQuestions.some(q => q.questionType === type)
+            );
+            
+            // 将选择题类型放在最前面
+            orderedTypes = [...availableChoiceTypes, ...questionTypes];
             
             // 更新题型列表
             const container = document.getElementById('questionTypesContainer');
@@ -686,27 +702,6 @@
             updateTotalCount();
         }
         
-        // 根据优先级排序题型
-        function arrangeQuestionTypes(availableTypes, priorityOrder) {
-            let result = [];
-            
-            // 按优先级添加题型
-            priorityOrder.forEach(type => {
-                if (availableTypes.includes(type)) {
-                    result.push(type);
-                }
-            });
-            
-            // 添加剩余题型
-            availableTypes.forEach(type => {
-                if (!result.includes(type)) {
-                    result.push(type);
-                }
-            });
-            
-            return result;
-        }
-        
         // 显示消息
         function showMessage(message, type) {
             const messageBox = document.getElementById('messageBox');
@@ -729,6 +724,9 @@
             const chapter = document.getElementById('chapter').value;
             const unit = document.getElementById('unit').value;
             const lesson = document.getElementById('lesson').value;
+            
+            // 获取用户输入的试卷名称
+            const paperTitle = document.getElementById('paperTitleInput').value.trim() || "智能组卷试题";
             
             // 获取题型和数量
             const questionTypes = [];
@@ -780,7 +778,8 @@
                     chapter: chapter,
                     unit: unit,
                     lesson: lesson,
-                    questionTypes: questionTypes
+                    questionTypes: questionTypes,
+                    paperTitle: paperTitle
                 })
             })
             .then(response => response.json())
@@ -795,7 +794,7 @@
                 
                 if (data.success) {
                     // 调用生成试卷API
-                    generateFinalPaper(data.question_ids, data.paper_title);
+                    generateFinalPaper(data.question_ids, paperTitle);
                 }
             })
             .catch(error => {

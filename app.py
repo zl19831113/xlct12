@@ -1140,7 +1140,7 @@ def generate_paper():
                 
                 # 按照特定顺序排列题型组
                 question_type_order = [
-                    '单选题', '多选题', '判断题', '填空题', '解答题', 
+                    '单选题', '多选题', '选择题', '判断题', '填空题', '解答题', 
                     '主观题', '计算题', '论述题', '作文',
                     '诗词鉴赏', '文言文阅读', '现代文阅读'
                 ]
@@ -1174,6 +1174,99 @@ def generate_paper():
                 # 使用overall_question_num来跟踪全局题号，确保连续性
                 overall_question_num = 1
                 
+                # HTML标签替换映射
+                html_tag_replacements = {
+                    "<table": "[TABLE_START]",
+                    "</table>": "[TABLE_END]",
+                    "<tr": "[TR_START]",
+                    "</tr>": "[TR_END]",
+                    "<td": "[TD_START]",
+                    "</td>": "[TD_END]",
+                    "<th": "[TH_START]",
+                    "</th>": "[TH_END]",
+                    "<tbody": "[TBODY_START]",
+                    "</tbody>": "[TBODY_END]",
+                    "<thead": "[THEAD_START]",
+                    "</thead>": "[THEAD_END]",
+                    "<style": "[STYLE_START]",
+                    "</style>": "[STYLE_END]",
+                    "<br": "[BREAK]",
+                    "<p": "[P_START]",
+                    "</p>": "[P_END]"
+                }
+                
+                # HTML实体替换映射
+                html_entity_replacements = {
+                    "&ldquo;": """,
+                    "&rdquo;": """,
+                    "&hellip;": "...",
+                    "&nbsp;": " ",
+                    "&mdash;": "—",
+                    "&rarr;": "→",
+                    "&lsquo;": "'",
+                    "&rsquo;": "'",
+                    "&middot;": "·",
+                    "&bull;": "•",
+                    "&amp;": "&",
+                    "&lt;": "<",
+                    "&gt;": ">",
+                    "&quot;": "\"",
+                    "&times;": "×",
+                    "&divide;": "÷",
+                    "&plusmn;": "±",
+                    "&laquo;": "«",
+                    "&raquo;": "»",
+                    "&copy;": "©",
+                    "&reg;": "®",
+                    "&trade;": "™",
+                    "&deg;": "°",
+                    "&ndash;": "-",
+                    "&emsp;": "  ",
+                    "&ensp;": " ",
+                    "&thinsp;": " "
+                }
+                
+                # 处理HTML内容的函数
+                def clean_html_content(text):
+                    if not text:
+                        return ""
+                        
+                    # 保留表格的内容，但移除表格标签
+                    # 替换HTML标签为临时标记
+                    for tag, replacement in html_tag_replacements.items():
+                        text = text.replace(tag, replacement)
+                    
+                    # 替换HTML实体
+                    for entity, replacement in html_entity_replacements.items():
+                        text = text.replace(entity, replacement)
+                    
+                    # 移除所有剩余HTML标签
+                    text = re.sub(r'<[^>]+>', '', text)
+                    
+                    # 恢复换行
+                    text = text.replace("[BREAK]", "\n")
+                    text = text.replace("[P_START]", "").replace("[P_END]", "\n")
+                    
+                    # 恢复表格内容为简单文本格式
+                    text = text.replace("[TABLE_START]", "\n").replace("[TABLE_END]", "\n")
+                    text = text.replace("[TR_START]", "").replace("[TR_END]", "\n")
+                    text = text.replace("[TD_START]", "").replace("[TD_END]", " | ")
+                    text = text.replace("[TH_START]", "").replace("[TH_END]", " | ")
+                    text = text.replace("[TBODY_START]", "").replace("[TBODY_END]", "")
+                    text = text.replace("[THEAD_START]", "").replace("[THEAD_END]", "")
+                    
+                    # 移除样式块
+                    text = re.sub(r'\[STYLE_START\].*?\[STYLE_END\]', '', text, flags=re.DOTALL)
+                    
+                    # 移除所有剩余的HTML实体
+                    text = re.sub(r'&[a-zA-Z0-9#]+;', '', text)
+                    
+                    # 处理连续的空行和空格
+                    text = re.sub(r'\n\s*\n+', '\n\n', text)
+                    text = re.sub(r' {2,}', ' ', text)
+                    
+                    return text
+                
                 # 遍历每个题型分组添加题目
                 for section_num, q_type in enumerate(ordered_types, 1):
                     print(f"Adding section: {section_num}, Type: {q_type}")
@@ -1187,21 +1280,13 @@ def generate_paper():
                     for q in grouped_questions[q_type]:
                         print(f"  Processing question ID: {q.id}, Type: {q.question_type}, Overall number: {overall_question_num}")
                         
+                        # 清理题目内容，处理HTML
+                        question_text = clean_html_content(q.question)
+                        
                         # --- Formatting for Non-MCQ Types --- 
                         if q.question_type in non_mcq_types:
-                            # 清理文本，避免在冒号后自动换行
-                            cleaned_text = re.sub(r'[:：]\s*\n', '', q.question)  # 冒号直接删除
-                            cleaned_text = re.sub(r'^\s*\d+[．.、]\s*', '', cleaned_text).strip()
-                            
-                            # 清理HTML实体
-                            for old, new in replacements.items():
-                                cleaned_text = cleaned_text.replace(old, new)
-                            
-                            # 使用正则表达式移除所有剩余的HTML实体
-                            cleaned_text = re.sub(r'&[a-zA-Z0-9#]+;', '', cleaned_text)
-                            
-                            # 删除引号和冒号
-                            cleaned_text = cleaned_text.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
+                            # 清理问题文本
+                            cleaned_text = re.sub(r'^\s*\d+[．.、]\s*', '', question_text).strip()
                             
                             # 添加主段落
                             p = doc.add_paragraph(style='Normal')
@@ -1213,35 +1298,20 @@ def generate_paper():
                             question_number_run.font.bold = False
                             question_number_run.font.size = Pt(10.5)
                             
-                            # 添加主题干文本，保留段落结构但避免在冒号后换行
+                            # 添加主题干文本，保留段落结构
                             paragraphs = cleaned_text.split('\n')
                             if paragraphs:
-                                # 第一段跟题号同行，处理冒号
-                                first_para = paragraphs[0]
-                                if '：' in first_para:
-                                    colon_parts = first_para.split('：')
-                                    for i, part in enumerate(colon_parts):
-                                        if i > 0:
-                                            p.add_run('：')  # 添加冒号
-                                        p.add_run(part.strip()).font.size = Pt(10.5)
-                                else:
-                                    p.add_run(first_para).font.size = Pt(10.5)
+                                # 第一段跟题号同行
+                                p.add_run(paragraphs[0].strip()).font.size = Pt(10.5)
                                 
-                                # 后续段落各自一行，同样处理冒号
+                                # 后续段落各自一行
                                 for para in paragraphs[1:]:
                                     if para.strip():
                                         para_p = doc.add_paragraph(style='Normal')
                                         para_p.paragraph_format.line_spacing = 1.0  # 单倍行距
                                         para_p.paragraph_format.first_line_indent = Inches(0.25)
-                                        
-                                        if '：' in para:
-                                            colon_parts = para.split('：')
-                                            for i, part in enumerate(colon_parts):
-                                                if i > 0:
-                                                    para_p.add_run('：')
-                                                para_p.add_run(part.strip()).font.size = Pt(10.5)
-                                        else:
-                                            para_p.add_run(para.strip()).font.size = Pt(10.5)
+                                        para_p.add_run(para.strip()).font.size = Pt(10.5)
+                            
                             # Increment overall question number
                             overall_question_num += 1
                             # 非选择题不要空行
@@ -1250,41 +1320,10 @@ def generate_paper():
                         # --- Formatting for MCQ Types (Updated Logic) --- 
                         else:
                             # Use clean_and_split_question() to split stem, bullets, choices
-                            questionPart, bulletsList, choicePart = clean_and_split_question(q.question)
+                            questionPart, bulletsList, choicePart = clean_and_split_question(question_text)
                             
                             # 清理HTML实体字符
-                            replacements = {
-                                "&ldquo;": "",
-                                "&rdquo;": "",
-                                "&hellip;": "...",
-                                "&nbsp;": " ",
-                                "&mdash;": "-",
-                                "&rarr;": "→",
-                                "&lsquo;": "",
-                                "&rsquo;": "",
-                                "&middot;": "·",
-                                "&bull;": "•",
-                                "&amp;": "&",
-                                "&lt;": "<",
-                                "&gt;": ">",
-                                "&quot;": "",
-                                "&times;": "×",
-                                "&divide;": "÷",
-                                "&plusmn;": "±",
-                                "&laquo;": "",
-                                "&raquo;": "",
-                                "&copy;": "©",
-                                "&reg;": "®",
-                                "&trade;": "™",
-                                "&deg;": "°",
-                                "&ndash;": "-",
-                                "&emsp;": "  ",
-                                "&ensp;": " ",
-                                "&thinsp;": " "
-                            }
-                            
-                            # 对题目主体进行HTML实体替换
-                            for old, new in replacements.items():
+                            for old, new in html_entity_replacements.items():
                                 questionPart = questionPart.replace(old, new)
                                 choicePart = choicePart.replace(old, new)
                             
@@ -1292,40 +1331,6 @@ def generate_paper():
                             questionPart = re.sub(r'&[a-zA-Z0-9#]+;', '', questionPart)
                             choicePart = re.sub(r'&[a-zA-Z0-9#]+;', '', choicePart)
                             
-                            # 完全删除引号和冒号
-                            questionPart = questionPart.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
-                            choicePart = choicePart.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
-                            
-                            # 处理空引号问题已经不需要了，因为所有引号都被删除
-                            # 修复逗号后的引号问题也不需要了，因为引号已被删除
-                            
-                            # 特殊处理马克思引文格式问题 - 不再需要，引号会被删除
-                            # if '马克思' in questionPart and '《资本论》' in questionPart:
-                            #     # 处理引文格式已不需要
-                            #     pass
-                            
-                            # 对选项列表进行HTML实体替换
-                            cleaned_bullets = []
-                            for bullet in bulletsList:
-                                # 替换HTML实体
-                                for old, new in replacements.items():
-                                    bullet = bullet.replace(old, new)
-                                # 移除所有剩余的HTML实体
-                                bullet = re.sub(r'&[a-zA-Z0-9#]+;', '', bullet)
-                                # 删除引号和冒号
-                                bullet = bullet.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
-                                cleaned_bullets.append(bullet)
-                            
-                            bulletsList = cleaned_bullets
-                            
-                            # 确保引号和冒号不引起换行的处理已不需要，因为它们都被删除了
-                            questionPart = re.sub(r'([，,])\s*\n', r'\1 ', questionPart)
-
-                            # Get options from answer field as fallback
-                            answer_text = q.answer
-                            option_pattern = r'([A-D]\.[^\n]+)' # Matches options like A. B. etc.
-                            answer_options = re.findall(option_pattern, answer_text)
-
                             # Add main paragraph: Question Number + Stem
                             p = doc.add_paragraph(style='Normal')
                             p.paragraph_format.line_spacing = 1.5
@@ -1451,7 +1456,7 @@ def generate_paper():
                 choice_answers = []
                 
                 for i, q in enumerate(questions):
-                    answer_text = q.answer
+                    answer_text = clean_html_content(q.answer)
                     # 匹配字母答案（A、B、C、D）
                     match = re.search(r'\b([A-D])\b', answer_text)
                     if match:
@@ -1529,48 +1534,7 @@ def generate_paper():
                 # 添加每道题的解析，不留空白
                 for i, q in enumerate(questions, 1):
                     # 获取原始答案文本
-                    answer_text = q.answer.strip()
-                    
-                    # 清理HTML实体
-                    replacements = {
-                        "&ldquo;": "",
-                        "&rdquo;": "",
-                        "&hellip;": "...",
-                        "&nbsp;": " ",
-                        "&mdash;": "-",
-                        "&rarr;": "→",
-                        "&lsquo;": "",
-                        "&rsquo;": "",
-                        "&middot;": "·",
-                        "&bull;": "•",
-                        "&amp;": "&",
-                        "&lt;": "<",
-                        "&gt;": ">",
-                        "&quot;": "",
-                        "&times;": "×",
-                        "&divide;": "÷",
-                        "&plusmn;": "±",
-                        "&laquo;": "",
-                        "&raquo;": "",
-                        "&copy;": "©",
-                        "&reg;": "®",
-                        "&trade;": "™",
-                        "&deg;": "°",
-                        "&ndash;": "-",
-                        "&emsp;": "  ",
-                        "&ensp;": " ",
-                        "&thinsp;": " "
-                    }
-                    for old, new in replacements.items():
-                        answer_text = answer_text.replace(old, new)
-                    
-                    # 使用正则表达式移除所有剩余的HTML实体
-                    answer_text = re.sub(r'&[a-zA-Z0-9#]+;', '', answer_text)
-                    
-                    # 完全删除引号和冒号
-                    answer_text = answer_text.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
-                    
-                    # 移除多余的引号和处理额外的引号不再需要，因为所有引号已被删除
+                    answer_text = clean_html_content(q.answer).strip()
                     
                     # 移除答案开头的题号（如：9．）
                     answer_text = re.sub(r'^\d+[.\uff0e]\s*', '', answer_text)
@@ -1615,16 +1579,6 @@ def generate_paper():
                             
                             # 移除可能的重复选项（如 "D. ③④"）
                             explanation_text = re.sub(r'[A-D]\.\s*[①-⑨]+\s*$', '', explanation_text).strip()
-                            
-                            # 清理解析文本中的HTML实体
-                            for old, new in replacements.items():
-                                explanation_text = explanation_text.replace(old, new)
-                            
-                            # 使用正则表达式移除所有剩余的HTML实体
-                            explanation_text = re.sub(r'&[a-zA-Z0-9#]+;', '', explanation_text)
-                            
-                            # 完全删除引号和冒号
-                            explanation_text = explanation_text.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
                             
                             # 创建新段落
                             p = doc.add_paragraph()
@@ -2756,6 +2710,7 @@ def generate_smart_paper():
         unit = data.get('unit', '')
         lesson = data.get('lesson', '')
         question_types = data.get('questionTypes', [])
+        paper_title = data.get('paperTitle', '智能组卷试题')  # 获取用户提供的试卷标题
         
         # 验证必选字段
         if not education_stage or not subject:
@@ -2803,15 +2758,11 @@ def generate_smart_paper():
         if not selected_questions:
             return jsonify({'error': '未找到符合条件的题目'}), 404
             
-        # 生成试卷标题
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M")
-        paper_title = f"{education_stage}{subject}智能组卷_{timestamp}"
-        
         # 返回选中的题目ID和标题
         return jsonify({
             'success': True,
             'question_ids': selected_questions,
-            'paper_title': paper_title
+            'paper_title': paper_title  # 直接使用用户提供的标题
         })
     
     except Exception as e:
