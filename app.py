@@ -1474,6 +1474,84 @@ def generate_paper():
                 choice_answers = []
                 
                 for i, q in enumerate(questions):
+                    answer_text = clean_html_content(q.answer)
+                    # 匹配字母答案（A、B、C、D）
+                    match = re.search(r'\b([A-D])\b', answer_text)
+                    if match:
+                        choice_questions.append(q)
+                        question_indices.append(i + 1)  # 保存原始题号
+                        choice_answers.append(match.group(1))
+                
+                # 如果有选择题，我们才创建表格
+                if choice_questions:
+                    # 计算需要多少行（每行10题）
+                    rows_needed = math.ceil(len(choice_questions) / 10)
+                    
+                    # 创建表格
+                    table = doc.add_table(rows=rows_needed * 2, cols=min(len(choice_questions), 10))
+                    table.style = 'Table Grid'
+                    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+                    
+                    # 设置表格宽度
+                    table.autofit = False
+                    
+                    # 设置行高
+                    for row in table.rows:
+                        row.height = Pt(28)  # 设置行高，确保足够的垂直空间
+                        row.height_rule = 1  # 1表示固定高度
+                    
+                    # 填充表格内容
+                    current_cell_index = 0
+                    
+                    for q_idx in range(len(choice_questions)):
+                        row_idx = (q_idx // 10) * 2
+                        col_idx = q_idx % 10
+                        
+                        # 确保我们不会超出表格范围
+                        if col_idx < len(table.columns):
+                            # 题号单元格
+                            num_cell = table.cell(row_idx, col_idx)
+                            num_cell.text = str(question_indices[q_idx])
+                            num_paragraph = num_cell.paragraphs[0]
+                            num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = num_paragraph.runs[0]
+                            run.font.name = '宋体'
+                            run.font.bold = True
+                            run.font.size = Pt(10.5)
+                            
+                            # 设置单元格垂直居中
+                            num_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                            
+                            # 答案单元格
+                            ans_cell = table.cell(row_idx + 1, col_idx)
+                            ans_cell.text = choice_answers[q_idx]
+                            ans_paragraph = ans_cell.paragraphs[0]
+                            ans_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = ans_paragraph.runs[0]
+                            run.font.name = '宋体'
+                            run.font.size = Pt(10.5)
+                            
+                            # 设置单元格垂直居中
+                            ans_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                    
+                    # 设置表格边框
+                    set_cell_border(table)
+                
+                # 添加表格后的空白 - 减少空白量
+                doc.add_paragraph().paragraph_format.space_after = Pt(16)
+                
+                # 添加答案与解析标题
+                explanation_heading = doc.add_heading('答案与解析', 1)
+                
+                # 设置标题字体为宋体和大小
+                for run in explanation_heading.runs:
+                    run.font.name = '宋体'
+                    run.font.size = Pt(15)
+                    run.font.bold = True
+                
+                # 添加每道题的解析，不留空白
+                for i, q in enumerate(questions, 1):
+                    # 获取原始答案文本
                     answer_text = clean_html_content(q.answer).strip()
                     
                     # 移除答案开头的题号（如：9．）
