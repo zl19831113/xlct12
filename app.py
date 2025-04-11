@@ -1175,11 +1175,9 @@ def generate_paper():
                     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     title_paragraph.style = doc.styles['Title Bold']
                     title_run = title_paragraph.add_run(paper_title)
-                    title_run.bold = True
-                    title_run.font.size = Pt(15)
-                    
-                    # 设置单元格垂直居中
-                    title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                    title_run.font.name = '黑体'  # 使用黑体而不是宋体
+                    title_run.font.size = Pt(18)  # 增大字号为18磅
+                    title_run.font.bold = True
                     
                     # 右侧单元格：二维码
                     qr_cell = header_table.cell(0, 1)
@@ -1217,10 +1215,10 @@ def generate_paper():
                     scan_run.font.size = Pt(9)
                     scan_run.font.bold = True
                     
-                    # 去除表格边框
+                    # 保留表格边框，使抬头有框
                     try:
                         header_table.style = 'Table Grid'
-                        # 使用更安全的方式处理边框
+                        # 设置边框粗细为1磅
                         from docx.oxml.ns import qn
                         for cell in header_table.cells:
                             tc_pr = cell._tc.get_or_add_tcPr()
@@ -1229,7 +1227,10 @@ def generate_paper():
                                 for border in ['top', 'left', 'bottom', 'right']:
                                     border_elem = tc_borders.find(f"w:{border}")
                                     if border_elem is not None:
-                                        border_elem.set(qn('w:val'), 'nil')
+                                        border_elem.set(qn('w:val'), 'single')
+                                        border_elem.set(qn('w:sz'), '4')  # 1pt = 4 units
+                                        border_elem.set(qn('w:space'), '0')
+                                        border_elem.set(qn('w:color'), '000000')
                     except Exception as border_err:
                         print(f"处理表格边框时出错: {border_err}")
                 except Exception as qr_err:
@@ -1239,10 +1240,58 @@ def generate_paper():
                     title_paragraph.style = doc.styles['Title Bold']
                     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
             else:
-                # 添加标题（宋体，15磅，加粗，居中）
-                title_paragraph = doc.add_paragraph(paper_title)
-                title_paragraph.style = doc.styles['Title Bold']
-                title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                # 添加带方框的标题
+                try:
+                    # 创建表格作为标题方框
+                    header_table = doc.add_table(rows=1, cols=1)
+                    header_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+                    
+                    # 设置表格宽度
+                    header_table.autofit = False
+                    header_table.width = Inches(6.0)
+                    
+                    # 标题单元格
+                    title_cell = header_table.cell(0, 0)
+                    title_paragraph = title_cell.paragraphs[0]
+                    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    title_paragraph.style = doc.styles['Title Bold']
+                    title_run = title_paragraph.add_run(paper_title)
+                    title_run.font.name = '黑体'  # 使用黑体
+                    title_run.font.size = Pt(18)  # 18磅字号
+                    title_run.font.bold = True
+                    
+                    # 设置边框
+                    header_table.style = 'Table Grid'
+                    # 确保单元格有可见边框
+                    from docx.oxml.ns import qn
+                    for cell in header_table.cells:
+                        tc_pr = cell._tc.get_or_add_tcPr()
+                        tc_borders = tc_pr.get_or_add_tcBorders()
+                        for border in ['top', 'left', 'bottom', 'right']:
+                            border_elem = OxmlElement(f'w:{border}')
+                            border_elem.set(qn('w:val'), 'single')
+                            border_elem.set(qn('w:sz'), '4')  # 1pt = 4 units
+                            border_elem.set(qn('w:space'), '0')
+                            border_elem.set(qn('w:color'), '000000')
+                            tc_borders.append(border_elem)
+                    
+                    # 设置单元格内边距
+                    title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                    # 单元格填充间距 (尝试设置上下间距)
+                    tc_pr = title_cell._tc.get_or_add_tcPr()
+                    tc_mar = OxmlElement('w:tcMar')
+                    for margin_type, margin_val in [('top', '0'), ('bottom', '0'), ('left', '200'), ('right', '200')]:
+                        node = OxmlElement(f'w:{margin_type}')
+                        node.set(qn('w:w'), margin_val)
+                        node.set(qn('w:type'), 'dxa')
+                        tc_mar.append(node)
+                    tc_pr.append(tc_mar)
+                except Exception as title_err:
+                    print(f"创建带方框的标题时出错: {title_err}")
+                    # 备用标题
+                    title_paragraph = doc.add_paragraph(paper_title)
+                    title_paragraph.style = doc.styles['Title Bold']
+                    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
             # 3) 对题目按类型分组并添加章节标题
             try:
