@@ -1231,6 +1231,17 @@ def generate_paper():
                     if not text:
                         return ""
                         
+                    # 移除题目中的来源信息（通常位于开头，如"来源：xx"）
+                    text = re.sub(r'^(来源|试题来源|资料来源|出处|试题出处)[：:]\s*[^\n]+\n?', '', text)
+                    
+                    # 删除符号序列模式（①→②→③→...）
+                    text = re.sub(r'[①-⑨→]+', '', text)
+                    
+                    # 额外针对箭头模式和数字序列的更严格处理
+                    text = re.sub(r'[①②③④⑤⑥⑦⑧⑨](\s*→\s*[①②③④⑤⑥⑦⑧⑨])+', '', text)
+                    # 移除单独的箭头符号
+                    text = re.sub(r'→', '', text)
+                    
                     # 保留表格的内容，但移除表格标签
                     # 替换HTML标签为临时标记
                     for tag, replacement in html_tag_replacements.items():
@@ -1384,7 +1395,14 @@ def generate_paper():
                                     # 生成选项文本，用制表符分隔
                                     options_text = ""
                                     for i, (letter, numbers) in enumerate(choice_matches):
-                                        options_text += f"{letter}．{numbers.strip()}"
+                                        # 清理选项中可能的序列符号
+                                        cleaned_numbers = re.sub(r'[①-⑨](\s*→\s*[①-⑨])+', '', numbers)
+                                        # 移除所有箭头符号
+                                        cleaned_numbers = re.sub(r'→', '', cleaned_numbers)
+                                        # 移除空白
+                                        cleaned_numbers = cleaned_numbers.strip()
+                                        
+                                        options_text += f"{letter}．{cleaned_numbers}"
                                         if i < len(choice_matches) - 1:
                                             options_text += "\t\t"
                                     
@@ -1456,88 +1474,14 @@ def generate_paper():
                 choice_answers = []
                 
                 for i, q in enumerate(questions):
-                    answer_text = clean_html_content(q.answer)
-                    # 匹配字母答案（A、B、C、D）
-                    match = re.search(r'\b([A-D])\b', answer_text)
-                    if match:
-                        choice_questions.append(q)
-                        question_indices.append(i + 1)  # 保存原始题号
-                        choice_answers.append(match.group(1))
-                
-                # 如果有选择题，我们才创建表格
-                if choice_questions:
-                    # 计算需要多少行（每行10题）
-                    rows_needed = math.ceil(len(choice_questions) / 10)
-                    
-                    # 创建表格
-                    table = doc.add_table(rows=rows_needed * 2, cols=min(len(choice_questions), 10))
-                    table.style = 'Table Grid'
-                    table.alignment = WD_TABLE_ALIGNMENT.CENTER
-                    
-                    # 设置表格宽度
-                    table.autofit = False
-                    
-                    # 设置行高
-                    for row in table.rows:
-                        row.height = Pt(28)  # 设置行高，确保足够的垂直空间
-                        row.height_rule = 1  # 1表示固定高度
-                    
-                    # 填充表格内容
-                    current_cell_index = 0
-                    
-                    for q_idx in range(len(choice_questions)):
-                        row_idx = (q_idx // 10) * 2
-                        col_idx = q_idx % 10
-                        
-                        # 确保我们不会超出表格范围
-                        if col_idx < len(table.columns):
-                            # 题号单元格
-                            num_cell = table.cell(row_idx, col_idx)
-                            num_cell.text = str(question_indices[q_idx])
-                            num_paragraph = num_cell.paragraphs[0]
-                            num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                            run = num_paragraph.runs[0]
-                            run.font.name = '宋体'
-                            run.font.bold = True
-                            run.font.size = Pt(10.5)
-                            
-                            # 设置单元格垂直居中
-                            num_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                            
-                            # 答案单元格
-                            ans_cell = table.cell(row_idx + 1, col_idx)
-                            ans_cell.text = choice_answers[q_idx]
-                            ans_paragraph = ans_cell.paragraphs[0]
-                            ans_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                            run = ans_paragraph.runs[0]
-                            run.font.name = '宋体'
-                            run.font.size = Pt(10.5)
-                            
-                            # 设置单元格垂直居中
-                            ans_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                    
-                    # 设置表格边框
-                    set_cell_border(table)
-                
-                # 添加表格后的空白 - 减少空白量
-                doc.add_paragraph().paragraph_format.space_after = Pt(16)
-                
-                # 添加答案与解析标题
-                explanation_heading = doc.add_heading('答案与解析', 1)
-                
-                # 设置标题字体为宋体和大小
-                for run in explanation_heading.runs:
-                    run.font.name = '宋体'
-                    run.font.size = Pt(15)
-                    run.font.bold = True
-                
-                # 添加每道题的解析，不留空白
-                for i, q in enumerate(questions, 1):
-                    # 获取原始答案文本
                     answer_text = clean_html_content(q.answer).strip()
                     
                     # 移除答案开头的题号（如：9．）
                     answer_text = re.sub(r'^\d+[.\uff0e]\s*', '', answer_text)
+                    
+                    # 清理答案中的符号序列（①→②→③→...）
+                    answer_text = re.sub(r'[①-⑨](\s*→\s*[①-⑨])+', '', answer_text)
+                    answer_text = re.sub(r'→', '', answer_text)
                     
                     # 提取答案选项（A-D）
                     option_match = re.search(r'\b([A-D])\b', answer_text)
@@ -2741,6 +2685,9 @@ def generate_smart_paper():
         # 初始化题目结果列表
         selected_questions = []
         
+        # 使用当前时间作为随机种子，确保每次运行结果不同
+        random.seed(datetime.now().timestamp())
+        
         # 按照题型顺序选择题目
         for q_type, count in question_count_map.items():
             # 找出该类型的所有符合条件的题目
@@ -2748,15 +2695,23 @@ def generate_smart_paper():
             
             # 如果题目数量不足，使用所有可用题目
             if len(type_questions) <= count:
+                # 仍然打乱这些题目的顺序
+                random.shuffle(type_questions)
                 selected_questions.extend([q.id for q in type_questions])
             else:
                 # 随机选择指定数量的题目
-                selected_ids = random.sample([q.id for q in type_questions], count)
+                # 确保每次都重新洗牌全部题目，而不是简单使用sample
+                shuffled_questions = list(type_questions)
+                random.shuffle(shuffled_questions)
+                selected_ids = [q.id for q in shuffled_questions[:count]]
                 selected_questions.extend(selected_ids)
         
         # 如果没有选中任何题目
         if not selected_questions:
             return jsonify({'error': '未找到符合条件的题目'}), 404
+        
+        # 再次打乱题目的顺序，强化随机性
+        random.shuffle(selected_questions)
             
         # 返回选中的题目ID和标题
         return jsonify({
