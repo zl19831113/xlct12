@@ -28,6 +28,17 @@
             color: #333;
         }
 
+        /* 页面标题样式优化 */
+        .page-title {
+            text-align: center;
+            margin: 30px 0;
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--primary-color);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+            letter-spacing: 1px;
+        }
+
         .main-container {
             display: flex;
             gap: 16px;
@@ -352,6 +363,9 @@
     <!-- 引入公共头部组件 -->
     {% include 'header.html' %}
 
+    <!-- 添加居中页面标题 -->
+    <h1 class="page-title">智能组卷系统</h1>
+
     <div class="main-container">
         <div class="filter-sidebar">
             <div class="filter-box">
@@ -380,7 +394,8 @@
                             <option value="地理">地理</option>
                         </select>
                     </div>
-                    <div class="filter-item">
+                    <!-- 隐藏章节选择器 -->
+                    <div class="filter-item" style="display: none;">
                         <label for="chapter">章节</label>
                         <select id="chapter" disabled>
                             <option value="">选择章节</option>
@@ -669,29 +684,30 @@
             const educationStage = document.getElementById('educationStage').value;
             const subject = document.getElementById('subject').value;
             const chapterSelect = document.getElementById('chapter');
+            const unitSelect = document.getElementById('unit');
             
             // 重置下级选择器
             chapterSelect.innerHTML = '<option value="">选择章节</option>';
-            document.getElementById('unit').innerHTML = '<option value="">选择单元</option>';
+            unitSelect.innerHTML = '<option value="">选择单元</option>';
             document.getElementById('lesson').innerHTML = '<option value="">选择课程</option>';
             
             // 禁用下级选择器
-            document.getElementById('unit').disabled = true;
             document.getElementById('lesson').disabled = true;
             
             if (!educationStage || !subject) {
                 chapterSelect.disabled = true;
+                unitSelect.disabled = true;
                 return;
             }
             
-            // 获取当前学段和科目下的所有章节
+            // 获取当前学段和科目下的所有章节（虽然不显示，但我们仍然需要设置值）
             const chapters = [...new Set(
                 allQuestions
                     .filter(q => q.educationStage === educationStage && q.subject === subject)
                     .map(q => q.chapter)
             )].filter(Boolean).sort();
             
-            // 填充章节选择器
+            // 填充章节选择器（隐藏的）
             chapters.forEach(chapter => {
                 const option = document.createElement('option');
                 option.value = chapter;
@@ -699,11 +715,36 @@
                 chapterSelect.appendChild(option);
             });
             
-            // 启用章节选择器
-            chapterSelect.disabled = false;
+            // 自动选择第一个章节（如果有）
+            if (chapters.length > 0) {
+                chapterSelect.value = chapters[0];
+                
+                // 获取当前学段、科目和自动选择的章节下的所有单元
+                const units = [...new Set(
+                    allQuestions
+                        .filter(q => 
+                            q.educationStage === educationStage && 
+                            q.subject === subject && 
+                            q.chapter === chapters[0]
+                        )
+                        .map(q => q.unit)
+                )].filter(Boolean).sort();
+                
+                // 填充单元选择器
+                units.forEach(unit => {
+                    const option = document.createElement('option');
+                    option.value = unit;
+                    option.textContent = unit;
+                    unitSelect.appendChild(option);
+                });
+                
+                // 启用单元选择器
+                unitSelect.disabled = false;
+                console.log(`已加载${units.length}个单元到选择器`);
+            }
         }
         
-        // 处理章节变化
+        // 处理章节变化（虽然已隐藏，但函数仍保留处理逻辑）
         function handleChapterChange() {
             const educationStage = document.getElementById('educationStage').value;
             const subject = document.getElementById('subject').value;
