@@ -1043,17 +1043,36 @@ def generate_paper():
         # 检查是否有音频文件需要处理
         audio_files = []
         if has_audio:
+            print("开始处理英语听力音频文件...")
             for q in questions:
-                if q.subject == '英语' and q.question_type == '听力理解' and q.audio_content:
-                    audio_files.append({
-                        'id': q.id,
-                        'filename': q.audio_filename or f'audio_{q.id}.mp3',
-                        'content': q.audio_content,
-                        'path': q.audio_file_path
-                    })
-            print(f"找到 {len(audio_files)} 个音频文件需要打包")
+                if q.subject == '英语' and q.question_type == '听力理解':
+                    print(f"检查题目ID: {q.id}, 音频文件名: {q.audio_filename}")
+                    
+                    # 检查音频内容是否存在
+                    has_audio_content = hasattr(q, 'audio_content') and q.audio_content is not None and len(q.audio_content or b'') > 0
+                    # 检查音频路径是否存在
+                    audio_path = q.audio_file_path if hasattr(q, 'audio_file_path') else None
+                    has_audio_path = audio_path is not None and os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), audio_path)) if audio_path else False
+                    
+                    # 记录音频状态
+                    print(f"题目ID {q.id} 音频状态: 内容存在={has_audio_content}, 路径存在={has_audio_path}, 路径={audio_path}")
+                    
+                    # 只有当音频内容或路径有效时才添加
+                    if has_audio_content or has_audio_path:
+                        audio_files.append({
+                            'id': q.id,
+                            'filename': q.audio_filename or f'audio_{q.id}.mp3',
+                            'content': q.audio_content if has_audio_content else None,
+                            'path': audio_path if has_audio_path else None
+                        })
+                        print(f"已添加音频文件: ID={q.id}, 文件名={q.audio_filename or f'audio_{q.id}.mp3'}")
+                    else:
+                        print(f"警告: 题目ID {q.id} 没有有效的音频内容或路径")
+            
+            print(f"找到 {len(audio_files)} 个有效音频文件需要打包")
             for af in audio_files:
-                print(f"音频文件ID: {af['id']}, 文件名: {af['filename']}, 内容大小: {len(af['content']) if af['content'] else 0} 字节")
+                content_size = len(af['content']) if af['content'] else 0
+                print(f"音频文件ID: {af['id']}, 文件名: {af['filename']}, 内容大小: {content_size} 字节, 路径: {af['path']}")
 
         # Wrap document creation and population in a larger try block
         try:
@@ -1823,24 +1842,60 @@ def generate_paper():
                         for idx, audio_file in enumerate(audio_files, 1):
                             filename = audio_file.get('filename', f'audio_{idx}.mp3')
                             audio_content = audio_file.get('content')
+                            file_path = audio_file.get('path')
+                            file_id = audio_file.get('id')
                             
-                            if audio_content:
-                                # 保存音频内容到临时文件
-                                temp_audio_path = os.path.join(temp_dir, filename)
-                                with open(temp_audio_path, 'wb') as f:
-                                    f.write(audio_content)
-                                print(f"已保存音频文件到临时目录: {temp_audio_path}, 大小: {len(audio_content)} 字节")
-                                
-                                # 添加到ZIP
-                                zip_file.write(temp_audio_path, filename)
-                                print(f"已添加音频文件到ZIP: {filename}")
-                            elif audio_file.get('path') and os.path.exists(audio_file.get('path')):
-                                # 如果有文件路径且文件存在
-                                file_path = audio_file.get('path')
-                                zip_file.write(file_path, filename)
-                                print(f"已从文件路径添加音频到ZIP: {filename}, 路径: {file_path}")
+                            # 首先尝试使用已有的音频内容
+                            if audio_content and len(audio_content) > 0:
+                                try:
+                                    # 保存音频内容到临时文件
+                                    temp_audio_path = os.path.join(temp_dir, filename)
+                                    with open(temp_audio_path, 'wb') as f:
+                                        f.write(audio_content)
+                                    print(f"已保存音频文件到临时目录: {temp_audio_path}, 大小: {len(audio_content)} 字节")
+                                    
+                                    # 添加到ZIP
+                                    zip_file.write(temp_audio_path, filename)
+                                    print(f"已添加音频文件到ZIP: {filename}")
+                                except Exception as e:
+                                    print(f"添加音频内容到ZIP出错: {str(e)}")
+                                    traceback.print_exc()
+                            
+                            # 如果内容不可用，尝试从文件路径获取
+                            elif file_path and os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), file_path)):
+                                try:
+                                    abs_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), file_path)
+                                    zip_file.write(abs_file_path, filename)
+                                    print(f"已从文件路径添加音频到ZIP: {filename}, 路径: {abs_file_path}")
+                                except Exception as e:
+                                    print(f"从文件路径添加音频到ZIP出错: {str(e)}")
+                                    traceback.print_exc()
+                            
+                            # 如果ID存在，尝试直接从数据库重新加载音频
+                            elif file_id:
+                                try:
+                                    print(f"尝试直接从数据库获取ID {file_id} 的音频...")
+                                    question = SU.query.get(file_id)
+                                    if question and question.audio_content and len(question.audio_content) > 0:
+                                        # 提取音频内容
+                                        db_audio_content = question.audio_content
+                                        
+                                        # 保存到临时文件
+                                        temp_audio_path = os.path.join(temp_dir, filename)
+                                        with open(temp_audio_path, 'wb') as f:
+                                            f.write(db_audio_content)
+                                        print(f"成功从数据库获取音频内容: {temp_audio_path}, 大小: {len(db_audio_content)} 字节")
+                                        
+                                        # 添加到ZIP
+                                        zip_file.write(temp_audio_path, filename)
+                                        print(f"已成功添加数据库音频到ZIP: {filename}")
+                                    else:
+                                        print(f"无法从数据库获取有效音频内容, ID: {file_id}")
+                                except Exception as e:
+                                    print(f"从数据库获取音频内容出错: {str(e)}")
+                                    traceback.print_exc()
                             else:
-                                print(f"警告: 音频文件 {filename} 内容为空且路径无效")
+                                print(f"警告: 音频文件 {filename} 无法获取内容，所有方法都失败")
                     
                     # 读取生成的ZIP文件
                     with open(zip_path, 'rb') as f:
@@ -2696,7 +2751,7 @@ def get_audio(id):
         
         # 尝试从内容发送
         if has_audio_content:
-            print(f"从二进制内容发送音频")
+            print(f"从二进制内容发送音频，大小: {len(record.audio_content)} 字节")
             return send_file(
                 io.BytesIO(record.audio_content),
                 mimetype='audio/mpeg',
@@ -3153,6 +3208,29 @@ def get_lessons():
     lesson_list = [l[0] for l in lessons if l[0]]
     
     return jsonify({'lessons': lesson_list})
+
+# 确保有一个默认的静音MP3文件
+def ensure_default_silence_mp3():
+    try:
+        silence_mp3_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
+        if not os.path.exists(silence_mp3_path):
+            # 确保目录存在
+            os.makedirs(os.path.dirname(silence_mp3_path), exist_ok=True)
+            
+            # 创建一个最小的有效MP3文件 - 静音1秒
+            silence_data = b'\xFF\xFB\x90\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            with open(silence_mp3_path, 'wb') as f:
+                f.write(silence_data)
+            print(f"已创建默认静音MP3文件: {silence_mp3_path}")
+        else:
+            print(f"默认静音MP3文件已存在: {silence_mp3_path}")
+    except Exception as e:
+        print(f"创建默认静音MP3文件失败: {str(e)}")
+        traceback.print_exc()
+
+# 在应用启动时创建静音文件
+with app.app_context():
+    ensure_default_silence_mp3()
 
 if __name__ == '__main__':
     try:
