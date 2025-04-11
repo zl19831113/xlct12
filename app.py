@@ -1005,35 +1005,28 @@ def generate_paper():
         has_audio = data.get('has_audio', False)
 
         # 添加日志：打印接收到的数据
-        print(f"Received request to generate paper with title '{paper_title}'")
-        print(f"Received {len(question_ids)} question IDs")
+        print(f"Received question IDs: {question_ids}")
+        print(f"Received paper title: {paper_title}")
         print(f"Has audio files: {has_audio}")
 
-        # 强制限制题目数量 - 防止服务器过载
-        MAX_QUESTIONS_LIMIT = 150
+        # ---> ADDED: Limit the number of questions
+        MAX_QUESTIONS_LIMIT = 200
         if len(question_ids) > MAX_QUESTIONS_LIMIT:
             print(f"Error: Too many questions requested ({len(question_ids)} > {MAX_QUESTIONS_LIMIT})")
             return jsonify({'error': f'请求的题目数量过多 (超过 {MAX_QUESTIONS_LIMIT} 个)，请减少题目数量后重试。'}), 400
+        # <--- END ADDED
 
         if not question_ids:
             print("Error: No question IDs provided")
             return jsonify({'error': 'No question IDs provided'}), 400
 
+        print(f"Received request to generate paper with title '{paper_title}' and {len(question_ids)} questions")
+
         # 查询所有题目
         try:
-            # 分批查询题目 - 避免一次性加载所有题目
-            BATCH_SIZE = 50
-            all_questions = []
-            
-            for i in range(0, len(question_ids), BATCH_SIZE):
-                batch_ids = question_ids[i:i+BATCH_SIZE]
-                print(f"Fetching batch {i//BATCH_SIZE + 1} of {len(question_ids)//BATCH_SIZE + 1} ({len(batch_ids)} questions)")
-                batch_questions = SU.query.filter(SU.id.in_(batch_ids)).all()
-                all_questions.extend(batch_questions)
-                print(f"Batch {i//BATCH_SIZE + 1} fetched: {len(batch_questions)} questions")
-            
+            all_questions = SU.query.filter(SU.id.in_(question_ids)).all()
             # 添加日志：打印查询到的题目数量
-            print(f"Retrieved {len(all_questions)} questions from database for IDs: {len(question_ids)}")
+            print(f"Retrieved {len(all_questions)} questions from database for IDs: {question_ids}")
 
             if len(all_questions) == 0:
                 print("Error: No questions found with the provided IDs")
@@ -1083,7 +1076,6 @@ def generate_paper():
 
         # Wrap document creation and population in a larger try block
         try:
-            print("Creating Word document...")
             # 2) 创建 Word 文档
             doc = Document()
             
@@ -1127,6 +1119,34 @@ def generate_paper():
             section_style.paragraph_format.space_before = Pt(12)
             section_style.paragraph_format.space_after = Pt(6)
             
+            # 创建选项样式（与题目内容相同的字体和字号）
+            option_style = doc.styles.add_style('Option Style', WD_STYLE_TYPE.PARAGRAPH)
+            option_style.base_style = doc.styles['Normal']
+            option_style.font.name = '宋体'
+            option_style.font.size = Pt(10.5)
+            option_style.paragraph_format.line_spacing = 1.5
+            option_style.paragraph_format.space_after = Pt(0)
+            
+            # 选项符号样式（①②③④）
+            option_marker_style = doc.styles.add_style('Option Marker', WD_STYLE_TYPE.CHARACTER)
+            option_marker_style.font.name = '宋体'
+            option_marker_style.font.bold = False
+            option_marker_style.font.size = Pt(10.5)
+            
+            # ABCD选项样式（与题目内容相同的字体和字号）
+            choice_style = doc.styles.add_style('Choice Style', WD_STYLE_TYPE.PARAGRAPH)
+            choice_style.base_style = doc.styles['Normal']
+            choice_style.font.name = '宋体'
+            choice_style.font.size = Pt(10.5)
+            choice_style.paragraph_format.line_spacing = 1.5
+            
+            # 表格样式
+            table_style = doc.styles.add_style('Table Style', WD_STYLE_TYPE.PARAGRAPH)
+            table_style.base_style = doc.styles['Normal']
+            table_style.font.name = '宋体'
+            table_style.font.size = Pt(10.5)
+            table_style.font.bold = False
+            
             # 如果是英语试卷且有听力部分，添加二维码
             if is_english_paper and audio_files:
                 # 创建表格，用于放置标题和二维码
@@ -1155,43 +1175,38 @@ def generate_paper():
                 base_url = request.host_url.rstrip('/')  # 获取当前主机URL
                 qr_url = f"{base_url}/audio_player/{paper_uuid}"
                 
-                try:
-                    # 创建二维码图像
-                    qr = qrcode.QRCode(
-                        version=1,
-                        error_correction=qrcode.constants.ERROR_CORRECT_L,
-                        box_size=10,
-                        border=4,
-                    )
-                    qr.add_data(qr_url)
-                    qr.make(fit=True)
-                    img = qr.make_image(fill_color="black", back_color="white")
-                    
-                    # 保存二维码到临时文件
-                    img_buffer = BytesIO()
-                    img.save(img_buffer, format='PNG')
-                    img_buffer.seek(0)
-                    
-                    # 添加二维码图像到文档
-                    qr_pic = qr_paragraph.add_run().add_picture(img_buffer, width=Inches(1.2))
-                    
-                    # 添加扫描提示
-                    scan_paragraph = qr_cell.add_paragraph()
-                    scan_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    scan_run = scan_paragraph.add_run("扫码收听\n听力音频")
-                    scan_run.font.size = Pt(9)
-                    scan_run.font.bold = True
-                    
-                    # 去除表格边框
-                    header_table.style = 'Table Grid'
-                    for cell in header_table.cells:
-                        for paragraph in cell.paragraphs:
-                            for border in ['top', 'left', 'bottom', 'right']:
-                                cell._tc.get_or_add_tcPr().first_child_found_in("w:tcBorders").find(f"w:{border}").set(qn('w:val'), 'nil')
-                except Exception as qr_error:
-                    print(f"Error generating QR code: {str(qr_error)}")
-                    # 如果QR码生成失败，回退到简单标题
-                    doc.add_paragraph(paper_title).style = doc.styles['Title Bold']
+                # 创建二维码图像
+                qr = qrcode.QRCode(
+                    version=1,
+                    error_correction=qrcode.constants.ERROR_CORRECT_L,
+                    box_size=10,
+                    border=4,
+                )
+                qr.add_data(qr_url)
+                qr.make(fit=True)
+                img = qr.make_image(fill_color="black", back_color="white")
+                
+                # 保存二维码到临时文件
+                img_buffer = BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_buffer.seek(0)
+                
+                # 添加二维码图像到文档
+                qr_pic = qr_paragraph.add_run().add_picture(img_buffer, width=Inches(1.2))
+                
+                # 添加扫描提示
+                scan_paragraph = qr_cell.add_paragraph()
+                scan_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                scan_run = scan_paragraph.add_run("扫码收听\n听力音频")
+                scan_run.font.size = Pt(9)
+                scan_run.font.bold = True
+                
+                # 去除表格边框
+                header_table.style = 'Table Grid'
+                for cell in header_table.cells:
+                    for paragraph in cell.paragraphs:
+                        for border in ['top', 'left', 'bottom', 'right']:
+                            cell._tc.get_or_add_tcPr().first_child_found_in("w:tcBorders").find(f"w:{border}").set(qn('w:val'), 'nil')
             else:
                 # 添加标题（宋体，15磅，加粗，居中）
                 title_paragraph = doc.add_paragraph(paper_title)
@@ -1200,7 +1215,6 @@ def generate_paper():
 
             # 3) 对题目按类型分组并添加章节标题
             try:
-                print("Grouping questions by type...")
                 # 映射中文数字
                 chinese_numbers = {
                     1: '一',
@@ -1315,34 +1329,54 @@ def generate_paper():
                 def clean_html_content(text):
                     if not text:
                         return ""
-                    
-                    # 快速检查是否包含HTML标签
-                    if '<' not in text and '&' not in text:
-                        return text
                         
-                    result = text
+                    # 保留表格的内容，但移除表格标签
+                    # 替换HTML标签为临时标记
+                    for tag, replacement in html_tag_replacements.items():
+                        text = text.replace(tag, replacement)
                     
-                    # 处理HTML实体，只替换常见的实体
-                    common_entities = {
-                        "&ldquo;": """, "&rdquo;": """, "&hellip;": "...",
-                        "&nbsp;": " ", "&mdash;": "—", "&rarr;": "",
-                        "&lsquo;": "'", "&rsquo;": "'", "&middot;": "·", 
-                        "&bull;": "•", "&amp;": "&", "&lt;": "<", "&gt;": ">"
-                    }
+                    # 替换HTML实体，移除箭头和多余的符号
+                    for entity, replacement in html_entity_replacements.items():
+                        # 移除箭头符号
+                        if entity == "&rarr;":
+                            text = text.replace(entity, "")
+                        # 移除引号符号
+                        elif entity in ["&ldquo;", "&rdquo;", "&quot;"]:
+                            text = text.replace(entity, "")
+                        else:
+                            text = text.replace(entity, replacement)
                     
-                    for entity, replacement in common_entities.items():
-                        if entity in result:
-                            result = result.replace(entity, replacement)
+                    # 移除所有剩余HTML标签
+                    text = re.sub(r'<[^>]+>', '', text)
                     
-                    # 使用高效的单次正则表达式移除HTML标签，而不是多次替换
-                    if '<' in result:
-                        result = re.sub(r'<[^>]*>', '', result)
+                    # 移除特定符号 →
+                    text = text.replace("→", "")
+                    # 移除多余的引号
+                    text = text.replace(""", "").replace(""", "")
                     
-                    # 移除多余空格和换行
-                    result = re.sub(r'\n\s*\n+', '\n\n', result)
-                    result = re.sub(r' {2,}', ' ', result)
+                    # 恢复换行
+                    text = text.replace("[BREAK]", "\n")
+                    text = text.replace("[P_START]", "").replace("[P_END]", "\n")
                     
-                    return result
+                    # 恢复表格内容为简单文本格式
+                    text = text.replace("[TABLE_START]", "\n").replace("[TABLE_END]", "\n")
+                    text = text.replace("[TR_START]", "").replace("[TR_END]", "\n")
+                    text = text.replace("[TD_START]", "").replace("[TD_END]", " | ")
+                    text = text.replace("[TH_START]", "").replace("[TH_END]", " | ")
+                    text = text.replace("[TBODY_START]", "").replace("[TBODY_END]", "")
+                    text = text.replace("[THEAD_START]", "").replace("[THEAD_END]", "")
+                    
+                    # 移除样式块
+                    text = re.sub(r'\[STYLE_START\].*?\[STYLE_END\]', '', text, flags=re.DOTALL)
+                    
+                    # 移除所有剩余的HTML实体
+                    text = re.sub(r'&[a-zA-Z0-9#]+;', '', text)
+                    
+                    # 处理连续的空行和空格
+                    text = re.sub(r'\n\s*\n+', '\n\n', text)
+                    text = re.sub(r' {2,}', ' ', text)
+                    
+                    return text
                 
                 # 遍历每个题型分组添加题目
                 for section_num, q_type in enumerate(ordered_types, 1):
@@ -1593,7 +1627,6 @@ def generate_paper():
 
             # 5) 添加答案部分
             try:
-                print("Adding answer section...")
                 # --- 答案部分 ---
                 doc.add_page_break()
                 
@@ -1612,70 +1645,74 @@ def generate_paper():
                 question_indices = []
                 choice_answers = []
                 
-                # 限制处理的选择题数量，防止内存溢出
-                MAX_CHOICE_QUESTIONS = 100
-                
                 for i, q in enumerate(questions):
-                    if len(choice_questions) >= MAX_CHOICE_QUESTIONS:
-                        break
-                        
-                    # 只简单提取答案文本中的字母，不做复杂处理
-                    if hasattr(q, 'answer') and q.answer:
-                        answer_text = q.answer
-                        # 快速匹配字母答案（A-D）
-                        match = re.search(r'\b([A-D])\b', answer_text[:50])  # 只查找前50个字符
-                        if match:
-                            choice_questions.append(q)
-                            question_indices.append(i + 1)  # 保存原始题号
-                            choice_answers.append(match.group(1))
+                    answer_text = clean_html_content(q.answer)
+                    # 匹配字母答案（A、B、C、D）
+                    match = re.search(r'\b([A-D])\b', answer_text)
+                    if match:
+                        choice_questions.append(q)
+                        question_indices.append(i + 1)  # 保存原始题号
+                        choice_answers.append(match.group(1))
                 
-                # 释放内存
-                answer_text = None
-                
-                # 如果有选择题，创建表格
+                # 如果有选择题，我们才创建表格
                 if choice_questions:
-                    # 计算需要多少行（每行10题）但设置最大行数
-                    rows_needed = min(math.ceil(len(choice_questions) / 10), 10)
-                    cols_needed = min(len(choice_questions), 10)
+                    # 计算需要多少行（每行10题）
+                    rows_needed = math.ceil(len(choice_questions) / 10)
                     
                     # 创建表格
-                    print(f"Creating answer table with {rows_needed*2} rows, {cols_needed} columns")
-                    table = doc.add_table(rows=rows_needed * 2, cols=cols_needed)
+                    table = doc.add_table(rows=rows_needed * 2, cols=min(len(choice_questions), 10))
                     table.style = 'Table Grid'
                     table.alignment = WD_TABLE_ALIGNMENT.CENTER
                     
+                    # 设置表格宽度
+                    table.autofit = False
+                    
+                    # 设置行高
+                    for row in table.rows:
+                        row.height = Pt(28)  # 设置行高，确保足够的垂直空间
+                        row.height_rule = 1  # 1表示固定高度
+                    
                     # 填充表格内容
-                    for q_idx in range(min(len(choice_questions), rows_needed*10)):
+                    current_cell_index = 0
+                    
+                    for q_idx in range(len(choice_questions)):
                         row_idx = (q_idx // 10) * 2
                         col_idx = q_idx % 10
                         
                         # 确保我们不会超出表格范围
-                        if col_idx < cols_needed:
+                        if col_idx < len(table.columns):
                             # 题号单元格
                             num_cell = table.cell(row_idx, col_idx)
                             num_cell.text = str(question_indices[q_idx])
                             num_paragraph = num_cell.paragraphs[0]
                             num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = num_paragraph.runs[0]
+                            run.font.name = '宋体'
+                            run.font.bold = True
+                            run.font.size = Pt(10.5)
+                            
+                            # 设置单元格垂直居中
+                            num_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                             
                             # 答案单元格
                             ans_cell = table.cell(row_idx + 1, col_idx)
                             ans_cell.text = choice_answers[q_idx]
                             ans_paragraph = ans_cell.paragraphs[0]
                             ans_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = ans_paragraph.runs[0]
+                            run.font.name = '宋体'
+                            run.font.size = Pt(10.5)
+                            
+                            # 设置单元格垂直居中
+                            ans_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                     
                     # 设置表格边框
                     set_cell_border(table)
-                    
-                    # 释放表格相关内存
-                    choice_questions = []
-                    question_indices = []
-                    choice_answers = []
                 
                 # 添加表格后的空白 - 减少空白量
                 doc.add_paragraph().paragraph_format.space_after = Pt(16)
                 
                 # 添加答案与解析标题
-                print("Adding detailed answers section...")
                 explanation_heading = doc.add_heading('答案与解析', 1)
                 
                 # 设置标题字体为宋体和大小
@@ -1684,115 +1721,175 @@ def generate_paper():
                     run.font.size = Pt(15)
                     run.font.bold = True
                 
-                # 添加每道题的解析，分批处理以减少内存使用
-                ANSWER_BATCH_SIZE = 30
-                for batch_start in range(0, len(questions), ANSWER_BATCH_SIZE):
-                    print(f"Processing answers batch {batch_start//ANSWER_BATCH_SIZE + 1} of {math.ceil(len(questions)/ANSWER_BATCH_SIZE)}")
+                # 添加每道题的解析，不留空白
+                for i, q in enumerate(questions, 1):
+                    # 获取原始答案文本
+                    answer_text = clean_html_content(q.answer).strip()
                     
-                    batch_end = min(batch_start + ANSWER_BATCH_SIZE, len(questions))
-                    for i in range(batch_start, batch_end):
-                        q = questions[i]
-                        q_num = i + 1  # 调整题号为1-based索引
+                    # 移除答案开头的题号（如：9．）
+                    answer_text = re.sub(r'^\d+[.\uff0e]\s*', '', answer_text)
+                    
+                    # 提取答案选项（A-D）
+                    option_match = re.search(r'\b([A-D])\b', answer_text)
+                    letter_answer = ''
+                    detailed_explanation = answer_text
+                    
+                    # 确保主观题的答案文本也会被保留
+                    if option_match:
+                        letter_answer = option_match.group(1)
+                    else:
+                        # 主观题不需要字母答案，直接显示完整答案
+                        pass  # 不做处理，让详解部分显示完整答案
+                    
+                    # 添加题号行
+                    p = doc.add_paragraph()
+                    p.style = 'Normal'
+                    p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
+                    run = p.add_run(f"第{i}题：")
+                    run.font.bold = True
+                    run.font.size = Pt(10.5)
+                    
+                    # 添加答案选项行（如果有）
+                    if letter_answer:
+                        p = doc.add_paragraph()
+                        p.style = 'Normal'
+                        p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
                         
-                        # 获取原始答案文本
-                        if hasattr(q, 'answer') and q.answer:
-                            answer_text = clean_html_content(q.answer).strip()
+                        # 特殊处理英语听力理解题型的答案，显示全部答案选项
+                        if q.subject == '英语' and q.question_type == '听力理解':
+                            # 查找所有的字母答案（可能有多个A、B、C、D）
+                            all_answers = re.findall(r'\b([A-D])\b', detailed_explanation)
+                            if all_answers:
+                                # 显示所有找到的答案，用逗号分隔
+                                full_answer = ', '.join(all_answers)
+                                p.add_run(full_answer).font.size = Pt(10.5)
+                            else:
+                                # 如果没找到，至少显示已提取的单个答案
+                                p.add_run(letter_answer).font.size = Pt(10.5)
+                        else:
+                            # 其他类型题目保持原样，显示单个答案
+                            p.add_run(letter_answer).font.size = Pt(10.5)
+                    
+                    # 添加详解部分
+                    if '【详解】' in detailed_explanation:
+                        # 处理详解文本，移除任何空行
+                        parts = detailed_explanation.split('【详解】', 1)
+                        if len(parts) > 1:
+                            explanation_text = parts[1]
+                            # 移除所有多余空行
+                            explanation_text = re.sub(r'\n\s*\n', '\n', explanation_text)
+                            # 将所有换行符替换为空格
+                            explanation_text = re.sub(r'\n+', ' ', explanation_text)
                             
-                            # 移除答案开头的题号（如：9．）
-                            answer_text = re.sub(r'^\d+[.\uff0e]\s*', '', answer_text)
+                            # 移除可能的重复选项（如 "D. ③④"）
+                            explanation_text = re.sub(r'[A-D]\.\s*[①-⑨]+\s*$', '', explanation_text).strip()
                             
-                            # 添加题号行
+                            # 创建新段落
                             p = doc.add_paragraph()
                             p.style = 'Normal'
-                            p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
-                            run = p.add_run(f"第{q_num}题：")
-                            run.font.bold = True
-                            run.font.size = Pt(10.5)
+                            p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
+                            p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
                             
-                            # 提取答案选项（A-D）
-                            option_match = re.search(r'\b([A-D])\b', answer_text)
-                            letter_answer = ''
-                            if option_match:
-                                letter_answer = option_match.group(1)
-                                
-                                # 添加答案选项行
-                                p = doc.add_paragraph()
-                                p.style = 'Normal'
-                                p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
-                                
-                                # 特殊处理英语听力理解题型的答案，显示全部答案选项
-                                if q.subject == '英语' and q.question_type == '听力理解':
-                                    # 查找所有的字母答案（可能有多个A、B、C、D）
-                                    all_answers = re.findall(r'\b([A-D])\b', answer_text)
-                                    if all_answers:
-                                        # 显示所有找到的答案，用逗号分隔
-                                        full_answer = ', '.join(all_answers)
-                                        p.add_run(full_answer).font.size = Pt(10.5)
-                                    else:
-                                        # 如果没找到，至少显示已提取的单个答案
-                                        p.add_run(letter_answer).font.size = Pt(10.5)
-                                else:
-                                    # 其他类型题目保持原样，显示单个答案
-                                    p.add_run(letter_answer).font.size = Pt(10.5)
+                            # 添加详解标签
+                            tag_run = p.add_run('【详解】')
+                            tag_run.font.name = '宋体'
+                            tag_run.font.bold = True
+                            tag_run.font.size = Pt(10.5)
                             
-                            # 添加详解部分，使用更简单的处理逻辑
-                            if '【详解】' in answer_text:
-                                parts = answer_text.split('【详解】', 1)
-                                if len(parts) > 1:
-                                    explanation_text = parts[1].strip()
-                                    
-                                    # 创建新段落
-                                    p = doc.add_paragraph()
-                                    p.style = 'Normal'
-                                    p.paragraph_format.space_after = Pt(12)  # 段落间距
-                                    
-                                    # 添加详解标签和内容
-                                    p.add_run('【详解】').font.bold = True
-                                    p.add_run(explanation_text).font.size = Pt(10.5)
-                            elif answer_text and not letter_answer:
-                                # 如果没有字母答案，直接显示全部答案内容
-                                p = doc.add_paragraph()
-                                p.style = 'Normal'
-                                p.paragraph_format.space_after = Pt(12)  # 段落间距
-                                p.add_run(answer_text).font.size = Pt(10.5)
+                            # 添加处理后的详解文本（无空行）
+                            content_run = p.add_run(explanation_text)
+                            content_run.font.name = '宋体'
+                            content_run.font.size = Pt(10.5)
+                        elif detailed_explanation.strip():
+                            # 如果没有详解标签但有内容
+                            # 移除所有多余空行
+                            clean_text = re.sub(r'\n\s*\n', '\n', detailed_explanation)
+                            # 将所有换行符替换为空格
+                            clean_text = re.sub(r'\n+', ' ', clean_text)
+                            
+                            # 移除可能的重复选项（如 "D. ③④"）
+                            clean_text = re.sub(r'[A-D]\.\s*[①-⑨]+\s*$', '', clean_text).strip()
+                            
+                            # 如果没有选项答案，这可能是主观题答案
+                            # 直接显示所有文本作为答案
+                            p = doc.add_paragraph()
+                            p.style = 'Normal'
+                            p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
+                            p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
+                            
+                            # 如果没有选项答案且没有详解标记，则不添加详解标记
+                            if not letter_answer and '【详解】' not in clean_text:
+                                # 直接显示答案文本作为主观题答案
+                                content_run = p.add_run(clean_text)
+                                content_run.font.name = '宋体'
+                                content_run.font.size = Pt(10.5)
+                            else:
+                                # 如果有选项答案或者显示含详解标记，则添加标准详解标记
+                                tag_run = p.add_run('【详解】')
+                                tag_run.font.name = '宋体'
+                                tag_run.font.bold = True
+                                tag_run.font.size = Pt(10.5)
+                                
+                                content_run = p.add_run(clean_text)
+                                content_run.font.name = '宋体'
+                                content_run.font.size = Pt(10.5)
+                    else:
+                        # 如果没有详解标签但有内容
+                        # 移除所有多余空行
+                        clean_text = re.sub(r'\n\s*\n', '\n', detailed_explanation)
+                        # 将所有换行符替换为空格
+                        clean_text = re.sub(r'\n+', ' ', clean_text)
+                        
+                        # 移除可能的重复选项（如 "D. ③④"）
+                        clean_text = re.sub(r'[A-D]\.\s*[①-⑨]+\s*$', '', clean_text).strip()
+                        
+                        # 如果没有选项答案，这可能是主观题答案
+                        # 直接显示所有文本作为答案
+                        p = doc.add_paragraph()
+                        p.style = 'Normal'
+                        p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
+                        p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
+                        
+                        # 如果没有选项答案且没有详解标记，则不添加详解标记
+                        if not letter_answer and '【详解】' not in clean_text:
+                            # 直接显示答案文本作为主观题答案
+                            content_run = p.add_run(clean_text)
+                            content_run.font.name = '宋体'
+                            content_run.font.size = Pt(10.5)
+                        else:
+                            # 如果有选项答案或者显示含详解标记，则添加标准详解标记
+                            tag_run = p.add_run('【详解】')
+                            tag_run.font.name = '宋体'
+                            tag_run.font.bold = True
+                            tag_run.font.size = Pt(10.5)
+                            
+                            content_run = p.add_run(clean_text)
+                            content_run.font.name = '宋体'
+                            content_run.font.size = Pt(10.5)
             except Exception as add_answers_error:
                 print(f"Error adding answers to document: {str(add_answers_error)}")
                 traceback.print_exc()
                 return jsonify({'error': f'Error adding answers to document: {str(add_answers_error)}'}), 500
 
             # 6) 保存并返回 Word 文档
-            try:
-                # 保存到 BytesIO 对象
-                print("Saving document to memory stream...")
-                file_stream = BytesIO()
-                doc.save(file_stream)
-                file_stream.seek(0)
+            # 保存到 BytesIO 对象
+            file_stream = BytesIO()
+            print("Attempting to save document to memory stream...") # Log before save
+            doc.save(file_stream)
+            print("Document successfully saved to memory stream.") # Log after save
+            file_stream.seek(0)
 
-                # 添加日志：文件生成完成，准备发送
-                print(f"Word document generated successfully for title: {paper_title}. Preparing to send.")
+            # 添加日志：文件生成完成，准备发送
+            print(f"Word document generated successfully for title: {paper_title}. Preparing to send.")
 
-                # 清理内存
-                doc = None
-                questions = None
-                all_questions = None
-                question_map = None
-                
-                # 主动调用垃圾回收
-                import gc
-                gc.collect()
-
-                # 发送文件
-                safe_title = paper_title + '.docx'
-                return send_file(
-                    file_stream,
-                    as_attachment=True,
-                    download_name=safe_title,
-                    mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                )
-            except Exception as save_error:
-                print(f"Error saving document: {str(save_error)}")
-                traceback.print_exc()
-                return jsonify({'error': f'Error saving document: {str(save_error)}'}), 500
+            # 发送文件
+            safe_title = paper_title + '.docx'
+            return send_file(
+                file_stream,
+                as_attachment=True,
+                download_name=safe_title,
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
 
         except Exception as final_error: # Catch any error during steps 2-6
             print(f"!!! Error during document generation or saving: {str(final_error)} !!!")
