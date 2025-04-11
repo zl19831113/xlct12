@@ -1057,6 +1057,16 @@
         
         // 生成最终试卷
         function generateFinalPaper(questionIds, paperTitle, audioFiles) {
+            // 显示"正在生成试卷"的消息
+            showMessage('正在生成试卷，请稍候...', 'info');
+            
+            // 设置生成按钮为禁用状态
+            document.getElementById('generateButton').disabled = true;
+            
+            // 检查是否包含音频文件（英语听力题）
+            const hasAudio = audioFiles && audioFiles.length > 0;
+            console.log("是否包含音频文件:", hasAudio, "音频文件数量:", audioFiles ? audioFiles.length : 0);
+            
             fetch('/generate_paper', {
                 method: 'POST',
                 headers: {
@@ -1065,42 +1075,63 @@
                 body: JSON.stringify({
                     question_ids: questionIds,
                     paper_title: paperTitle,
-                    has_audio: audioFiles && audioFiles.length > 0,
-                    audio_files: audioFiles
+                    has_audio: hasAudio
                 })
             })
             .then(response => {
                 if (!response.ok) {
                     return response.json().then(err => { throw new Error(err.error || '生成试卷失败'); });
                 }
+                console.log("服务器成功响应，准备下载文件");
                 return response.blob();
             })
             .then(blob => {
+                console.log("获取到文件blob，大小:", blob.size, "字节");
+                
+                // 检查文件大小
+                if (blob.size < 100) {
+                    console.warn("警告: 下载的文件大小异常小 (" + blob.size + " 字节)");
+                    showMessage('警告: 下载的文件可能不完整，请重试', 'warning');
+                }
+                
                 // 创建下载链接
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 
-                // 根据内容类型设置文件扩展名
-                const contentType = blob.type;
-                let fileExtension = '.docx';
-                if (contentType === 'application/zip') {
-                    fileExtension = '.zip';
-                    showMessage('试卷和听力音频已打包成功！', 'success');
+                // 设置文件名
+                let filename = paperTitle;
+                if (hasAudio) {
+                    filename += '.zip';  // 如果包含音频，则下载ZIP文件
+                    console.log("下载包含音频的ZIP文件");
                 } else {
-                    showMessage('试卷生成成功！', 'success');
+                    filename += '.docx';  // 否则下载Word文档
+                    console.log("下载Word文档");
                 }
+                a.download = filename;
                 
-                a.download = `${paperTitle}${fileExtension}`;
+                // 模拟点击下载
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
                 
+                // 恢复生成按钮状态
                 document.getElementById('generateButton').disabled = false;
+                
+                // 如果包含音频文件，也提供单独下载音频包的选项
+                if (hasAudio) {
+                    showMessage('试卷生成成功！已包含听力音频文件', 'success');
+                } else {
+                    showMessage('试卷生成成功！', 'success');
+                }
             })
             .catch(error => {
+                console.error('Error generating paper:', error);
+                showMessage('生成试卷时出错: ' + error.message, 'error');
+                
+                // 恢复生成按钮状态
                 document.getElementById('generateButton').disabled = false;
-                showMessage('下载试卷失败：' + error.message, 'error');
             });
         }
     </script>

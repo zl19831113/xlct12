@@ -999,14 +999,12 @@ def generate_paper():
 
         question_ids = data.get('question_ids', [])
         paper_title = data.get('paper_title', '试卷')
-        has_audio = data.get('has_audio', False)  # 是否包含音频文件
-        audio_files = data.get('audio_files', [])  # 音频文件列表
-        
+        has_audio = data.get('has_audio', False)  # 获取是否包含音频文件
+
         # 添加日志：打印接收到的数据
         print(f"Received question IDs: {question_ids}")
         print(f"Received paper title: {paper_title}")
         print(f"Has audio files: {has_audio}")
-        print(f"Audio files count: {len(audio_files)}")
 
         # ---> ADDED: Limit the number of questions
         MAX_QUESTIONS_LIMIT = 200
@@ -1037,24 +1035,28 @@ def generate_paper():
             # 按照原始顺序排列题目
             questions = [question_map[qid] for qid in question_ids if qid in question_map]
             print(f"Final question count for paper: {len(questions)}")
-            
-            # 检查是否是英语听力试卷
-            is_english_listening = False
-            if len(questions) > 0 and questions[0].subject == '英语' and has_audio:
-                is_english_listening = True
-                print("This is an English listening paper with audio files")
-            
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             traceback.print_exc() # Ensure traceback is printed
             return jsonify({'error': f'Database error: {str(db_error)}'}), 500
 
+        # 检查是否有音频文件需要处理
+        audio_files = []
+        if has_audio:
+            for q in questions:
+                if q.subject == '英语' and q.question_type == '听力理解' and q.audio_content:
+                    audio_files.append({
+                        'id': q.id,
+                        'filename': q.audio_filename or f'audio_{q.id}.mp3',
+                        'content': q.audio_content,
+                        'path': q.audio_file_path
+                    })
+            print(f"找到 {len(audio_files)} 个音频文件需要打包")
+            for af in audio_files:
+                print(f"音频文件ID: {af['id']}, 文件名: {af['filename']}, 内容大小: {len(af['content']) if af['content'] else 0} 字节")
+
         # Wrap document creation and population in a larger try block
         try:
-            # 创建临时目录用于存放文件
-            temp_dir = tempfile.mkdtemp()
-            docx_path = os.path.join(temp_dir, f"{paper_title}.docx")
-            
             # 2) 创建 Word 文档
             doc = Document()
             
@@ -1789,142 +1791,96 @@ def generate_paper():
                 traceback.print_exc()
                 return jsonify({'error': f'Error adding answers to document: {str(add_answers_error)}'}), 500
 
-            # 6) 保存并返回 Word 文档
-            # 创建临时目录
-            temp_dir = tempfile.mkdtemp()
-            docx_path = os.path.join(temp_dir, f"{paper_title}.docx")
-            
-            # 保存文档到临时目录中的文件
-            print(f"Saving document to temporary file: {docx_path}")
-            doc.save(docx_path)
-            
-            # 检查文件是否成功保存
-            if not os.path.exists(docx_path):
-                print(f"ERROR: Failed to save document to {docx_path}")
-                return jsonify({'error': 'Failed to save document to temporary file'}), 500
-            
-            # 检查是否是英语听力题，需要包含音频文件
-            has_audio = False
-            audio_files_found = []
-            
-            if len(questions) > 0 and questions[0].subject == '英语':
-                # 筛选出具有听力音频的题目
-                for q in questions:
-                    if q.question_type == '听力理解' and hasattr(q, 'audio_filename') and q.audio_filename:
-                        has_audio = True
-                        print(f"Found audio for question {q.id}: {q.audio_filename}")
-                        
-                        # 检查音频存在的方式
-                        if hasattr(q, 'audio_content') and q.audio_content and len(q.audio_content) > 100:
-                            # 从数据库中的二进制内容保存音频
-                            temp_audio_path = os.path.join(temp_dir, q.audio_filename)
-                            try:
-                                with open(temp_audio_path, 'wb') as f:
-                                    f.write(q.audio_content)
-                                if os.path.exists(temp_audio_path):
-                                    audio_files_found.append({
-                                        'path': temp_audio_path,
-                                        'filename': q.audio_filename
-                                    })
-                                    print(f"Saved audio from database to {temp_audio_path}")
-                            except Exception as e:
-                                print(f"Error saving audio content: {str(e)}")
-                                
-                        elif hasattr(q, 'audio_file_path') and q.audio_file_path:
-                            # 尝试从文件路径获取音频
-                            file_path = q.audio_file_path
-                            
-                            # 如果是相对路径，转换为绝对路径
-                            if not os.path.isabs(file_path):
-                                project_root = os.path.dirname(os.path.abspath(__file__))
-                                abs_path = os.path.join(project_root, file_path)
-                            else:
-                                abs_path = file_path
-                                
-                            if os.path.exists(abs_path):
-                                # 复制到临时目录
-                                temp_audio_path = os.path.join(temp_dir, q.audio_filename or os.path.basename(abs_path))
-                                try:
-                                    shutil.copy2(abs_path, temp_audio_path)
-                                    audio_files_found.append({
-                                        'path': temp_audio_path,
-                                        'filename': q.audio_filename or os.path.basename(abs_path)
-                                    })
-                                    print(f"Copied audio from {abs_path} to {temp_audio_path}")
-                                except Exception as e:
-                                    print(f"Error copying audio file: {str(e)}")
-                            else:
-                                print(f"Audio file not found at path: {abs_path}")
-                        
-                        # 如果上面两种方法都失败，尝试在音频目录中查找
-                        if not os.path.exists(temp_audio_path):
-                            audio_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'audio')
-                            if os.path.exists(audio_dir):
-                                for filename in os.listdir(audio_dir):
-                                    if filename.lower().endswith('.mp3') and str(q.id) in filename:
-                                        src_path = os.path.join(audio_dir, filename)
-                                        dst_path = os.path.join(temp_dir, q.audio_filename or filename)
-                                        try:
-                                            shutil.copy2(src_path, dst_path)
-                                            audio_files_found.append({
-                                                'path': dst_path,
-                                                'filename': q.audio_filename or filename
-                                            })
-                                            print(f"Found and copied audio file from audio directory: {filename}")
-                                            break
-                                        except Exception as e:
-                                            print(f"Error copying file from audio directory: {str(e)}")
-            
-            # 如果有音频文件，创建ZIP包含文档和音频
-            if has_audio and audio_files_found:
-                print(f"Creating ZIP with document and {len(audio_files_found)} audio files")
-                
+            # 6) 保存并返回 Word 文档或ZIP文件
+            # 保存到 BytesIO 对象
+            file_stream = BytesIO()
+            print("Attempting to save document to memory stream...") # Log before save
+            doc.save(file_stream)
+            print("Document successfully saved to memory stream.") # Log after save
+            file_stream.seek(0)
+
+            # 如果有音频文件，创建ZIP压缩包
+            if has_audio and audio_files:
+                print("创建ZIP压缩包包含试卷和音频文件...")
+                # 创建临时目录
+                temp_dir = tempfile.mkdtemp()
                 zip_path = os.path.join(temp_dir, f"{paper_title}.zip")
-                with zipfile.ZipFile(zip_path, 'w') as zip_file:
-                    # 添加DOCX文档
-                    zip_file.write(docx_path, os.path.basename(docx_path))
-                    print(f"Added document to ZIP: {os.path.basename(docx_path)}")
-                    
-                    # 创建音频目录
-                    os.makedirs(os.path.join(temp_dir, '听力音频'), exist_ok=True)
-                    
-                    # 添加音频文件
-                    for audio in audio_files_found:
-                        zip_file.write(audio['path'], f"听力音频/{audio['filename']}")
-                        print(f"Added audio to ZIP: {audio['filename']}")
                 
-                # 检查ZIP文件是否创建成功
-                if os.path.exists(zip_path) and os.path.getsize(zip_path) > 0:
-                    print(f"ZIP file created successfully: {zip_path}, size: {os.path.getsize(zip_path)} bytes")
+                try:
+                    # 先将Word文档保存到临时文件
+                    docx_path = os.path.join(temp_dir, f"{paper_title}.docx")
+                    with open(docx_path, 'wb') as f:
+                        f.write(file_stream.getvalue())
+                    print(f"试卷文档已保存到临时文件: {docx_path}")
                     
-                    # 读取ZIP并返回
+                    # 创建ZIP文件
+                    with zipfile.ZipFile(zip_path, 'w') as zip_file:
+                        # 添加试卷文档
+                        zip_file.write(docx_path, os.path.basename(docx_path))
+                        print(f"已添加试卷文档到ZIP: {os.path.basename(docx_path)}")
+                        
+                        # 添加音频文件到ZIP
+                        for idx, audio_file in enumerate(audio_files, 1):
+                            filename = audio_file.get('filename', f'audio_{idx}.mp3')
+                            audio_content = audio_file.get('content')
+                            
+                            if audio_content:
+                                # 保存音频内容到临时文件
+                                temp_audio_path = os.path.join(temp_dir, filename)
+                                with open(temp_audio_path, 'wb') as f:
+                                    f.write(audio_content)
+                                print(f"已保存音频文件到临时目录: {temp_audio_path}, 大小: {len(audio_content)} 字节")
+                                
+                                # 添加到ZIP
+                                zip_file.write(temp_audio_path, filename)
+                                print(f"已添加音频文件到ZIP: {filename}")
+                            elif audio_file.get('path') and os.path.exists(audio_file.get('path')):
+                                # 如果有文件路径且文件存在
+                                file_path = audio_file.get('path')
+                                zip_file.write(file_path, filename)
+                                print(f"已从文件路径添加音频到ZIP: {filename}, 路径: {file_path}")
+                            else:
+                                print(f"警告: 音频文件 {filename} 内容为空且路径无效")
+                    
+                    # 读取生成的ZIP文件
                     with open(zip_path, 'rb') as f:
                         zip_data = f.read()
+                    print(f"成功读取ZIP压缩包，大小: {len(zip_data)} 字节")
+                    
+                    # 发送ZIP文件
+                    safe_title = paper_title + '.zip'
+                    response = make_response(zip_data)
+                    response.headers.set('Content-Type', 'application/zip')
+                    response.headers.set('Content-Disposition', f'attachment; filename="{safe_title}"')
                     
                     # 清理临时文件
                     shutil.rmtree(temp_dir)
+                    print(f"已清理临时目录: {temp_dir}")
                     
-                    # 返回ZIP文件
-                    response = make_response(zip_data)
-                    response.headers.set('Content-Type', 'application/zip')
-                    response.headers.set('Content-Disposition', f'attachment; filename="{paper_title}.zip"')
                     return response
-                else:
-                    print("Failed to create ZIP file, falling back to DOCX only")
+                    
+                except Exception as zip_error:
+                    print(f"创建ZIP压缩包时发生错误: {str(zip_error)}")
+                    traceback.print_exc()
+                    # 清理临时文件
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir)
+                    # 如果ZIP创建失败，回退到只发送Word文档
+                    print("回退到只发送Word文档...")
+                    file_stream.seek(0)
             
-            # 如果没有音频或ZIP创建失败，返回DOCX文件
-            print("Returning DOCX file only")
-            with open(docx_path, 'rb') as f:
-                docx_data = f.read()
-            
-            # 清理临时文件
-            shutil.rmtree(temp_dir)
-            
-            # 返回DOCX文件
-            response = make_response(docx_data)
-            response.headers.set('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-            response.headers.set('Content-Disposition', f'attachment; filename="{paper_title}.docx"')
-            return response
+            # 如果没有音频文件或ZIP创建失败，只发送Word文档
+            # 添加日志：文件生成完成，准备发送
+            print(f"Word document generated successfully for title: {paper_title}. Preparing to send.")
+
+            # 发送文件
+            safe_title = paper_title + '.docx'
+            return send_file(
+                file_stream,
+                as_attachment=True,
+                download_name=safe_title,
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
 
         except Exception as final_error: # Catch any error during steps 2-6
             print(f"!!! Error during document generation or saving: {str(final_error)} !!!")
