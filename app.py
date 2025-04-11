@@ -1231,28 +1231,29 @@ def generate_paper():
                     if not text:
                         return ""
                         
-                    # 移除题目中的来源信息（通常位于开头，如"来源：xx"）
-                    text = re.sub(r'^(来源|试题来源|资料来源|出处|试题出处)[：:]\s*[^\n]+\n?', '', text)
-                    
-                    # 删除符号序列模式（①→②→③→...）
-                    text = re.sub(r'[①-⑨→]+', '', text)
-                    
-                    # 额外针对箭头模式和数字序列的更严格处理
-                    text = re.sub(r'[①②③④⑤⑥⑦⑧⑨](\s*→\s*[①②③④⑤⑥⑦⑧⑨])+', '', text)
-                    # 移除单独的箭头符号
-                    text = re.sub(r'→', '', text)
-                    
                     # 保留表格的内容，但移除表格标签
                     # 替换HTML标签为临时标记
                     for tag, replacement in html_tag_replacements.items():
                         text = text.replace(tag, replacement)
                     
-                    # 替换HTML实体
+                    # 替换HTML实体，移除箭头和多余的符号
                     for entity, replacement in html_entity_replacements.items():
-                        text = text.replace(entity, replacement)
+                        # 移除箭头符号
+                        if entity == "&rarr;":
+                            text = text.replace(entity, "")
+                        # 移除引号符号
+                        elif entity in ["&ldquo;", "&rdquo;", "&quot;"]:
+                            text = text.replace(entity, "")
+                        else:
+                            text = text.replace(entity, replacement)
                     
                     # 移除所有剩余HTML标签
                     text = re.sub(r'<[^>]+>', '', text)
+                    
+                    # 移除特定符号 →
+                    text = text.replace("→", "")
+                    # 移除多余的引号
+                    text = text.replace(""", "").replace(""", "")
                     
                     # 恢复换行
                     text = text.replace("[BREAK]", "\n")
@@ -1312,11 +1313,28 @@ def generate_paper():
                             # 添加主题干文本，保留段落结构
                             paragraphs = cleaned_text.split('\n')
                             if paragraphs:
-                                # 第一段跟题号同行
-                                p.add_run(paragraphs[0].strip()).font.size = Pt(10.5)
+                                # 移除可能包含试题来源的第一行
+                                first_para = paragraphs[0].strip()
+                                # 检查是否包含来源信息的模式，如果是，跳过第一行
+                                if re.search(r'([\(（].*来源.*[\)）])', first_para) or '来源' in first_para:
+                                    if len(paragraphs) > 1:
+                                        # 跳过包含来源的第一行，使用第二行作为题干开始
+                                        p.add_run(paragraphs[1].strip()).font.size = Pt(10.5)
+                                        # 后续段落从第三行开始
+                                        remaining_paras = paragraphs[2:]
+                                    else:
+                                        # 如果只有一行且包含来源，提取主要题干部分
+                                        clean_para = re.sub(r'[\(（].*来源.*[\)）]', '', first_para).strip()
+                                        p.add_run(clean_para).font.size = Pt(10.5)
+                                        remaining_paras = []
+                                else:
+                                    # 第一行不包含来源信息，正常显示
+                                    p.add_run(first_para).font.size = Pt(10.5)
+                                    # 后续段落从第二行开始
+                                    remaining_paras = paragraphs[1:]
                                 
-                                # 后续段落各自一行
-                                for para in paragraphs[1:]:
+                                # 处理剩余段落
+                                for para in remaining_paras:
                                     if para.strip():
                                         para_p = doc.add_paragraph(style='Normal')
                                         para_p.paragraph_format.line_spacing = 1.0  # 单倍行距
@@ -1395,14 +1413,7 @@ def generate_paper():
                                     # 生成选项文本，用制表符分隔
                                     options_text = ""
                                     for i, (letter, numbers) in enumerate(choice_matches):
-                                        # 清理选项中可能的序列符号
-                                        cleaned_numbers = re.sub(r'[①-⑨](\s*→\s*[①-⑨])+', '', numbers)
-                                        # 移除所有箭头符号
-                                        cleaned_numbers = re.sub(r'→', '', cleaned_numbers)
-                                        # 移除空白
-                                        cleaned_numbers = cleaned_numbers.strip()
-                                        
-                                        options_text += f"{letter}．{cleaned_numbers}"
+                                        options_text += f"{letter}．{numbers.strip()}"
                                         if i < len(choice_matches) - 1:
                                             options_text += "\t\t"
                                     
@@ -1556,10 +1567,6 @@ def generate_paper():
                     
                     # 移除答案开头的题号（如：9．）
                     answer_text = re.sub(r'^\d+[.\uff0e]\s*', '', answer_text)
-                    
-                    # 清理答案中的符号序列（①→②→③→...）
-                    answer_text = re.sub(r'[①-⑨](\s*→\s*[①-⑨])+', '', answer_text)
-                    answer_text = re.sub(r'→', '', answer_text)
                     
                     # 提取答案选项（A-D）
                     option_match = re.search(r'\b([A-D])\b', answer_text)
@@ -2732,7 +2739,7 @@ def generate_smart_paper():
         unit = data.get('unit', '')
         lesson = data.get('lesson', '')
         question_types = data.get('questionTypes', [])
-        paper_title = data.get('paperTitle', '智能组卷试题')  # 获取用户提供的试卷标题
+        paper_title = data.get('paperTitle', '智能组卷试题')
         
         # 验证必选字段
         if not education_stage or not subject:
@@ -2740,6 +2747,9 @@ def generate_smart_paper():
             
         if not question_types:
             return jsonify({'error': '请至少选择一种题型'}), 400
+        
+        # 增强随机性 - 重置随机种子为当前时间
+        random.seed(datetime.now().timestamp())
             
         # 构建查询条件
         query = SU.query.filter(SU.education_stage == education_stage)
@@ -2763,39 +2773,35 @@ def generate_smart_paper():
         # 初始化题目结果列表
         selected_questions = []
         
-        # 使用当前时间作为随机种子，确保每次运行结果不同
-        random.seed(datetime.now().timestamp())
-        
         # 按照题型顺序选择题目
         for q_type, count in question_count_map.items():
             # 找出该类型的所有符合条件的题目
             type_questions = query.filter(SU.question_type == q_type).all()
             
+            # 增强随机性 - 打乱题目顺序
+            shuffled_questions = list(type_questions)
+            random.shuffle(shuffled_questions)
+            
             # 如果题目数量不足，使用所有可用题目
-            if len(type_questions) <= count:
-                # 仍然打乱这些题目的顺序
-                random.shuffle(type_questions)
-                selected_questions.extend([q.id for q in type_questions])
+            if len(shuffled_questions) <= count:
+                selected_questions.extend([q.id for q in shuffled_questions])
             else:
-                # 随机选择指定数量的题目
-                # 确保每次都重新洗牌全部题目，而不是简单使用sample
-                shuffled_questions = list(type_questions)
-                random.shuffle(shuffled_questions)
+                # 随机选择指定数量的题目（使用打乱后的列表）
                 selected_ids = [q.id for q in shuffled_questions[:count]]
                 selected_questions.extend(selected_ids)
+        
+        # 进一步打乱最终题目顺序
+        random.shuffle(selected_questions)
         
         # 如果没有选中任何题目
         if not selected_questions:
             return jsonify({'error': '未找到符合条件的题目'}), 404
-        
-        # 再次打乱题目的顺序，强化随机性
-        random.shuffle(selected_questions)
             
         # 返回选中的题目ID和标题
         return jsonify({
             'success': True,
             'question_ids': selected_questions,
-            'paper_title': paper_title  # 直接使用用户提供的标题
+            'paper_title': paper_title
         })
     
     except Exception as e:

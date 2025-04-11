@@ -580,8 +580,8 @@
             document.getElementById('lesson').innerHTML = '<option value="">选择课程</option>';
             document.getElementById('lesson').disabled = true;
             
-            // 如果选择了章节，启用单元选择器
-            chapterSelect.addEventListener('change', function() {
+            // 监听章节选择变化
+            chapterSelect.onchange = function() {
                 const selectedChapter = this.value;
                 const unitSelect = document.getElementById('unit');
                 
@@ -600,8 +600,8 @@
                         unitSelect.appendChild(option);
                     });
                     
-                    // 添加单元选择事件
-                    unitSelect.addEventListener('change', function() {
+                    // 监听单元选择变化
+                    unitSelect.onchange = function() {
                         const selectedUnit = this.value;
                         const lessonSelect = document.getElementById('lesson');
                         
@@ -623,14 +623,14 @@
                             lessonSelect.disabled = true;
                             lessonSelect.innerHTML = '<option value="">选择课程</option>';
                         }
-                    });
+                    };
                 } else {
                     unitSelect.disabled = true;
                     unitSelect.innerHTML = '<option value="">选择单元</option>';
                     document.getElementById('lesson').disabled = true;
                     document.getElementById('lesson').innerHTML = '<option value="">选择课程</option>';
                 }
-            });
+            };
         }
         
         // 更新题型选择器
