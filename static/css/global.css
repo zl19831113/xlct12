@@ -1,0 +1,91 @@
+/* 
+ * 全局样式：确保所有页面统一的缩放行为和基础样式 
+ * 版本：1.0.0
+ */
+
+/* 基础重置和统一样式 */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    -webkit-text-size-adjust: 100%; /* 防止iOS浏览器自动调整文字大小 */
+    -ms-text-size-adjust: 100%;     /* IE兼容 */
+    font-size: 16px;                /* 基础字体大小 */
+    scroll-behavior: smooth;        /* 平滑滚动 */
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: #333333;
+    background-color: #f5f7fa;
+    width: 100%;
+    overflow-x: hidden;            /* 防止水平滚动条 */
+    -webkit-font-smoothing: antialiased; /* 平滑字体 */
+    -moz-osx-font-smoothing: grayscale;  /* Firefox平滑字体 */
+    text-rendering: optimizeLegibility;  /* 优化字体渲染 */
+}
+
+/* 响应式布局基础样式 */
+img, svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* 链接样式统一 */
+a {
+    color: #2F80ED;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: #1a6fd1;
+}
+
+/* 移动设备适配 */
+@media (max-width: 768px) {
+    html {
+        font-size: 15px; /* 略微缩小基础字体 */
+    }
+    
+    body {
+        padding: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    html {
+        font-size: 14px; /* 小屏幕进一步缩小字体 */
+    }
+}
+
+/* 防止内容溢出和换行问题 */
+p, h1, h2, h3, h4, h5, h6 {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    -ms-word-break: break-all;
+    word-break: break-word;
+    hyphens: auto;
+}
+
+/* 解决Safari和Chrome上某些缩放问题 */
+@supports (-webkit-overflow-scrolling: touch) {
+    body {
+        -webkit-overflow-scrolling: touch; /* 提高iOS滚动性能 */
+    }
+    
+    input, select, textarea {
+        font-size: 16px; /* 防止iOS缩放表单 */
+    }
+}
+
+/* 解决Firefox特定问题 */
+@-moz-document url-prefix() {
+    body {
+        font-weight: normal;
+    }
+} 

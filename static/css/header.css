@@ -1,0 +1,325 @@
+/* 现代化头部样式 - 更新版本 v2.6 */
+:root {
+    --primary-color: #2F80ED;
+    --secondary-color: #E6F0FF;
+    --background-main: #FFFFFF;
+    --background-subtle: #F9FAFB;
+    --text-main: #333333;
+    --text-heading: #000000;
+    --text-subheading: #444444;
+    --border-color: #E0E0E0;
+    --header-height: min(140px, 20vh); /* 使用视窗高度的相对单位 */
+}
+
+body {
+    font-family: PingFang SC, Microsoft YaHei, Noto Sans SC, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-main);
+    background-color: var(--background-main);
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%; /* 防止iOS浏览器自动调整文字大小 */
+}
+
+/* 头部固定样式 */
+.header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background-color: var(--background-main);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    padding: 20px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: var(--header-height); /* 最小高度使用变量 */
+    height: auto; /* 让高度自适应内容 */
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+    overflow-x: hidden;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+}
+
+.header-logo {
+    height: min(100px, 15vh); /* 响应式高度 */
+    margin-right: 16px;
+    transition: transform 0.3s ease;
+}
+
+.header-logo:hover {
+    transform: scale(1.05);
+}
+
+.header-title {
+    font-size: clamp(22px, 4vw, 28px); /* 响应式字体大小 */
+    font-weight: 600;
+    color: var(--text-heading);
+    text-decoration: none;
+}
+
+/* 搜索框样式 */
+.header-search {
+    flex: 1;
+    max-width: 400px;
+    margin: 0 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.search-form {
+    display: flex;
+    width: 100%;
+    position: relative;
+}
+
+.search-input {
+    width: 100%;
+    padding: 10px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    font-size: 16px;
+    outline: none;
+    transition: all 0.3s ease;
+    background-color: var(--background-subtle);
+}
+
+.search-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.2);
+}
+
+.search-button {
+    position: relative;
+    margin-left: 10px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0 25px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 16px;
+    font-weight: 500;
+    min-width: 80px;
+    white-space: nowrap;
+    letter-spacing: normal;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+}
+
+.search-button:hover {
+    background-color: #1a6fd1;
+}
+
+.search-icon {
+    font-style: normal;
+    font-size: 16px;
+}
+
+.header-nav {
+    display: flex;
+    align-items: center;
+}
+
+.header-link {
+    color: var(--text-main);
+    text-decoration: none;
+    padding: 10px 20px;
+    margin: 0 6px;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: clamp(16px, 3vw, 20px); /* 响应式字体大小 */
+    transition: all 0.2s ease;
+}
+
+.header-link:hover {
+    background-color: #F2F2F2;
+    color: var(--text-heading);
+}
+
+.header-link.active {
+    background-color: var(--secondary-color);
+    color: var(--primary-color);
+}
+
+/* 页面容器样式 */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 16px;
+}
+
+/* 确保内容不会被头部遮挡 */
+html {
+    scroll-padding-top: calc(var(--header-height) + 10px); /* 使用变量 */
+    -webkit-text-size-adjust: 100%; /* 防止iOS浏览器自动调整文字大小 */
+}
+
+/* 内容容器样式 */
+.content-container {
+    padding-top: 5px;
+    margin-top: 5px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    :root {
+        --header-height: auto; /* 中等屏幕上自适应高度 */
+    }
+    
+    body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        width: 100%;
+    }
+    
+    .header {
+        flex-direction: column !important;
+        height: auto !important;
+        padding: 16px 16px !important;
+        margin-bottom: 2px !important;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .header-left {
+        margin-bottom: 6px;
+        justify-content: center;
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    .header-title {
+        font-size: clamp(18px, 5vw, 24px); /* 更小的响应式字体 */
+    }
+    
+    .header-search {
+        width: 100%;
+        max-width: 100%;
+        margin: 8px 0;
+        order: 3;
+    }
+    
+    .search-form {
+        max-width: 300px;
+        margin: 0 auto;
+    }
+    
+    .header-nav {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); /* 更灵活的网格布局 */
+        gap: 5px;
+        margin-right: 0;
+        margin-bottom: 0;
+    }
+    
+    .header-link {
+        margin: 0;
+        font-size: clamp(14px, 3.5vw, 16px); /* 响应式字体 */
+        padding: 8px 5px;
+        text-align: center;
+        white-space: nowrap;
+    }
+    
+    .container {
+        padding: 0 12px;
+    }
+    
+    body {
+        padding-top: 0;
+    }
+    
+    .content-container {
+        padding-top: 2px;
+        margin-top: 2px;
+    }
+    
+    /* 修复页面内容与头部之间的空隙 */
+    main, .main-content {
+        margin-top: 2px;
+        padding-top: 2px;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        width: 100%;
+    }
+    
+    .header-logo {
+        height: clamp(60px, 12vh, 80px); /* 响应式高度 */
+    }
+    
+    .header-title {
+        font-size: clamp(16px, 5vw, 22px); /* 更小的响应式字体 */
+        text-align: center;
+    }
+    
+    .search-input {
+        font-size: 14px;
+        padding: 8px 12px;
+    }
+    
+    .search-button {
+        height: 36px;
+        font-size: 14px;
+        padding: 0 20px;
+        min-width: 70px;
+    }
+    
+    .header-link {
+        font-size: clamp(12px, 3vw, 14px); /* 响应式字体 */
+        padding: 6px 5px;
+        margin: 0;
+        text-align: center;
+    }
+    
+    /* 进一步减少小屏幕上的空隙 */
+    .header {
+        margin-bottom: 1px;
+        padding: 12px 12px;
+    }
+    
+    .content-container, main, .main-content {
+        margin-top: 1px;
+        padding-top: 1px;
+    }
+}
+
+/* 添加对iPad/平板设备的更好支持 */
+@media (min-width: 481px) and (max-width: 1024px) {
+    .header-nav {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .header-link {
+        margin: 4px;
+        font-size: clamp(16px, 2vw, 18px);
+    }
+}
