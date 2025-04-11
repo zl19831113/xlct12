@@ -190,6 +190,30 @@ def clean_and_split_question(question_text):
         
         # 规范化选项格式
         choice_part = re.sub(r'([A-D])[．.、]\s*', r'\1．', choice_part)
+    else:
+        # 尝试使用更宽松的模式，特别是处理英语听力题的选项
+        # 这种模式查找 A.XXX B.YYY C.ZZZ 格式
+        extended_pattern = r'([A-D])\s*[．.、]?\s*([^A-D\n]{2,})'
+        extended_matches = re.finditer(extended_pattern, question_text)
+        options_found = []
+        
+        for match in extended_matches:
+            letter = match.group(1)
+            content = match.group(2).strip()
+            if content and not content.startswith('.'):  # 确保内容有效
+                options_found.append((match.start(), match.end(), f"{letter}．{content}"))
+        
+        if options_found:
+            # 如果找到选项，将它们添加到choice_part
+            # 找到最早出现的选项，前面的部分是题干
+            options_found.sort()  # 按出现位置排序
+            question_text = question_text[:options_found[0][0]].strip()
+            
+            # 构建选项部分
+            for _, _, option_text in options_found:
+                if choice_part:
+                    choice_part += " "
+                choice_part += option_text
     
     # 处理题干部分，移除可能的多余符号
     question_text = question_text.strip()
