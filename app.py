@@ -636,6 +636,11 @@ def add_question():
                     q = q.replace('听下面一段独白', '听下面一段较长对话')
                     q = q.replace('听下列独白', '听下面一段较长对话')
                     q = q.replace('听独白', '听下面一段较长对话')
+                
+                # 修复听力题的重复问题
+                if '回答以下小题。回答以下小题' in q:
+                    q = q.replace('回答以下小题。回答以下小题', '回答以下小题')
+                
                 processed_list.append(q)
             return processed_list
         
@@ -1801,14 +1806,26 @@ def generate_paper():
                         
                         # 特殊处理英语听力理解题型的答案，显示全部答案选项
                         if q.subject == '英语' and q.question_type == '听力理解':
-                            # 查找所有的字母答案（可能有多个A、B、C、D）
-                            all_answers = re.findall(r'\b([A-D])\b', detailed_explanation)
-                            if all_answers:
-                                # 显示所有找到的答案，用逗号分隔
-                                full_answer = ', '.join(all_answers)
-                                p.add_run(full_answer).font.size = Pt(10.5)
-                            else:
-                                # 如果没找到，至少显示已提取的单个答案
+                            try:
+                                # 查找所有的字母答案（可能有多个A、B、C、D）
+                                all_answers = re.findall(r'\b([A-D])\b', detailed_explanation)
+                                if all_answers:
+                                    # 显示所有找到的答案，用逗号分隔
+                                    full_answer = ', '.join(all_answers)
+                                    p.add_run(full_answer).font.size = Pt(10.5)
+                                else:
+                                    # 如果没找到，检查是否有答案标记
+                                    answer_section = re.search(r'答案[:：]\s*(.+)', detailed_explanation)
+                                    if answer_section:
+                                        # 从答案部分提取答案
+                                        answer_text = answer_section.group(1).strip()
+                                        p.add_run(answer_text).font.size = Pt(10.5)
+                                    else:
+                                        # 如果都没找到，至少显示已提取的单个答案
+                                        p.add_run(letter_answer).font.size = Pt(10.5)
+                            except Exception as e:
+                                print(f"处理听力题答案出错: {str(e)}")
+                                # 出错时显示原始答案
                                 p.add_run(letter_answer).font.size = Pt(10.5)
                         else:
                             # 其他类型题目保持原样，显示单个答案
