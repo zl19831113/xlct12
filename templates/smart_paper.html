@@ -1057,9 +1057,6 @@
         
         // 生成最终试卷
         function generateFinalPaper(questionIds, paperTitle, audioFiles) {
-            // 检查是否有音频文件
-            const hasAudio = audioFiles && audioFiles.length > 0;
-            
             fetch('/generate_paper', {
                 method: 'POST',
                 headers: {
@@ -1068,7 +1065,8 @@
                 body: JSON.stringify({
                     question_ids: questionIds,
                     paper_title: paperTitle,
-                    has_audio: hasAudio
+                    has_audio: audioFiles && audioFiles.length > 0,
+                    audio_files: audioFiles || []
                 })
             })
             .then(response => {
@@ -1081,33 +1079,26 @@
                 // 创建下载链接
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                
-                // 文件扩展名（如果有音频文件则是zip，否则是docx）
-                const fileExt = hasAudio ? 'zip' : 'docx';
-                a.download = `${paperTitle}.${fileExt}`;
+                const fileExtension = audioFiles && audioFiles.length > 0 ? '.zip' : '.docx';
                 a.href = url;
+                a.download = paperTitle + fileExtension;
                 document.body.appendChild(a);
                 a.click();
-                
-                // 清理
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
-                
-                // 更新界面状态
+
+                // 更新UI状态
+                document.getElementById('generateButton').innerHTML = '生成试卷';
                 document.getElementById('generateButton').disabled = false;
-                document.getElementById('generateButton').innerText = '生成试卷';
-                
-                // 显示成功消息
-                const successMsg = hasAudio 
-                    ? '试卷已成功生成，文件包含Word文档和听力音频文件' 
-                    : '试卷已成功生成';
-                showMessage(successMsg, 'success');
+                document.getElementById('statusMessage').textContent = '试卷生成成功！';
+                document.getElementById('statusMessage').style.color = 'green';
             })
             .catch(error => {
-                console.error('Error generating paper:', error);
+                console.error('Error:', error);
+                document.getElementById('generateButton').innerHTML = '生成试卷';
                 document.getElementById('generateButton').disabled = false;
-                document.getElementById('generateButton').innerText = '生成试卷';
-                showMessage('生成试卷失败: ' + error.message, 'error');
+                document.getElementById('statusMessage').textContent = error.message;
+                document.getElementById('statusMessage').style.color = 'red';
             });
         }
     </script>
