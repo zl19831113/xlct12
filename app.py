@@ -2738,6 +2738,87 @@ def get_english_lessons():
             'error': str(e)
         }), 500
 
+@app.route('/smart_paper')
+def smart_paper():
+    return render_template('smart_paper.html', active_page='smart_paper')
+
+@app.route('/api/generate_smart_paper', methods=['POST'])
+def generate_smart_paper():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data received'}), 400
+            
+        # 获取筛选条件
+        education_stage = data.get('educationStage')
+        subject = data.get('subject')
+        chapter = data.get('chapter', '')
+        unit = data.get('unit', '')
+        lesson = data.get('lesson', '')
+        question_types = data.get('questionTypes', [])
+        
+        # 验证必选字段
+        if not education_stage or not subject:
+            return jsonify({'error': '学段和科目是必选项'}), 400
+            
+        if not question_types:
+            return jsonify({'error': '请至少选择一种题型'}), 400
+            
+        # 构建查询条件
+        query = SU.query.filter(SU.education_stage == education_stage)
+        query = query.filter(SU.subject == subject)
+        
+        if chapter:
+            query = query.filter(SU.chapter == chapter)
+        if unit:
+            query = query.filter(SU.unit == unit)
+        if lesson:
+            query = query.filter(SU.lesson == lesson)
+            
+        # 获取题型和数量
+        question_count_map = {}
+        for item in question_types:
+            q_type = item.get('type')
+            q_count = item.get('count', 0)
+            if q_type and q_count > 0:
+                question_count_map[q_type] = q_count
+        
+        # 初始化题目结果列表
+        selected_questions = []
+        
+        # 按照题型顺序选择题目
+        for q_type, count in question_count_map.items():
+            # 找出该类型的所有符合条件的题目
+            type_questions = query.filter(SU.question_type == q_type).all()
+            
+            # 如果题目数量不足，使用所有可用题目
+            if len(type_questions) <= count:
+                selected_questions.extend([q.id for q in type_questions])
+            else:
+                # 随机选择指定数量的题目
+                selected_ids = random.sample([q.id for q in type_questions], count)
+                selected_questions.extend(selected_ids)
+        
+        # 如果没有选中任何题目
+        if not selected_questions:
+            return jsonify({'error': '未找到符合条件的题目'}), 404
+            
+        # 生成试卷标题
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M")
+        paper_title = f"{education_stage}{subject}智能组卷_{timestamp}"
+        
+        # 返回选中的题目ID和标题
+        return jsonify({
+            'success': True,
+            'question_ids': selected_questions,
+            'paper_title': paper_title
+        })
+    
+    except Exception as e:
+        print(f"智能组卷错误: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'error': f'生成试卷失败: {str(e)}'}), 500
+
 if __name__ == '__main__':
     try:
         print("正在尝试启动在端口 5001...")
