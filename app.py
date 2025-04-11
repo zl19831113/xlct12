@@ -1,3 +1,68 @@
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, make_response
+from flask_sqlalchemy import SQLAlchemy
+from docx import Document
+from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
+from docx.enum.style import WD_STYLE_TYPE
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+
+# 初始化数据库
+def init_db():
+    """初始化数据库表结构"""
+    db.create_all()
+    print("数据库表结构已初始化")
+
+def upgrade_db():
+    """升级数据库结构和数据"""
+    with app.app_context():
+        # 检查是否需要添加 source_type 字段
+        try:
+            # 尝试查询以检查字段是否存在
+            Paper.query.with_entities(Paper.source_type).first()
+            print("source_type 字段已存在")
+        except Exception as e:
+            if 'no such column' in str(e).lower():
+                # 字段不存在，需要添加
+                try:
+                    # 使用原生SQL添加字段
+                    db.session.execute(text("ALTER TABLE papers ADD COLUMN source_type VARCHAR(20) DEFAULT '地区联考'"))
+                    db.session.commit()
+                    
+                    # 根据来源名称智能判断来源类型并更新
+                    papers = Paper.query.all()
+                    for paper in papers:
+                        # 如果来源中包含"中学"、"附属"、"大学"等关键词，则设为名校调考
+                        if any(keyword in paper.source for keyword in ['中学', '附属', '大学', '一中', '二中', '三中', '四中', '五中', '六中', '七中', '八中', '九中', '十中']):
+                            paper.source_type = '名校调考'
+                        else:
+                            paper.source_type = '地区联考'
+                    
+                    db.session.commit()
+                    print("成功添加 source_type 字段并智能更新现有数据")
+                except Exception as add_error:
+                    db.session.rollback()
+                    print(f"添加 source_type 字段失败: {str(add_error)}")
+
+# Flask 3.x不再支持before_first_request
+def check_db_tables():
+    """在应用启动时检查数据库表结构"""
+    try:
+        with app.app_context():
+            # 检查是否需要创建表
+            inspector = db.inspect(db.engine)
+            if not inspector.has_table('papers'):
+                init_db()
+                print("数据库表格已创建")
+            else:
+                print("数据库表格已存在")
+                
+            # 升级数据库结构
+            upgrade_db()
+    except Exception as e:
+        print(f"数据库检查/创建时出错: {str(e)}")
+
 import os
 import sqlite3
 import datetime
@@ -17,6 +82,7 @@ import uuid
 import re
 import io
 import math
+import zipfile  # 添加zipfile模块的导入
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
@@ -27,12 +93,6 @@ from docx import Document
 from io import BytesIO
 from docx.shared import Inches, RGBColor
 from docx.shared import Pt
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-from docx.enum.style import WD_STYLE_TYPE
-import re
-from docx import Document
-from docx.shared import Pt
 from datetime import datetime, timedelta
 from urllib.parse import unquote
 from tqdm import tqdm
@@ -42,389 +102,100 @@ import traceback
 from math import radians, cos, sin, asin, sqrt
 from functools import wraps
 
-# 设置表格边框的辅助函数
-def set_cell_border(table):
-    """Set cell borders for Word table"""
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn
+# 清理和拆分问题文本，分离题干、序号部分和选项部分
+def clean_and_split_question(question_text):
+    """将问题文本拆分成题干、序号项和选项部分"""
+    if not question_text:
+        return "", [], ""
     
-    # 设置表格的全部单元格边框
-    tbl = table._tbl
-    for row in table.rows:
-        for cell in row.cells:
-            tcPr = cell._tc.get_or_add_tcPr()
-            # 给单元格添加边框
-            tcBorders = OxmlElement('w:tcBorders')
-            for border_name in ['top', 'left', 'bottom', 'right']:
-                border = OxmlElement(f'w:{border_name}')
-                border.set(qn('w:val'), 'single')
-                border.set(qn('w:sz'), '4')  # 1pt = 8 units
-                border.set(qn('w:space'), '0')
-                border.set(qn('w:color'), '000000')  # 黑色边框
-                tcBorders.append(border)
-            
-            tcPr.append(tcBorders)
-
-def optimize_choice_display(choice_text: str):
-    """
-    优化选项的显示格式，将选项按A、B、C、D分行显示
+    # 替换空引号或连续引号，避免格式问题
+    question_text = re.sub(r'"+\s*"+', '"', question_text)
+    # 替换中英文引号为统一的中文引号
+    question_text = question_text.replace('"', '"').replace('"', '"')
+    question_text = question_text.replace("'", "'").replace("'", "'")
     
-    Args:
-        choice_text: 包含选项的文本，例如 "A．①② B．①④ C．②③ D．③④"
+    # 移除文本中的逗号后的空格和换行
+    question_text = re.sub(r',\s*\n+', ', ', question_text)
     
-    Returns:
-        list: 每个元素为一个选项，例如 ["A．①②", "B．①④", "C．②③", "D．③④"]
-    """
-    if not choice_text:
-        return []
+    # 确保引号和逗号不引起换行
+    question_text = re.sub(r'([，,"""])\s*\n', r'\1 ', question_text)
     
-    # 清理文本
-    choice_text = choice_text.strip()
-    
-    # 检查是否包含数字编号引用（如A.①③）
-    has_numbered_refs = any(symbol in choice_text for symbol in ["①", "②", "③", "④", "⑤", "⑥"])
-    
-    if has_numbered_refs:
-        # 专门处理类似 "A．①③ B．①④ C．②③ D．③④" 的模式
-        ref_option_pattern = r'([A-D][\.．][\s\d①②③④⑤⑥]+?)(?=[A-D][\.．]|$)'
-        options = re.findall(ref_option_pattern, choice_text)
-        
-        if options:
-            print(f"带编号引用的选项匹配成功: {options}")
-            return [opt.strip() for opt in options if opt.strip()]
-    
-    # 标准的选项格式 A．xxx B．xxx
-    option_pattern = r'([A-D][\.．][^A-D]+?)(?=[A-D][\.．]|$)'
-    options = re.findall(option_pattern, choice_text)
-    
-    if options:
-        print(f"标准选项格式匹配成功: {options}")
-        return [opt.strip() for opt in options if opt.strip()]
-    
-    # 尝试匹配包含数字、特殊符号的选项 A．①② B．①④
-    extended_pattern = r'([A-D][\.．][\s\d①②③④⑤⑥\u4e00-\u9fa5a-zA-Z]+?)(?=[A-D][\.．]|$)'
-    options = re.findall(extended_pattern, choice_text)
-    
-    if options:
-        print(f"扩展选项格式匹配成功: {options}")
-        return [opt.strip() for opt in options if opt.strip()]
-    
-    # 尝试匹配数字编号选项 1. xxx 2. xxx
-    numeric_pattern = r'(\d+[\.．、][^0-9]+?)(?=\d+[\.．、]|$)'
-    options = re.findall(numeric_pattern, choice_text)
-    
-    if options:
-        print(f"数字编号选项匹配成功: {options}")
-        return [opt.strip() for opt in options if opt.strip()]
-    
-    # 尝试匹配罗马数字编号 I. xxx II. xxx
-    roman_pattern = r'([IVXivx]+[\.．、][^IVXivx]+?)(?=[IVXivx]+[\.．、]|$)'
-    options = re.findall(roman_pattern, text)
-    
-    if options:
-        print(f"罗马数字编号选项匹配成功: {options}")
-        return [opt.strip() for opt in options if opt.strip()]
-    
-    # 最后尝试直接匹配A、B、C、D单独的选项
-    simple_pattern = r'([A-D]\.?[^A-D]*?)(?=[A-D]\.?|$)'
-    options = re.findall(simple_pattern, choice_text)
-    
-    if options:
-        print(f"简单选项格式匹配成功: {options}")
-        return [opt.strip() for opt in options if opt.strip()]
-    
-    # 如果无法匹配到选项，尝试按空格分割
-    parts = choice_text.split()
-    if parts:
-        print(f"使用空格分割选项: {parts}")
-        return [part.strip() for part in parts if part.strip()]
-    
-    # 如果所有方法都失败，返回原文本作为一个元素
-    print(f"无法解析选项，返回原始文本: {choice_text}")
-    return [choice_text]
-
-def clean_and_split_question(text: str):
-    """清洗并拆分为 (questionPart, bulletsList, choicePart)."""
-    if not text:
-        return ("", [], "")
-
-    # 1) 去除常见HTML实体和多余空格换行
+    # 确保所有HTML实体被正确处理
     replacements = {
-        "&ldquo;": "\"",
-        "&rdquo;": "\"",
+        "&ldquo;": """,
+        "&rdquo;": """,
         "&hellip;": "...",
         "&nbsp;": " ",
         "&mdash;": "—",
-        "&middot;": "·"
-    }
-    for old, new in replacements.items():
-        text = text.replace(old, new)
-
-    # 去掉所有换行符, 合并成一行
-    text = re.sub(r'[\r\n]+', ' ', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-
-    # 去掉开头的题号（数字+点/顿号）
-    text = re.sub(r'^\s*\d+[．.、]\s*', '', text)
-    
-    # 特殊处理: 查找带括号的空，如"（ ）"
-    match_bracket = re.search(r'（\s*）', text)
-    has_bracket = match_bracket is not None
-    
-    # 首先检查是否有数字编号(①②③④)和字母选项(A.B.C.D)同时存在的情况
-    has_bullet = any(symbol in text for symbol in ["①", "②", "③", "④", "⑤", "⑥"])
-    has_options = re.search(r'[A-D][\.．]', text) is not None
-    
-    if has_bullet and has_options:
-        print("检测到同时包含数字编号和字母选项")
-        # 查找第一个数字编号的位置
-        idx_bullet = min(text.find(symbol) for symbol in ["①", "②", "③", "④", "⑤", "⑥"] if symbol in text)
-        # 查找第一个字母选项的位置
-        options_matches = list(re.finditer(r'[A-D][\.．]', text))
-        if options_matches:
-            idx_options = options_matches[0].start()
-            
-            # 如果有括号，则以括号为分界点确定题干
-            if has_bracket:
-                questionPart = text[:match_bracket.end()].strip()
-            else:
-                questionPart = text[:idx_bullet].strip()
-            
-            # 提取数字编号部分
-            bullets_part = text[idx_bullet:idx_options].strip()
-            # 提取字母选项部分
-            choice_part = text[idx_options:].strip()
-            
-            # 处理数字编号部分，分行显示
-            bulletsList = []
-            current_bullet = ""
-            for i, char in enumerate(bullets_part):
-                if char in ["①", "②", "③", "④", "⑤", "⑥"]:
-                    if current_bullet:
-                        bulletsList.append(current_bullet.strip())
-                    current_bullet = char
-                else:
-                    current_bullet += char
-            
-            # 添加最后一个编号项
-            if current_bullet:
-                bulletsList.append(current_bullet.strip())
-            
-            return (questionPart, bulletsList, choice_part)
-    
-    # 以下是原来的处理逻辑...
-    # 尝试匹配选项模式 (A．...B．...C．...D．...)
-    options_match = re.search(r'(A[\.．].*?B[\.．].*?C[\.．].*?D[\.．].*?)(?:\s|$)', text)
-    
-    if options_match:
-        choice_part = options_match.group(1).strip()
-        # 查找选项起始位置
-        option_start_index = text.find(choice_part)
-        
-        if option_start_index > 0:
-            # 分离题干和选项
-            question_part = text[:option_start_index].strip()
-            return (question_part, [], choice_part)
-    
-    # 如果没有找到常规选项模式，再尝试分析带编号的内容
-    idx_bullet = text.find("①")
-    if idx_bullet == -1:
-        # 尝试查找带括号的空，如"（ ）"
-        if has_bracket:
-            bracket_end = match_bracket.end()
-            question_part = text[:bracket_end].strip()
-            
-            # 检查剩余部分是否有选项
-            remaining = text[bracket_end:].strip()
-            options_match = re.search(r'(A[\.．].*?B[\.．].*?C[\.．].*?D[\.．].*?)(?:\s|$)', remaining)
-            
-            if options_match:
-                choice_part = options_match.group(1).strip()
-                return (question_part, [], choice_part)
-            else:
-                # 如果没有选项，尝试查找数字编号如①②③④
-                for bullet_symbol in ["①", "②", "③", "④", "⑤", "⑥"]:
-                    if bullet_symbol in remaining:
-                        # 将剩余部分按数字编号分割
-                        bullets_text = remaining
-                        for symbol in ["①", "②", "③", "④", "⑤", "⑥"]:
-                            bullets_text = bullets_text.replace(symbol, f"\n{symbol}")
-                        
-                        bulletsList = [line.strip() for line in bullets_text.split('\n') if line.strip()]
-                        return (question_part, bulletsList, "")
-        
-        # 没有找到编号和选项，将整个文本作为题干返回
-        return (text, [], "")
-
-    # 有编号的情况：处理带编号的题目
-    questionPart = text[:idx_bullet].strip()
-    afterBullet = text[idx_bullet:].strip()
-
-    # 从 afterBullet 中正则找选项 A．B．C．D．
-    match = re.search(r'(A[\.．].*?B[\.．].*?C[\.．].*?D[\.．].*?)(?:\s|$)', afterBullet)
-    if match:
-        bulletsString = afterBullet[:match.start()].strip()
-        choicePart = match.group(1).strip()
-    else:
-        bulletsString = afterBullet
-        choicePart = ""
-
-    # 将 bulletsString 中的 ①②③④ 分割到多个行
-    for bullet_symbol in ["①", "②", "③", "④", "⑤", "⑥"]:
-        bulletsString = bulletsString.replace(bullet_symbol, f"\n{bullet_symbol}")
-
-    bulletsList = [line.strip() for line in bulletsString.split('\n') if line.strip()]
-
-    return (questionPart, bulletsList, choicePart)
-
-def transform_answer(raw_text: str, question_idx: int, is_choice_question: bool = False) -> list[str]:
-    """
-    将原始答案转换为:
-    [ "第{question_idx}题：",
-      "B",
-      "【详解】",
-      "",  (空行)
-      "①③：秦汉简牍……故本题选B。"
-    ]
-    这样每个元素可在 Word 或前端中作为独立行/段落。
-    
-    is_choice_question参数用于确定是否为选择题，以避免选项部分出现在答案中
-    """
-
-    if not raw_text:
-        return [f"第{question_idx}题："]
-
-    # 1) 先合并多余换行和空格, 去除HTML实体
-    replacements = {
-        "&ldquo;": "\"",
-        "&rdquo;": "\"",
-        "&hellip;": "...",
-        "&nbsp;": " ",
-        "&mdash;": "—",
-        "&rarr;": "",
+        "&rarr;": "→",
         "&lsquo;": "'",
         "&rsquo;": "'",
-        "&middot;": "",
-        "&bull;": "",
-        "&amp;": "&"
+        "&middot;": "·",
+        "&bull;": "•",
+        "&amp;": "&",
+        "&lt;": "<",
+        "&gt;": ">",
+        "&quot;": "\"",
+        "&times;": "×",
+        "&divide;": "÷",
+        "&plusmn;": "±",
+        "&laquo;": "«",
+        "&raquo;": "»"
     }
     for old, new in replacements.items():
-        raw_text = raw_text.replace(old, new)
-        
-    # 使用正则表达式移除所有剩余的HTML实体
-    raw_text = re.sub(r'&[a-zA-Z0-9#]+;', '', raw_text)
+        question_text = question_text.replace(old, new)
     
-    # 移除答案开头的题号（如：9．）
-    raw_text = re.sub(r'^\d+[.\uff0e]\s*', '', raw_text)
+    # 使用正则表达式移除所有剩余的HTML实体
+    question_text = re.sub(r'&[a-zA-Z0-9#]+;', '', question_text)
+    
+    # 移除多余空格和换行
+    question_text = re.sub(r'\n\s*\n+', '\n', question_text)  # 多个空行替换为单个换行
+    question_text = re.sub(r'[ \t]+', ' ', question_text)     # 多个空格替换为单个空格
 
-    # 把所有换行变空格
-    raw_text = re.sub(r'[\r\n]+', ' ', raw_text)
-    # 再把多余空格合并
-    raw_text = re.sub(r'\s+', ' ', raw_text).strip()
-
-    # 2) "第{idx}题：" 作为第一行
-    lines = []
-    lines.append(f"第{question_idx}题：")
-
-    # 3) 查找开头是否有类似 "5．B" 或 "[数字]. B" 这样的旧编号
-    pattern = r'^(\d+[.．]\s*)([A-Za-z])(.*)'
-    match = re.match(pattern, raw_text)
-    if match:
-        answer_char = match.group(2)  # "B"
-        remainder = match.group(3).strip()  # "【详解】 ①③：……"
-    else:
-        # 尝试匹配直接以字母开头的格式
-        pattern2 = r'^([A-Za-z])(\s*)(.*)'
-        match2 = re.match(pattern2, raw_text)
-        if match2:
-            answer_char = match2.group(1)  # "B"
-            remainder = match2.group(3).strip()
-        else:
-            answer_char = ""
-            remainder = raw_text
-            
-    # 对于选择题，检查并移除任何可能包含的选项格式内容
-    if is_choice_question and answer_char:
-        # 移除任何可能出现在remainder中的选项内容 (像 A．... B．... C．... D．...)
-        options_pattern = r'([A-D]．.*?)([A-D]．.*?)([A-D]．.*?)([A-D]．.*?)'
-        if re.search(options_pattern, remainder):
-            # 如果检测到选项格式，只保留【详解】部分
-            if "【详解】" in remainder:
-                detail_parts = remainder.split("【详解】", 1)
-                remainder = "【详解】" + detail_parts[1] if len(detail_parts) > 1 else "【详解】"
-
-    # 4) 第二行 => "B" (如果有的话)
-    if answer_char:
-        lines.append(answer_char)
-
-    # 5) 处理【详解】部分
-    if "【详解】" in remainder:
-        remainder = remainder.replace("【详解】", "\n【详解】\n", 1)
-    else:
-        remainder = "\n【详解】\n" + remainder
-
-    # 6) 分割并处理剩余内容
-    splitted = [x.strip() for x in remainder.split('\n')]
-    sublines = []
-    for s in splitted:
-        if s:
-            sublines.append(s)
-
-    # 7) 处理【详解】及后续内容
-    if sublines and sublines[0] == "【详解】":
-        lines.append("【详解】")
-        lines.append("")  # 空行
-        if len(sublines) > 1:
-            leftover = " ".join(sublines[1:])
-            lines.append(leftover.strip())
-    else:
-        lines.extend(sublines)
-
-    return lines
-
-def optimize_display(text: str) -> str:
-    """
-    将类似：
-      2024年12月3日，亭山商代遗址群出土青铜器展……见证了（ ） ①农业出现… ②人类摆脱… ③在一定生产关系… ④封建社会… A．①② B．①④ C．②③ D．③④
-    变成：
-      2024年12月3日，亭山商代遗址群出土青铜器展……见证了（ ）
-      ①农业出现…
-      ②人类摆脱…
-      ③在一定生产关系…
-      ④封建社会…
-      A．①② B．①④ C．②③ D．③④
-    """
-
-    if not text:
-        return text
-
-    # 1) 合并多余空格、换行
-    text = re.sub(r'[\r\n]+', ' ', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-
-    # 2) 在 "（ ）" 后插入换行
-    text = re.sub(r'（\s*）', '（ ）\n', text, count=1)
-
-    # 3) 把 ① ② ③ ④ 分别放在新行
-    for bullet in ['①', '②', '③', '④']:
-        text = text.replace(bullet, f"\n{bullet}")
-
-    # 4) 最后，把 A． B． C． D． 放在新行
-    pattern = r'(A．.*B．.*C．.*D．.*)'
-    match = re.search(pattern, text)
-    if match:
-        choices_str = match.group(1).strip()
-        start_idx = match.start()
-        end_idx = match.end()
-        text_before = text[:start_idx].strip()
-        text_after = text[end_idx:].strip()
-        text = f"{text_before}\n{choices_str}"
-        if text_after:
-            text += f" {text_after}"
-
-    # 5) 去除多余空白行
-    lines = [x.rstrip() for x in text.split('\n')]
-    return "\n".join(lines)
+    # 先尝试提取带①②③④的部分
+    bullet_pattern = r'([①②③④⑤⑥⑦⑧⑨])([^①②③④⑤⑥⑦⑧⑨A-D]+)(?=[①②③④⑤⑥⑦⑧⑨A-D]|$)'
+    bullet_matches = re.finditer(bullet_pattern, question_text)
+    bullet_list = []
+    
+    # 记录所有匹配的位置和内容
+    matches_info = []
+    for match in bullet_matches:
+        bullet_number = match.group(1)
+        bullet_content = match.group(2).strip()
+        if bullet_content:  # 只有当内容不为空时才添加
+            bullet_list.append(f"{bullet_number}{bullet_content}")
+            matches_info.append((match.start(), match.end(), f"{bullet_number}{bullet_content}"))
+    
+    # 如果找到了编号选项，从文本中移除它们
+    if matches_info:
+        # 从后向前移除，这样不会影响前面的位置
+        for start, end, content in reversed(matches_info):
+            question_text = question_text[:start] + question_text[end:]
+    
+    # 查找选项部分 (A.B.C.D.)
+    # 先尝试找到第一个字母选项的位置
+    first_option_match = re.search(r'[A-D][．.、]', question_text)
+    choice_part = ""
+    
+    if first_option_match:
+        # 从第一个选项开始到文本结束都是选项部分
+        choice_part = question_text[first_option_match.start():].strip()
+        # 从题干中移除选项部分
+        question_text = question_text[:first_option_match.start()].strip()
+        
+        # 规范化选项格式
+        choice_part = re.sub(r'([A-D])[．.、]\s*', r'\1．', choice_part)
+    
+    # 处理题干部分，移除可能的多余符号
+    question_text = question_text.strip()
+    # 移除题干开始的题号（如果有）
+    question_text = re.sub(r'^\d+[．.、]\s*', '', question_text).strip()
+    
+    # 确保题干末尾有括号（如果没有）
+    if not question_text.endswith("）") and "（" not in question_text[-5:]:
+        question_text = question_text + "（  ）"
+    
+    return question_text, bullet_list, choice_part
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config.update(
@@ -572,6 +343,10 @@ class SU(db.Model):
     answer_image_filename = db.Column(db.String(100))
     question_type = db.Column(db.String(50))
     education_stage = db.Column(db.String(50), default='高中')  # 新增学段字段，默认为高中
+    audio_file_path = db.Column(db.String(255))  # 新增音频文件路径字段
+    audio_filename = db.Column(db.String(100))  # 新增音频文件名字段
+    audio_content = db.Column(db.LargeBinary)  # 新增音频文件内容字段
+    question_number = db.Column(db.Integer)  # 新增题号字段，用于关联MP3文件
 
 # 在其他模型定义后添加
 class Paper(db.Model):
@@ -624,6 +399,35 @@ with app.app_context():
         else:
             print("papers 表已存在")
         
+        # 检查su表中是否有audio_file_path列
+        try:
+            conn = db.engine.connect()
+            # 尝试查询表结构
+            result = conn.execute(text("PRAGMA table_info(su)"))
+            columns = [row[1] for row in result.fetchall()]
+            
+            # 检查是否需要添加音频相关字段
+            if 'audio_file_path' not in columns:
+                print("为su表添加audio_file_path字段...")
+                conn.execute(text("ALTER TABLE su ADD COLUMN audio_file_path VARCHAR(255)"))
+            
+            if 'audio_filename' not in columns:
+                print("为su表添加audio_filename字段...")
+                conn.execute(text("ALTER TABLE su ADD COLUMN audio_filename VARCHAR(100)"))
+            
+            if 'audio_content' not in columns:
+                print("为su表添加audio_content字段...")
+                conn.execute(text("ALTER TABLE su ADD COLUMN audio_content BLOB"))
+            
+            if 'question_number' not in columns:
+                print("为su表添加question_number字段...")
+                conn.execute(text("ALTER TABLE su ADD COLUMN question_number INTEGER"))
+                
+            print("数据库结构更新完成")
+        except Exception as e:
+            print(f"更新数据库结构时出错: {str(e)}")
+            traceback.print_exc()
+        
         # 验证表结构
         papers_count = Paper.query.count()
         print(f"当前试卷数量: {papers_count}")
@@ -661,7 +465,7 @@ def index():
     return render_template('index.html', active_page='index')  # 渲染前端页面
 
 def parse_questions(text):
-    """解析题目文本，返回题目列表"""
+    """解析题目文本,返回题目列表"""
     questions = []
     # 清理HTML标签
     clean_text = re.sub(r'<[^>]+>', '', text)
@@ -680,50 +484,25 @@ def parse_questions(text):
     app.logger.info(f"题目数量: {len(questions)}")
     return questions
 
-def parse_answers(answer_text):
-    """解析答案文本，返回答案列表"""
-    # 清理HTML标签
-    clean_answers = re.sub(r'<\/?p>', '\n', answer_text)
+def parse_answers(text):
+    """解析答案文本,返回答案列表"""
     answers = []
+    # 清理HTML标签
+    clean_text = re.sub(r'<[^>]+>', '', text)
     
-    # 匹配主答案编号
-    main_pattern = r'(?:^|\n)\s*(\d+)[．.、]'
-    main_parts = re.split(main_pattern, clean_answers)
+    # 匹配答案，忽略子问题编号
+    pattern = r'(?:^|\n)\s*(\d+)[．.、]\s*(.*?)(?=(?:\n\s*\d+[．.、])|$)'
+    matches = re.finditer(pattern, clean_text, re.DOTALL)
     
-    current_num = None
-    for i, part in enumerate(main_parts):
-        if i == 0 and not part.strip():  # 跳过空白开头
-            continue
-        elif i % 2 == 1:  # 奇数位是主编号
-            current_num = part
-        else:  # 偶数位是内容
-            if current_num:
-                # 检查是否包含子问题
-                sub_parts = re.split(r'\(\d+\)', part)
-                if len(sub_parts) > 1:  # 有子问题
-                    # 重新组合子问题
-                    sub_answers = []
-                    sub_matches = re.finditer(r'\((\d+)\)(.*?)(?=\(\d+\)|$)', part, re.DOTALL)
-                    for match in sub_matches:
-                        sub_num = match.group(1)
-                        sub_content = match.group(2).strip()
-                        if sub_content:
-                            sub_answers.append(f"({sub_num}){sub_content}")
-                    
-                    if sub_answers:
-                        # 合并所有子问题为一个完整答案
-                        full_answer = f"{current_num}．" + "\n".join(sub_answers)
-                        answers.append(full_answer)
-                else:  # 没有子问题
-                    content = part.strip()
-                    if content:
-                        answers.append(f"{current_num}．{content}")
+    for match in matches:
+        answer_num = match.group(1)
+        answer_content = match.group(2).strip()
+        # 保留答案内容
+        answers.append(answer_content)
     
-    app.logger.info(f"解析答案结果：\n题号: {[a.split('．')[0] for a in answers]}")
-    app.logger.info(f"答案数量: {len(answers)}")
+    app.logger.info(f"解析答案数量: {len(answers)}")
     return answers
 
-@csrf.exempt
 @app.route('/add_question', methods=['POST'])
 def add_question():
     try:
@@ -752,14 +531,111 @@ def add_question():
                     images[img_id] = (image_data, filename)
             return re.sub(pattern, '[图片]', content), images
 
+        # 处理MP3文件上传
+        def process_mp3_files():
+            mp3_files = {}
+            
+            # 处理多文件上传字段
+            if 'mp3_files' in request.files:
+                files = request.files.getlist('mp3_files')
+                for file in files:
+                    if file and file.filename.endswith('.mp3'):
+                        # 从文件名中提取题号
+                        filename = secure_filename(file.filename)
+                        # 尝试从文件名中提取数字作为题号
+                        question_number = None
+                        matches = re.findall(r'(\d+)', filename)
+                        if matches:
+                            question_number = int(matches[0])
+                        
+                        if question_number:
+                            # 生成唯一文件名并保存文件
+                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                            mp3_filename = f"{timestamp}_{question_number}_{filename}"
+                            
+                            # 确保音频目录存在
+                            mp3_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'audio')
+                            os.makedirs(mp3_dir, exist_ok=True)
+                            
+                            mp3_path = os.path.join(mp3_dir, mp3_filename)
+                            
+                            # 保存文件
+                            file.save(mp3_path)
+                            
+                            # 存储相对路径
+                            project_root = os.path.dirname(os.path.abspath(__file__))
+                            relative_path = os.path.relpath(mp3_path, project_root)
+                            
+                            mp3_files[question_number] = (relative_path, mp3_filename)
+                            print(f"上传MP3文件 {filename} 关联到题号 {question_number}")
+            
+            # 处理单个文件上传字段（保持兼容性）
+            mp3_count = 0
+            while True:
+                mp3_key = f'mp3_file_{mp3_count}'
+                if mp3_key not in request.files:
+                    break
+                    
+                file = request.files.get(mp3_key)
+                if file and file.filename.endswith('.mp3'):
+                    # 从文件名中提取题号
+                    filename = secure_filename(file.filename)
+                    # 尝试从文件名中提取数字作为题号
+                    question_number = None
+                    matches = re.findall(r'(\d+)', filename)
+                    if matches:
+                        question_number = int(matches[0])
+                    
+                    if question_number:
+                        # 生成唯一文件名并保存文件
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        mp3_filename = f"{timestamp}_{question_number}_{filename}"
+                        mp3_path = os.path.join(app.config['UPLOAD_FOLDER'], 'audio', mp3_filename)
+                        
+                        # 确保音频目录存在
+                        os.makedirs(os.path.dirname(mp3_path), exist_ok=True)
+                        
+                        # 保存文件
+                        file.save(mp3_path)
+                        
+                        # 存储相对路径
+                        project_root = os.path.dirname(os.path.abspath(__file__))
+                        relative_path = os.path.relpath(mp3_path, project_root)
+                        
+                        mp3_files[question_number] = (relative_path, mp3_filename)
+                        print(f"上传MP3文件 {filename} 关联到题号 {question_number}")
+                
+                mp3_count += 1
+                
+            return mp3_files
+
         # 处理题目中的图片
         processed_questions, question_images = process_images(question_text, 'question')
         # 处理答案中的图片
         processed_answers, answer_images = process_images(answer_text, 'answer')
+        # 处理MP3文件
+        mp3_files = process_mp3_files()
 
         print(f"解析题目文本，长度：{len(processed_questions)}")
         questions = parse_questions(processed_questions)
         print(f"成功解析题目数量：{len(questions)}")
+        
+        # 预处理听力题目，将"听下面一段独白"转换为"听下面一段较长对话"
+        def preprocess_listening_questions(questions_list):
+            processed_list = []
+            for q in questions_list:
+                # 数据库中存储的题目文本替换为"听下面一段较长对话"
+                if '听下面一段独白' in q or '听下列独白' in q or '听独白' in q:
+                    print(f"检测到独白题目，进行转换: {q[:50]}...")
+                    # 替换题目中所有的独白引用为较长对话
+                    q = q.replace('听下面一段独白', '听下面一段较长对话')
+                    q = q.replace('听下列独白', '听下面一段较长对话')
+                    q = q.replace('听独白', '听下面一段较长对话')
+                processed_list.append(q)
+            return processed_list
+        
+        # 应用预处理
+        questions = preprocess_listening_questions(questions)
         
         print(f"解析答案文本，长度：{len(processed_answers)}")
         answers = parse_answers(processed_answers)
@@ -776,6 +652,9 @@ def add_question():
             q_img_data, q_img_name = question_images.get(str(idx), (None, None))
             a_img_data, a_img_name = answer_images.get(str(idx), (None, None))
             
+            # 获取当前题目的MP3文件（如果有）
+            mp3_path, mp3_filename = mp3_files.get(idx, (None, None))
+            
             print(f"正在创建题目记录：{q[:50]}...")
             new_su = SU(
                 subject=subject,
@@ -790,12 +669,16 @@ def add_question():
                 question_image=q_img_data,
                 answer_image=a_img_data,
                 question_image_filename=q_img_name,
-                answer_image_filename=a_img_name
+                answer_image_filename=a_img_name,
+                audio_file_path=mp3_path,
+                audio_filename=mp3_filename,
+                question_number=idx  # 设置题号
             )
             db.session.add(new_su)
         
         print(f"共处理题目图片：{len(question_images)}张")
         print(f"共处理答案图片：{len(answer_images)}张")
+        print(f"共处理MP3文件：{len(mp3_files)}个")
         
         print("提交数据库事务...")
         db.session.commit()
@@ -804,9 +687,9 @@ def add_question():
         return redirect('/show_su')
     except Exception as e:
         db.session.rollback()
-        print(f"数据库写入失败，错误详情：{str(e)}")
-        print(f"错误跟踪：{traceback.format_exc()}")
-        return f"数据库写入失败：{str(e)}", 500
+        print(f"添加题目时出错: {str(e)}")
+        print(f"错误详情: {traceback.format_exc()}")
+        return f"添加题目失败: {str(e)}", 500
 
 # 添加获取单个题目的路由（在/add_question路由之后添加）
 @app.route('/questions/<int:id>')
@@ -1062,6 +945,14 @@ def api_questions():
         else:
             question_dict["has_answer_image"] = False
         
+        # 检查是否有音频文件
+        if q.audio_file_path and q.audio_filename:
+            question_dict["has_audio"] = True
+            question_dict["audio_url"] = f"/get_audio/{q.id}"
+            question_dict["question_number"] = q.question_number
+        else:
+            question_dict["has_audio"] = False
+        
         result.append(question_dict)
         
     return jsonify(result)
@@ -1074,514 +965,783 @@ def clear_database():
 @app.route('/generate_paper', methods=['POST'])
 def generate_paper():
     try:
-        # 1) 获取选中的题目 ID 和试卷标题
-        question_ids = request.json.get('question_ids', [])
-        paper_title = request.json.get('paper_title', '试卷')
-        
-        # 查询所有题目
-        all_questions = SU.query.filter(SU.id.in_(question_ids)).all()
-        
-        # 创建ID到题目的映射
-        question_map = {q.id: q for q in all_questions}
-        
-        # 按照原始顺序排列题目
-        questions = [question_map[qid] for qid in question_ids if qid in question_map]
-
-        # 2) 创建 Word 文档
-        doc = Document()
-        
-        # 设置A4纸张和标准边距
-        sections = doc.sections
-        for section in sections:
-            # A4纸张尺寸 (8.27 x 11.69 英寸)
-            section.page_width = Inches(8.27)
-            section.page_height = Inches(11.69)
-            # 设置标准边距
-            section.left_margin = Inches(1.0)
-            section.right_margin = Inches(1.0)
-            section.top_margin = Inches(1.0)
-            section.bottom_margin = Inches(1.0)
-        
-        # 设置基本样式
-        style = doc.styles['Normal']
-        style.font.name = '宋体'  # 使用宋体作为默认字体
-        style.font.size = Pt(10.5)  # 10.5磅字号
-        style.font.color.rgb = RGBColor(0, 0, 0)  # 黑色文字
-        style.paragraph_format.line_spacing = 1.5  # 1.5倍行距
-        style.paragraph_format.space_after = Pt(0)  # 默认段落间距
-        
-        # 创建标题样式（宋体，15磅，加粗，居中）
-        title_style = doc.styles.add_style('Title Bold', WD_STYLE_TYPE.PARAGRAPH)
-        title_style.base_style = doc.styles['Normal']
-        title_style.font.name = '宋体'
-        title_style.font.bold = True
-        title_style.font.size = Pt(15)
-        title_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_style.paragraph_format.space_before = Pt(0)
-        title_style.paragraph_format.space_after = Pt(10)
-        
-        # 创建章节标题样式（宋体，10.5磅，加粗，左对齐）
-        section_style = doc.styles.add_style('Section Title', WD_STYLE_TYPE.PARAGRAPH)
-        section_style.base_style = doc.styles['Normal']
-        section_style.font.name = '宋体'
-        section_style.font.bold = True
-        section_style.font.size = Pt(10.5)
-        section_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        section_style.paragraph_format.space_before = Pt(12)
-        section_style.paragraph_format.space_after = Pt(6)
-        
-        # 创建选项样式（与题目内容相同的字体和字号）
-        option_style = doc.styles.add_style('Option Style', WD_STYLE_TYPE.PARAGRAPH)
-        option_style.base_style = doc.styles['Normal']
-        option_style.font.name = '宋体'
-        option_style.font.size = Pt(10.5)
-        option_style.paragraph_format.line_spacing = 1.5
-        option_style.paragraph_format.space_after = Pt(0)
-        
-        # 选项符号样式（①②③④）
-        option_marker_style = doc.styles.add_style('Option Marker', WD_STYLE_TYPE.CHARACTER)
-        option_marker_style.font.name = '宋体'
-        option_marker_style.font.bold = False
-        option_marker_style.font.size = Pt(10.5)
-        
-        # ABCD选项样式（与题目内容相同的字体和字号）
-        choice_style = doc.styles.add_style('Choice Style', WD_STYLE_TYPE.PARAGRAPH)
-        choice_style.base_style = doc.styles['Normal']
-        choice_style.font.name = '宋体'
-        choice_style.font.size = Pt(10.5)
-        choice_style.paragraph_format.line_spacing = 1.5
-        
-        # 表格样式
-        table_style = doc.styles.add_style('Table Style', WD_STYLE_TYPE.PARAGRAPH)
-        table_style.base_style = doc.styles['Normal']
-        table_style.font.name = '宋体'
-        table_style.font.size = Pt(10.5)
-        table_style.font.bold = False
-        
-        # 添加标题（宋体，15磅，加粗，居中）
-        title_paragraph = doc.add_paragraph(paper_title)
-        title_paragraph.style = doc.styles['Title Bold']
-        title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-        # 3) 对题目按类型分组并添加章节标题
-        # 映射中文数字
-        chinese_numbers = {
-            1: '一',
-            2: '二',
-            3: '三',
-            4: '四',
-            5: '五',
-            6: '六',
-            7: '七',
-            8: '八',
-            9: '九',
-            10: '十'
-        }
-        
-        # 对题目按照题型进行分组
-        grouped_questions = {}
-        for q in questions:
-            q_type = q.question_type or '未分类题目'
-            if q_type not in grouped_questions:
-                grouped_questions[q_type] = []
-            grouped_questions[q_type].append(q)
-        
-        # 按照特定顺序排列题型组
-        question_type_order = [
-            '单选题', '多选题', '判断题', '填空题', '解答题', 
-            '主观题', '计算题', '论述题', '作文',
-            '诗词鉴赏', '文言文阅读', '现代文阅读'
-        ]
-        
-        # 根据优先级排序题型组
-        ordered_types = []
-        # 先添加已知顺序的题型
-        for q_type in question_type_order:
-            if q_type in grouped_questions:
-                ordered_types.append(q_type)
-        # 再添加其他题型
-        for q_type in grouped_questions:
-            if q_type not in ordered_types:
-                ordered_types.append(q_type)
-        
-        # 遍历每个题型分组添加题目
-        overall_question_num = 1
-        for section_num, q_type in enumerate(ordered_types, 1):
-            # 添加章节标题（一、单选题）
-            section_title = f'{chinese_numbers.get(section_num, str(section_num))}、{q_type}'
-            section_para = doc.add_paragraph(section_title)
-            section_para.style = doc.styles['Section Title']
+        # 添加set_cell_border函数到generate_paper函数内部
+        def set_cell_border(table):
+            """Set cell borders for Word table"""
+            from docx.oxml import OxmlElement
+            from docx.oxml.ns import qn
             
-            # 添加该题型的所有题目
-            for q in grouped_questions[q_type]:
-                # 使用 clean_and_split_question() 来拆分题干
-                questionPart, bulletsList, choicePart = clean_and_split_question(q.question)
-                
-                # 获取选项部分（无论是否在答案中，都放到题目下面）
-                answer_text = q.answer
-                option_pattern = r'([A-D]\.[^\n]+)'  # 匹配选项
-                answer_options = re.findall(option_pattern, answer_text)
-            
-                # 将题干和题号放在一行
-                p = doc.add_paragraph(style='Normal')
-                p.paragraph_format.line_spacing = 1.5
-                p.paragraph_format.space_after = Pt(6)
-                
-                # 题号
-                question_number = p.add_run(f"{overall_question_num}. ")
-                question_number.font.bold = False
-                question_number.font.size = Pt(10.5)
-                
-                # 增加整体题号计数
-                overall_question_num += 1
-            
-                # 正文部分 - 宋体，10.5磅
-                question_text = p.add_run(questionPart)
-                question_text.font.size = Pt(10.5)
-                
-                # 写入序号部分（每个序号各自占一行）
-                for bullet in bulletsList:
-                    p = doc.add_paragraph(style='Option Style')
-                    
-                    # 提取序号和文本
-                    bullet_text = bullet.strip()
-                    marker_match = re.match(r'([①-⑳])(.*)', bullet_text)
-                    
-                    if marker_match:
-                        # 有序号（①②③④等）
-                        marker, content = marker_match.groups()
-                        
-                        # 序号不加粗
-                        marker_run = p.add_run(marker)
-                        marker_run.font.bold = False
-                        marker_run.font.size = Pt(10.5)
-                        
-                        # 添加间距（使用空格模拟）
-                        p.add_run(" ")
-                        
-                        # 选项文本
-                        content_run = p.add_run(content)
-                        content_run.font.size = Pt(10.5)
-                    else:
-                        # 没有序号的情况，直接添加文本
-                        text_run = p.add_run(bullet_text)
-                        text_run.font.size = Pt(10.5)
-            
-                # 添加选项 - 优先使用问题中的选项
-                if choicePart:
-                    # 提取每个选项并检查样式
-                    options_text = optimize_choice_display(choicePart)
-                    has_abcd_options = any(opt.strip().startswith(('A．', 'B．', 'C．', 'D．')) for opt in options_text)
-                    
-                    # 如果选项文本包含 A, B, C, D 开头的内容，则使用它
-                    if has_abcd_options:
-                        # 检查是否是引用序号类型（如 A．①③）
-                        has_reference_options = any(re.search(r'[A-D]．[①②③④]', opt) for opt in options_text)
-                        
-                        if has_reference_options:
-                            # 引用选项类型放在同一行
-                            abcd_options = [opt.strip() for opt in options_text 
-                                          if opt.strip().startswith(('A．', 'B．', 'C．', 'D．'))]
-                            p = doc.add_paragraph()
-                            p.paragraph_format.space_after = Pt(0)
-                            
-                            # 设置选项字体为宋体10.5磅
-                            run = p.add_run(' '.join(abcd_options))
-                            run.font.size = Pt(10.5)
-                        else:
-                            # 普通选项各自占一行
-                            for option in options_text:
-                                if option.strip() and option.strip().startswith(('A．', 'B．', 'C．', 'D．')):
-                                    p = doc.add_paragraph()
-                                    p.paragraph_format.space_after = Pt(0)
-                                    run = p.add_run(option.strip())
-                                    run.font.size = Pt(10.5)
-                    # 如果问题中没有ABCD选项，但答案中有，则使用答案中的
-                    elif answer_options:
-                        # 检查是否是引用序号类型
-                        has_reference_pattern = any(re.search(r'[A-D]\.[①②③④]', opt) for opt in answer_options)
-                        
-                        if has_reference_pattern:
-                            p = doc.add_paragraph()
-                            p.paragraph_format.space_after = Pt(0)
-                            run = p.add_run(' '.join(answer_options))
-                            run.font.size = Pt(10.5)
-                        else:
-                            # 添加与选项区域的间距
-                            doc.add_paragraph().paragraph_format.space_after = Pt(6)
-                            
-                            for option in answer_options:
-                                p = doc.add_paragraph(style='Choice Style')
-                                p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                            
-                                # 提取选项字母和内容
-                                choice_match = re.match(r'([A-D]\.)(.*)//', option)
-                                if choice_match:
-                                    letter, choice_content = choice_match.groups()
-                                
-                                    # 选项字母
-                                    letter_run = p.add_run(letter)
-                                    letter_run.font.size = Pt(10.5)
-                                    
-                                    # 选项内容
-                                    content_run = p.add_run(choice_content)
-                                    content_run.font.size = Pt(10.5)
-                                else:
-                                    # 没有匹配到模式，直接添加整行
-                                    run = p.add_run(option)
-                                    run.font.size = Pt(10.5)
-                
-                # 题目间空行
-                doc.add_paragraph()
-
-        # --- 答案部分 ---
-        doc.add_page_break()
-        
-        # 添加参考答案标题（居中显示）
-        answer_heading = doc.add_heading('参考答案', 0)
-        answer_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        # 设置标题字体为宋体和大小
-        for run in answer_heading.runs:
-            run.font.name = '宋体'
-            run.font.size = Pt(15)
-            run.font.bold = True
-        
-        # 检查是否有选择题
-        choice_questions = []
-        question_indices = []
-        choice_answers = []
-        
-        for i, q in enumerate(questions):
-            answer_text = q.answer
-            # 匹配字母答案（A、B、C、D）
-            match = re.search(r'\b([A-D])\b', answer_text)
-            if match:
-                choice_questions.append(q)
-                question_indices.append(i + 1)  # 保存原始题号
-                choice_answers.append(match.group(1))
-        
-        # 如果有选择题，我们才创建表格
-        if choice_questions:
-            # 计算需要多少行（每行10题）
-            rows_needed = math.ceil(len(choice_questions) / 10)
-            
-            # 创建表格
-            table = doc.add_table(rows=rows_needed * 2, cols=min(len(choice_questions), 10))
-            table.style = 'Table Grid'
-            table.alignment = WD_TABLE_ALIGNMENT.CENTER
-            
-            # 设置表格宽度
-            table.autofit = False
-            
-            # 设置行高
+            # 设置表格的全部单元格边框
+            tbl = table._tbl
             for row in table.rows:
-                row.height = Pt(28)  # 设置行高，确保足够的垂直空间
-                row.height_rule = 1  # 1表示固定高度
-            
-            # 填充表格内容
-            current_cell_index = 0
-            
-            for q_idx in range(len(choice_questions)):
-                row_idx = (q_idx // 10) * 2
-                col_idx = q_idx % 10
+                for cell in row.cells:
+                    tcPr = cell._tc.get_or_add_tcPr()
+                    # 给单元格添加边框
+                    tcBorders = OxmlElement('w:tcBorders')
+                    for border_name in ['top', 'left', 'bottom', 'right']:
+                        border = OxmlElement(f'w:{border_name}')
+                        border.set(qn('w:val'), 'single')
+                        border.set(qn('w:sz'), '4')  # 1pt = 8 units
+                        border.set(qn('w:space'), '0')
+                        border.set(qn('w:color'), '000000')  # 黑色边框
+                        tcBorders.append(border)
+                    
+                    tcPr.append(tcBorders)
+                    
+        print("Starting paper generation process...")
+        # 1) 获取选中的题目 ID 和试卷标题
+        data = request.get_json()
+        if not data:
+            print("Error: No JSON data received")
+            return jsonify({'error': 'No data received'}), 400
+
+        question_ids = data.get('question_ids', [])
+        paper_title = data.get('paper_title', '试卷')
+
+        # 添加日志：打印接收到的数据
+        print(f"Received question IDs: {question_ids}")
+        print(f"Received paper title: {paper_title}")
+
+        # ---> ADDED: Limit the number of questions
+        MAX_QUESTIONS_LIMIT = 200
+        if len(question_ids) > MAX_QUESTIONS_LIMIT:
+            print(f"Error: Too many questions requested ({len(question_ids)} > {MAX_QUESTIONS_LIMIT})")
+            return jsonify({'error': f'请求的题目数量过多 (超过 {MAX_QUESTIONS_LIMIT} 个)，请减少题目数量后重试。'}), 400
+        # <--- END ADDED
+
+        if not question_ids:
+            print("Error: No question IDs provided")
+            return jsonify({'error': 'No question IDs provided'}), 400
+
+        print(f"Received request to generate paper with title '{paper_title}' and {len(question_ids)} questions")
+
+        # 查询所有题目
+        try:
+            all_questions = SU.query.filter(SU.id.in_(question_ids)).all()
+            # 添加日志：打印查询到的题目数量
+            print(f"Retrieved {len(all_questions)} questions from database for IDs: {question_ids}")
+
+            if len(all_questions) == 0:
+                print("Error: No questions found with the provided IDs")
+                return jsonify({'error': 'No questions found with the provided IDs'}), 404
                 
-                # 确保我们不会超出表格范围
-                if col_idx < len(table.columns):
-                    # 题号单元格
-                    num_cell = table.cell(row_idx, col_idx)
-                    num_cell.text = str(question_indices[q_idx])
-                    num_paragraph = num_cell.paragraphs[0]
-                    num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    run = num_paragraph.runs[0]
+            # 创建ID到题目的映射
+            question_map = {q.id: q for q in all_questions}
+            
+            # 按照原始顺序排列题目
+            questions = [question_map[qid] for qid in question_ids if qid in question_map]
+            print(f"Final question count for paper: {len(questions)}")
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            traceback.print_exc() # Ensure traceback is printed
+            return jsonify({'error': f'Database error: {str(db_error)}'}), 500
+
+        # Wrap document creation and population in a larger try block
+        try:
+            # 2) 创建 Word 文档
+            doc = Document()
+            
+            # 设置A4纸张和标准边距
+            sections = doc.sections
+            for section in sections:
+                # A4纸张尺寸 (8.27 x 11.69 英寸)
+                section.page_width = Inches(8.27)
+                section.page_height = Inches(11.69)
+                # 设置标准边距
+                section.left_margin = Inches(1.0)
+                section.right_margin = Inches(1.0)
+                section.top_margin = Inches(1.0)
+                section.bottom_margin = Inches(1.0)
+            
+            # 设置基本样式
+            style = doc.styles['Normal']
+            style.font.name = '宋体'  # 使用宋体作为默认字体
+            style.font.size = Pt(10.5)  # 10.5磅字号
+            style.font.color.rgb = RGBColor(0, 0, 0)  # 黑色文字
+            style.paragraph_format.line_spacing = 1.5  # 1.5倍行距
+            style.paragraph_format.space_after = Pt(0)  # 默认段落间距
+            
+            # 创建标题样式（宋体，15磅，加粗，居中）
+            title_style = doc.styles.add_style('Title Bold', WD_STYLE_TYPE.PARAGRAPH)
+            title_style.base_style = doc.styles['Normal']
+            title_style.font.name = '宋体'
+            title_style.font.bold = True
+            title_style.font.size = Pt(15)
+            title_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            title_style.paragraph_format.space_before = Pt(0)
+            title_style.paragraph_format.space_after = Pt(10)
+            
+            # 创建章节标题样式（宋体，10.5磅，加粗，左对齐）
+            section_style = doc.styles.add_style('Section Title', WD_STYLE_TYPE.PARAGRAPH)
+            section_style.base_style = doc.styles['Normal']
+            section_style.font.name = '宋体'
+            section_style.font.bold = True
+            section_style.font.size = Pt(10.5)
+            section_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            section_style.paragraph_format.space_before = Pt(12)
+            section_style.paragraph_format.space_after = Pt(6)
+            
+            # 创建选项样式（与题目内容相同的字体和字号）
+            option_style = doc.styles.add_style('Option Style', WD_STYLE_TYPE.PARAGRAPH)
+            option_style.base_style = doc.styles['Normal']
+            option_style.font.name = '宋体'
+            option_style.font.size = Pt(10.5)
+            option_style.paragraph_format.line_spacing = 1.5
+            option_style.paragraph_format.space_after = Pt(0)
+            
+            # 选项符号样式（①②③④）
+            option_marker_style = doc.styles.add_style('Option Marker', WD_STYLE_TYPE.CHARACTER)
+            option_marker_style.font.name = '宋体'
+            option_marker_style.font.bold = False
+            option_marker_style.font.size = Pt(10.5)
+            
+            # ABCD选项样式（与题目内容相同的字体和字号）
+            choice_style = doc.styles.add_style('Choice Style', WD_STYLE_TYPE.PARAGRAPH)
+            choice_style.base_style = doc.styles['Normal']
+            choice_style.font.name = '宋体'
+            choice_style.font.size = Pt(10.5)
+            choice_style.paragraph_format.line_spacing = 1.5
+            
+            # 表格样式
+            table_style = doc.styles.add_style('Table Style', WD_STYLE_TYPE.PARAGRAPH)
+            table_style.base_style = doc.styles['Normal']
+            table_style.font.name = '宋体'
+            table_style.font.size = Pt(10.5)
+            table_style.font.bold = False
+            
+            # 添加标题（宋体，15磅，加粗，居中）
+            title_paragraph = doc.add_paragraph(paper_title)
+            title_paragraph.style = doc.styles['Title Bold']
+            title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            # 3) 对题目按类型分组并添加章节标题
+            try:
+                # 映射中文数字
+                chinese_numbers = {
+                    1: '一',
+                    2: '二',
+                    3: '三',
+                    4: '四',
+                    5: '五',
+                    6: '六',
+                    7: '七',
+                    8: '八',
+                    9: '九',
+                    10: '十'
+                }
+                
+                # 对题目按照题型进行分组
+                grouped_questions = {}
+                for q in questions:
+                    q_type = q.question_type or '未分类题目'
+                    if q_type not in grouped_questions:
+                        grouped_questions[q_type] = []
+                    grouped_questions[q_type].append(q)
+                
+                # 按照特定顺序排列题型组
+                question_type_order = [
+                    '单选题', '多选题', '判断题', '填空题', '解答题', 
+                    '主观题', '计算题', '论述题', '作文',
+                    '诗词鉴赏', '文言文阅读', '现代文阅读'
+                ]
+                
+                # 根据优先级排序题型组
+                ordered_types = []
+                # 先添加已知顺序的题型
+                for q_type in question_type_order:
+                    if q_type in grouped_questions:
+                        ordered_types.append(q_type)
+                # 再添加其他题型
+                for q_type in grouped_questions:
+                    if q_type not in ordered_types:
+                        ordered_types.append(q_type)
+
+                # 添加日志：打印分组后的题型和数量
+                print(f"Question types identified for grouping: {ordered_types}")
+                for q_type in ordered_types:
+                    print(f"  - Type: {q_type}, Count: {len(grouped_questions[q_type])}")
+
+            except Exception as group_error:
+                print(f"Error grouping questions: {str(group_error)}")
+                traceback.print_exc() # Ensure traceback is printed
+                return jsonify({'error': f'Error grouping questions: {str(group_error)}'}), 500
+
+            # 4) 添加题目到文档
+            try:
+                # Define non-multiple-choice types
+                non_mcq_types = ['材料分析题', '简答题', '论述题', '主观题', '非选择题', '填空题', '计算题', '解答题'] 
+                
+                # 使用overall_question_num来跟踪全局题号，确保连续性
+                overall_question_num = 1
+                
+                # 遍历每个题型分组添加题目
+                for section_num, q_type in enumerate(ordered_types, 1):
+                    print(f"Adding section: {section_num}, Type: {q_type}")
+                    
+                    # 添加章节标题（一、单选题）
+                    section_title = f"{chinese_numbers.get(section_num, str(section_num))}、{q_type}"
+                    section_para = doc.add_paragraph(section_title)
+                    section_para.style = doc.styles['Section Title']
+                    
+                    # 添加该题型的所有题目
+                    for q in grouped_questions[q_type]:
+                        print(f"  Processing question ID: {q.id}, Type: {q.question_type}, Overall number: {overall_question_num}")
+                        
+                        # --- Formatting for Non-MCQ Types --- 
+                        if q.question_type in non_mcq_types:
+                            # 清理文本，避免在冒号后自动换行
+                            cleaned_text = re.sub(r'[:：]\s*\n', '', q.question)  # 冒号直接删除
+                            cleaned_text = re.sub(r'^\s*\d+[．.、]\s*', '', cleaned_text).strip()
+                            
+                            # 清理HTML实体
+                            for old, new in replacements.items():
+                                cleaned_text = cleaned_text.replace(old, new)
+                            
+                            # 使用正则表达式移除所有剩余的HTML实体
+                            cleaned_text = re.sub(r'&[a-zA-Z0-9#]+;', '', cleaned_text)
+                            
+                            # 删除引号和冒号
+                            cleaned_text = cleaned_text.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
+                            
+                            # 添加主段落
+                            p = doc.add_paragraph(style='Normal')
+                            p.paragraph_format.line_spacing = 1.0  # 设置为单倍行距
+                            p.paragraph_format.space_after = Pt(0)
+                            
+                            # 添加题号和文本
+                            question_number_run = p.add_run(f"{overall_question_num}．")
+                            question_number_run.font.bold = False
+                            question_number_run.font.size = Pt(10.5)
+                            
+                            # 添加主题干文本，保留段落结构但避免在冒号后换行
+                            paragraphs = cleaned_text.split('\n')
+                            if paragraphs:
+                                # 第一段跟题号同行，处理冒号
+                                first_para = paragraphs[0]
+                                if '：' in first_para:
+                                    colon_parts = first_para.split('：')
+                                    for i, part in enumerate(colon_parts):
+                                        if i > 0:
+                                            p.add_run('：')  # 添加冒号
+                                        p.add_run(part.strip()).font.size = Pt(10.5)
+                                else:
+                                    p.add_run(first_para).font.size = Pt(10.5)
+                                
+                                # 后续段落各自一行，同样处理冒号
+                                for para in paragraphs[1:]:
+                                    if para.strip():
+                                        para_p = doc.add_paragraph(style='Normal')
+                                        para_p.paragraph_format.line_spacing = 1.0  # 单倍行距
+                                        para_p.paragraph_format.first_line_indent = Inches(0.25)
+                                        
+                                        if '：' in para:
+                                            colon_parts = para.split('：')
+                                            for i, part in enumerate(colon_parts):
+                                                if i > 0:
+                                                    para_p.add_run('：')
+                                                para_p.add_run(part.strip()).font.size = Pt(10.5)
+                                        else:
+                                            para_p.add_run(para.strip()).font.size = Pt(10.5)
+                            # Increment overall question number
+                            overall_question_num += 1
+                            # 非选择题不要空行
+                            continue # Skip MCQ formatting for this question
+
+                        # --- Formatting for MCQ Types (Updated Logic) --- 
+                        else:
+                            # Use clean_and_split_question() to split stem, bullets, choices
+                            questionPart, bulletsList, choicePart = clean_and_split_question(q.question)
+                            
+                            # 清理HTML实体字符
+                            replacements = {
+                                "&ldquo;": "",
+                                "&rdquo;": "",
+                                "&hellip;": "...",
+                                "&nbsp;": " ",
+                                "&mdash;": "-",
+                                "&rarr;": "→",
+                                "&lsquo;": "",
+                                "&rsquo;": "",
+                                "&middot;": "·",
+                                "&bull;": "•",
+                                "&amp;": "&",
+                                "&lt;": "<",
+                                "&gt;": ">",
+                                "&quot;": "",
+                                "&times;": "×",
+                                "&divide;": "÷",
+                                "&plusmn;": "±",
+                                "&laquo;": "",
+                                "&raquo;": "",
+                                "&copy;": "©",
+                                "&reg;": "®",
+                                "&trade;": "™",
+                                "&deg;": "°",
+                                "&ndash;": "-",
+                                "&emsp;": "  ",
+                                "&ensp;": " ",
+                                "&thinsp;": " "
+                            }
+                            
+                            # 对题目主体进行HTML实体替换
+                            for old, new in replacements.items():
+                                questionPart = questionPart.replace(old, new)
+                                choicePart = choicePart.replace(old, new)
+                            
+                            # 使用正则表达式移除所有剩余的HTML实体
+                            questionPart = re.sub(r'&[a-zA-Z0-9#]+;', '', questionPart)
+                            choicePart = re.sub(r'&[a-zA-Z0-9#]+;', '', choicePart)
+                            
+                            # 完全删除引号和冒号
+                            questionPart = questionPart.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
+                            choicePart = choicePart.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
+                            
+                            # 处理空引号问题已经不需要了，因为所有引号都被删除
+                            # 修复逗号后的引号问题也不需要了，因为引号已被删除
+                            
+                            # 特殊处理马克思引文格式问题 - 不再需要，引号会被删除
+                            # if '马克思' in questionPart and '《资本论》' in questionPart:
+                            #     # 处理引文格式已不需要
+                            #     pass
+                            
+                            # 对选项列表进行HTML实体替换
+                            cleaned_bullets = []
+                            for bullet in bulletsList:
+                                # 替换HTML实体
+                                for old, new in replacements.items():
+                                    bullet = bullet.replace(old, new)
+                                # 移除所有剩余的HTML实体
+                                bullet = re.sub(r'&[a-zA-Z0-9#]+;', '', bullet)
+                                # 删除引号和冒号
+                                bullet = bullet.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
+                                cleaned_bullets.append(bullet)
+                            
+                            bulletsList = cleaned_bullets
+                            
+                            # 确保引号和冒号不引起换行的处理已不需要，因为它们都被删除了
+                            questionPart = re.sub(r'([，,])\s*\n', r'\1 ', questionPart)
+
+                            # Get options from answer field as fallback
+                            answer_text = q.answer
+                            option_pattern = r'([A-D]\.[^\n]+)' # Matches options like A. B. etc.
+                            answer_options = re.findall(option_pattern, answer_text)
+
+                            # Add main paragraph: Question Number + Stem
+                            p = doc.add_paragraph(style='Normal')
+                            p.paragraph_format.line_spacing = 1.5
+                            p.paragraph_format.space_after = Pt(0) # 减少题干和选项间的间距
+                            
+                            # Question Number with Chinese period + 题干文本
+                            question_number_run = p.add_run(f"{overall_question_num}．")
+                            question_number_run.font.bold = False
+                            question_number_run.font.size = Pt(10.5)
+                            
+                            # 确保题干末尾有问题空白括号，如果没有则添加
+                            stem_text = questionPart.strip()
+                            if not stem_text.endswith("）") and "（" not in stem_text[-5:]:
+                                stem_text = stem_text + "（   ）"
+                                
+                            question_text_run = p.add_run(stem_text)
+                            question_text_run.font.size = Pt(10.5)
+                            
+                            # 添加选择项 (①②③④)，每个序号带文字各占一行
+                            if bulletsList:
+                                for bullet in bulletsList:
+                                    bullet_text = bullet.strip()
+                                    if bullet_text:
+                                        p_bullet = doc.add_paragraph(style='Option Style')
+                                        p_bullet.paragraph_format.left_indent = Inches(0) # 无缩进
+                                        p_bullet.paragraph_format.first_line_indent = Inches(0) # 确保首行不缩进
+                                        p_bullet.paragraph_format.space_before = Pt(0)
+                                        p_bullet.paragraph_format.space_after = Pt(0)
+                                        
+                                        bullet_run = p_bullet.add_run(bullet_text)
+                                        bullet_run.font.size = Pt(10.5)
+                                        bullet_run.font.name = '宋体'
+                            
+                            # Add ABCD Options
+                            options_paragraph_added = False
+                            
+                            # 检查选项类型，看是否包含序号 (如 A．①③ B．①④ C．②③ D．②④)
+                            numbered_options_pattern = r'([A-D])[．.]\s*([①②③④⑤⑥⑦⑧⑨]+)'
+                            has_numbered_options = re.search(numbered_options_pattern, choicePart)
+                            
+                            if has_numbered_options:
+                                # 序号选项类型，改用并排文本格式而不是表格
+                                choice_matches = re.findall(r'([A-D])[．.]\s*((?:[①②③④⑤⑥⑦⑧⑨]+(?:\s*)?)+)', choicePart)
+                                if choice_matches:
+                                    # 创建一个段落包含所有选项，用制表符分隔
+                                    p_opts = doc.add_paragraph(style='Normal')
+                                    p_opts.paragraph_format.space_before = Pt(0)
+                                    p_opts.paragraph_format.space_after = Pt(0)
+                                    p_opts.paragraph_format.line_spacing = 1.5
+                                    
+                                    # 生成选项文本，用制表符分隔
+                                    options_text = ""
+                                    for i, (letter, numbers) in enumerate(choice_matches):
+                                        options_text += f"{letter}．{numbers.strip()}"
+                                        if i < len(choice_matches) - 1:
+                                            options_text += "\t\t"
+                                    
+                                    # 添加选项文本
+                                    opt_run = p_opts.add_run(options_text)
+                                    opt_run.font.size = Pt(10.5)
+                                    opt_run.font.name = '宋体'
+                                    options_paragraph_added = True
+                            else:
+                                # 文本选项类型，每个选项各占一行
+                                # 例如从"A．xxx B．yyy C．zzz D．www"中提取选项
+                                abcd_pattern = r'([A-D])[．.]([^A-D]+)'
+                                option_matches = re.findall(abcd_pattern, choicePart)
+                                
+                                if option_matches:
+                                    for letter, content in option_matches:
+                                        p_opt = doc.add_paragraph(style='Option Style')
+                                        p_opt.paragraph_format.left_indent = Inches(0)
+                                        p_opt.paragraph_format.first_line_indent = Inches(0)
+                                        p_opt.paragraph_format.space_before = Pt(0)
+                                        p_opt.paragraph_format.space_after = Pt(0)
+                                        
+                                        opt_text = f"{letter}．{content.strip()}"
+                                        opt_run = p_opt.add_run(opt_text)
+                                        opt_run.font.size = Pt(10.5)
+                                        opt_run.font.name = '宋体'
+                                    
+                                    options_paragraph_added = True
+                                elif choicePart and choicePart.strip():
+                                    # 如果选项内容不能匹配已知模式，對要添加
+                                    p_opts = doc.add_paragraph()
+                                    p_opts.paragraph_format.space_before = Pt(0)
+                                    p_opts.paragraph_format.space_after = Pt(0)
+                                    
+                                    # 如果找不到特定格式，按原样添加
+                                    cleaned_choice_part = re.sub(r'\s*\n\s*', ' ', choicePart).strip()
+                                    run = p_opts.add_run(cleaned_choice_part)
+                                    run.font.size = Pt(10.5)
+                                    run.font.name = '宋体'
+                                    options_paragraph_added = True
+
+                            # Increment overall question number
+                            overall_question_num += 1
+                            # Add spacing after the entire block for this question - 使用较小间距
+                            doc.add_paragraph().paragraph_format.space_after = Pt(3)
+            except Exception as add_questions_error:
+                print(f"Error adding questions to document: {str(add_questions_error)}")
+                traceback.print_exc()
+                return jsonify({'error': f'Error adding questions to document: {str(add_questions_error)}'}), 500
+
+            # 5) 添加答案部分
+            try:
+                # --- 答案部分 ---
+                doc.add_page_break()
+                
+                # 添加参考答案标题（居中显示）
+                answer_heading = doc.add_heading('参考答案', 0)
+                answer_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                
+                # 设置标题字体为宋体和大小
+                for run in answer_heading.runs:
                     run.font.name = '宋体'
+                    run.font.size = Pt(15)
+                    run.font.bold = True
+                
+                # 检查是否有选择题
+                choice_questions = []
+                question_indices = []
+                choice_answers = []
+                
+                for i, q in enumerate(questions):
+                    answer_text = q.answer
+                    # 匹配字母答案（A、B、C、D）
+                    match = re.search(r'\b([A-D])\b', answer_text)
+                    if match:
+                        choice_questions.append(q)
+                        question_indices.append(i + 1)  # 保存原始题号
+                        choice_answers.append(match.group(1))
+                
+                # 如果有选择题，我们才创建表格
+                if choice_questions:
+                    # 计算需要多少行（每行10题）
+                    rows_needed = math.ceil(len(choice_questions) / 10)
+                    
+                    # 创建表格
+                    table = doc.add_table(rows=rows_needed * 2, cols=min(len(choice_questions), 10))
+                    table.style = 'Table Grid'
+                    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+                    
+                    # 设置表格宽度
+                    table.autofit = False
+                    
+                    # 设置行高
+                    for row in table.rows:
+                        row.height = Pt(28)  # 设置行高，确保足够的垂直空间
+                        row.height_rule = 1  # 1表示固定高度
+                    
+                    # 填充表格内容
+                    current_cell_index = 0
+                    
+                    for q_idx in range(len(choice_questions)):
+                        row_idx = (q_idx // 10) * 2
+                        col_idx = q_idx % 10
+                        
+                        # 确保我们不会超出表格范围
+                        if col_idx < len(table.columns):
+                            # 题号单元格
+                            num_cell = table.cell(row_idx, col_idx)
+                            num_cell.text = str(question_indices[q_idx])
+                            num_paragraph = num_cell.paragraphs[0]
+                            num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = num_paragraph.runs[0]
+                            run.font.name = '宋体'
+                            run.font.bold = True
+                            run.font.size = Pt(10.5)
+                            
+                            # 设置单元格垂直居中
+                            num_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                            
+                            # 答案单元格
+                            ans_cell = table.cell(row_idx + 1, col_idx)
+                            ans_cell.text = choice_answers[q_idx]
+                            ans_paragraph = ans_cell.paragraphs[0]
+                            ans_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = ans_paragraph.runs[0]
+                            run.font.name = '宋体'
+                            run.font.size = Pt(10.5)
+                            
+                            # 设置单元格垂直居中
+                            ans_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                    
+                    # 设置表格边框
+                    set_cell_border(table)
+                
+                # 添加表格后的空白 - 减少空白量
+                doc.add_paragraph().paragraph_format.space_after = Pt(16)
+                
+                # 添加答案与解析标题
+                explanation_heading = doc.add_heading('答案与解析', 1)
+                
+                # 设置标题字体为宋体和大小
+                for run in explanation_heading.runs:
+                    run.font.name = '宋体'
+                    run.font.size = Pt(15)
+                    run.font.bold = True
+                
+                # 添加每道题的解析，不留空白
+                for i, q in enumerate(questions, 1):
+                    # 获取原始答案文本
+                    answer_text = q.answer.strip()
+                    
+                    # 清理HTML实体
+                    replacements = {
+                        "&ldquo;": "",
+                        "&rdquo;": "",
+                        "&hellip;": "...",
+                        "&nbsp;": " ",
+                        "&mdash;": "-",
+                        "&rarr;": "→",
+                        "&lsquo;": "",
+                        "&rsquo;": "",
+                        "&middot;": "·",
+                        "&bull;": "•",
+                        "&amp;": "&",
+                        "&lt;": "<",
+                        "&gt;": ">",
+                        "&quot;": "",
+                        "&times;": "×",
+                        "&divide;": "÷",
+                        "&plusmn;": "±",
+                        "&laquo;": "",
+                        "&raquo;": "",
+                        "&copy;": "©",
+                        "&reg;": "®",
+                        "&trade;": "™",
+                        "&deg;": "°",
+                        "&ndash;": "-",
+                        "&emsp;": "  ",
+                        "&ensp;": " ",
+                        "&thinsp;": " "
+                    }
+                    for old, new in replacements.items():
+                        answer_text = answer_text.replace(old, new)
+                    
+                    # 使用正则表达式移除所有剩余的HTML实体
+                    answer_text = re.sub(r'&[a-zA-Z0-9#]+;', '', answer_text)
+                    
+                    # 完全删除引号和冒号
+                    answer_text = answer_text.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
+                    
+                    # 移除多余的引号和处理额外的引号不再需要，因为所有引号已被删除
+                    
+                    # 移除答案开头的题号（如：9．）
+                    answer_text = re.sub(r'^\d+[.\uff0e]\s*', '', answer_text)
+                    
+                    # 提取答案选项（A-D）
+                    option_match = re.search(r'\b([A-D])\b', answer_text)
+                    letter_answer = ''
+                    detailed_explanation = answer_text
+                    
+                    # 确保主观题的答案文本也会被保留
+                    if option_match:
+                        letter_answer = option_match.group(1)
+                    else:
+                        # 主观题不需要字母答案，直接显示完整答案
+                        pass  # 不做处理，让详解部分显示完整答案
+                    
+                    # 添加题号行
+                    p = doc.add_paragraph()
+                    p.style = 'Normal'
+                    p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
+                    run = p.add_run(f"第{i}题：")
                     run.font.bold = True
                     run.font.size = Pt(10.5)
                     
-                    # 设置单元格垂直居中
-                    num_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                    # 添加答案选项行（如果有）
+                    if letter_answer:
+                        p = doc.add_paragraph()
+                        p.style = 'Normal'
+                        p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
+                        p.add_run(letter_answer).font.size = Pt(10.5)
                     
-                    # 答案单元格
-                    ans_cell = table.cell(row_idx + 1, col_idx)
-                    ans_cell.text = choice_answers[q_idx]
-                    ans_paragraph = ans_cell.paragraphs[0]
-                    ans_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    run = ans_paragraph.runs[0]
-                    run.font.name = '宋体'
-                    run.font.size = Pt(10.5)
-                    
-                    # 设置单元格垂直居中
-                    ans_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-            
-            # 设置表格边框
-            set_cell_border(table)
-        
-        # 添加表格后的空白 - 减少空白量
-        doc.add_paragraph().paragraph_format.space_after = Pt(16)
-        
-        # 添加答案与解析标题
-        explanation_heading = doc.add_heading('答案与解析', 1)
-        
-        # 设置标题字体为宋体和大小
-        for run in explanation_heading.runs:
-            run.font.name = '宋体'
-            run.font.size = Pt(15)
-            run.font.bold = True
-        
-        # 添加每道题的解析，不留空白
-        for i, q in enumerate(questions, 1):
-            # 获取原始答案文本
-            answer_text = q.answer.strip()
-            
-            # 清理HTML实体
-            replacements = {
-                "&ldquo;": "\"",
-                "&rdquo;": "\"",
-                "&hellip;": "...",
-                "&nbsp;": " ",
-                "&mdash;": "—",
-                "&rarr;": "",
-                "&lsquo;": "'",
-                "&rsquo;": "'",
-                "&middot;": "",
-                "&bull;": "",
-                "&amp;": "&"
-            }
-            for old, new in replacements.items():
-                answer_text = answer_text.replace(old, new)
-            
-            # 使用正则表达式移除所有剩余的HTML实体
-            answer_text = re.sub(r'&[a-zA-Z0-9#]+;', '', answer_text)
-            
-            # 移除答案开头的题号（如：9．）
-            answer_text = re.sub(r'^\d+[.\uff0e]\s*', '', answer_text)
-            
-            # 提取答案选项（A-D）
-            option_match = re.search(r'\b([A-D])\b', answer_text)
-            letter_answer = ''
-            detailed_explanation = answer_text
-            
-            # 确保主观题的答案文本也会被保留
-            if option_match:
-                letter_answer = option_match.group(1)
-            else:
-                # 主观题不需要字母答案，直接显示完整答案
-                pass  # 不做处理，让详解部分显示完整答案
-            
-            # 添加题号行
-            p = doc.add_paragraph()
-            p.style = 'Normal'
-            p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
-            p.paragraph_format.line_spacing = 1.5  # 设置行距为1.5倍
-            run = p.add_run(f"第{i}题：")
-            run.font.name = '宋体'
-            run.font.bold = True
-            run.font.size = Pt(10.5)
-            
-            # 添加答案选项行（如果有）
-            if letter_answer:
-                p = doc.add_paragraph()
-                p.style = 'Normal'
-                p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
-                p.paragraph_format.line_spacing = 1.5  # 设置行距为1.5倍
-                run = p.add_run(letter_answer)
-                run.font.name = '宋体'
-                run.font.size = Pt(10.5)
-            
-            # 添加详解部分
-            if '【详解】' in detailed_explanation:
-                # 处理详解文本，移除任何空行
-                parts = detailed_explanation.split('【详解】', 1)
-                if len(parts) > 1:
-                    explanation_text = parts[1]
-                    
-                    # 再次清理HTML实体，确保完全移除
-                    replacements = {
-                        "&ldquo;": "\"",
-                        "&rdquo;": "\"",
-                        "&hellip;": "...",
-                        "&nbsp;": " ",
-                        "&mdash;": "—",
-                        "&rarr;": "",
-                        "&lsquo;": "'",
-                        "&rsquo;": "'",
-                        "&middot;": "",
-                        "&bull;": "",
-                        "&amp;": "&"
-                    }
-                    for old, new in replacements.items():
-                        explanation_text = explanation_text.replace(old, new)
-                    
-                    # 使用正则表达式移除所有剩余的HTML实体
-                    explanation_text = re.sub(r'&[a-zA-Z0-9#]+;', '', explanation_text)
-                    
-                    # 移除详解开头的题号（如：9．）
-                    explanation_text = re.sub(r'^\d+[.\uff0e]\s*', '', explanation_text)
-                    
-                    # 移除所有多余空行
-                    explanation_text = re.sub(r'\n\s*\n', '\n', explanation_text)
-                    # 将所有换行符替换为空格
-                    explanation_text = re.sub(r'\n+', ' ', explanation_text)
-                    
-                    # 创建新段落
-                    p = doc.add_paragraph()
-                    p.style = 'Normal'
-                    p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
-                    p.paragraph_format.line_spacing = 1.5  # 设置行距为1.5倍
-                    
-                    # 添加详解标签
-                    tag_run = p.add_run('【详解】')
-                    tag_run.font.name = '宋体'
-                    tag_run.font.bold = True
-                    tag_run.font.size = Pt(10.5)
-                    
-                    # 添加处理后的详解文本（无空行）
-                    content_run = p.add_run(explanation_text)
-                    content_run.font.name = '宋体'
-                    content_run.font.size = Pt(10.5)
-            elif detailed_explanation.strip():
-                # 如果没有详解标签但有内容
-                # 移除所有多余空行
-                clean_text = re.sub(r'\n\s*\n', '\n', detailed_explanation)
-                # 将所有换行符替换为空格
-                clean_text = re.sub(r'\n+', ' ', clean_text)
-                
-                # 如果没有选项答案，这可能是主观题答案
-                # 直接显示所有文本作为答案
-                p = doc.add_paragraph()
-                p.style = 'Normal'
-                p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
-                
-                # 如果没有选项答案且没有详解标记，则不添加详解标记
-                if not letter_answer and '【详解】' not in clean_text:
-                    # 直接显示答案文本作为主观题答案
-                    content_run = p.add_run(clean_text)
-                    content_run.font.name = '宋体'
-                    content_run.font.size = Pt(10.5)
-                else:
-                    # 如果有选项答案或者显示含详解标记，则添加标准详解标记
-                    tag_run = p.add_run('【详解】')
-                    tag_run.font.name = '宋体'
-                    tag_run.font.bold = True
-                    tag_run.font.size = Pt(10.5)
-                    
-                    content_run = p.add_run(clean_text)
-                    content_run.font.name = '宋体'
-                    content_run.font.size = Pt(10.5)
+                    # 添加详解部分
+                    if '【详解】' in detailed_explanation:
+                        # 处理详解文本，移除任何空行
+                        parts = detailed_explanation.split('【详解】', 1)
+                        if len(parts) > 1:
+                            explanation_text = parts[1]
+                            # 移除所有多余空行
+                            explanation_text = re.sub(r'\n\s*\n', '\n', explanation_text)
+                            # 将所有换行符替换为空格
+                            explanation_text = re.sub(r'\n+', ' ', explanation_text)
+                            
+                            # 移除可能的重复选项（如 "D. ③④"）
+                            explanation_text = re.sub(r'[A-D]\.\s*[①-⑨]+\s*$', '', explanation_text).strip()
+                            
+                            # 清理解析文本中的HTML实体
+                            for old, new in replacements.items():
+                                explanation_text = explanation_text.replace(old, new)
+                            
+                            # 使用正则表达式移除所有剩余的HTML实体
+                            explanation_text = re.sub(r'&[a-zA-Z0-9#]+;', '', explanation_text)
+                            
+                            # 完全删除引号和冒号
+                            explanation_text = explanation_text.replace('"', '').replace('"', '').replace('：', '').replace(':', '')
+                            
+                            # 创建新段落
+                            p = doc.add_paragraph()
+                            p.style = 'Normal'
+                            p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
+                            p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
+                            
+                            # 添加详解标签
+                            tag_run = p.add_run('【详解】')
+                            tag_run.font.name = '宋体'
+                            tag_run.font.bold = True
+                            tag_run.font.size = Pt(10.5)
+                            
+                            # 添加处理后的详解文本（无空行）
+                            content_run = p.add_run(explanation_text)
+                            content_run.font.name = '宋体'
+                            content_run.font.size = Pt(10.5)
+                        elif detailed_explanation.strip():
+                            # 如果没有详解标签但有内容
+                            # 移除所有多余空行
+                            clean_text = re.sub(r'\n\s*\n', '\n', detailed_explanation)
+                            # 将所有换行符替换为空格
+                            clean_text = re.sub(r'\n+', ' ', clean_text)
+                            
+                            # 移除可能的重复选项（如 "D. ③④"）
+                            clean_text = re.sub(r'[A-D]\.\s*[①-⑨]+\s*$', '', clean_text).strip()
+                            
+                            # 如果没有选项答案，这可能是主观题答案
+                            # 直接显示所有文本作为答案
+                            p = doc.add_paragraph()
+                            p.style = 'Normal'
+                            p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
+                            p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
+                            
+                            # 如果没有选项答案且没有详解标记，则不添加详解标记
+                            if not letter_answer and '【详解】' not in clean_text:
+                                # 直接显示答案文本作为主观题答案
+                                content_run = p.add_run(clean_text)
+                                content_run.font.name = '宋体'
+                                content_run.font.size = Pt(10.5)
+                            else:
+                                # 如果有选项答案或者显示含详解标记，则添加标准详解标记
+                                tag_run = p.add_run('【详解】')
+                                tag_run.font.name = '宋体'
+                                tag_run.font.bold = True
+                                tag_run.font.size = Pt(10.5)
+                                
+                                content_run = p.add_run(clean_text)
+                                content_run.font.name = '宋体'
+                                content_run.font.size = Pt(10.5)
+                    else:
+                        # 如果没有详解标签但有内容
+                        # 移除所有多余空行
+                        clean_text = re.sub(r'\n\s*\n', '\n', detailed_explanation)
+                        # 将所有换行符替换为空格
+                        clean_text = re.sub(r'\n+', ' ', clean_text)
+                        
+                        # 移除可能的重复选项（如 "D. ③④"）
+                        clean_text = re.sub(r'[A-D]\.\s*[①-⑨]+\s*$', '', clean_text).strip()
+                        
+                        # 如果没有选项答案，这可能是主观题答案
+                        # 直接显示所有文本作为答案
+                        p = doc.add_paragraph()
+                        p.style = 'Normal'
+                        p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
+                        p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
+                        
+                        # 如果没有选项答案且没有详解标记，则不添加详解标记
+                        if not letter_answer and '【详解】' not in clean_text:
+                            # 直接显示答案文本作为主观题答案
+                            content_run = p.add_run(clean_text)
+                            content_run.font.name = '宋体'
+                            content_run.font.size = Pt(10.5)
+                        else:
+                            # 如果有选项答案或者显示含详解标记，则添加标准详解标记
+                            tag_run = p.add_run('【详解】')
+                            tag_run.font.name = '宋体'
+                            tag_run.font.bold = True
+                            tag_run.font.size = Pt(10.5)
+                            
+                            content_run = p.add_run(clean_text)
+                            content_run.font.name = '宋体'
+                            content_run.font.size = Pt(10.5)
+            except Exception as add_answers_error:
+                print(f"Error adding answers to document: {str(add_answers_error)}")
+                traceback.print_exc()
+                return jsonify({'error': f'Error adding answers to document: {str(add_answers_error)}'}), 500
 
-        # 返回 Word
-        buffer = BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
+            # 6) 保存并返回 Word 文档
+            # 保存到 BytesIO 对象
+            file_stream = BytesIO()
+            print("Attempting to save document to memory stream...") # Log before save
+            doc.save(file_stream)
+            print("Document successfully saved to memory stream.") # Log after save
+            file_stream.seek(0)
 
-        return send_file(
-            buffer,
-            as_attachment=True,
-            download_name=f'{paper_title}.docx',
-            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+            # 添加日志：文件生成完成，准备发送
+            print(f"Word document generated successfully for title: {paper_title}. Preparing to send.")
+
+            # 发送文件
+            safe_title = paper_title + '.docx'
+            return send_file(
+                file_stream,
+                as_attachment=True,
+                download_name=safe_title,
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+
+        except Exception as final_error: # Catch any error during steps 2-6
+            print(f"!!! Error during document generation or saving: {str(final_error)} !!!")
+            traceback.print_exc() # Print detailed traceback
+            return jsonify({'error': f'Failed to generate paper: {str(final_error)}'}), 500
+
+    except Exception as e: # This top-level one might be redundant now but keep for safety
+        print(f"Unhandled error in generate_paper: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'error': 'An unexpected server error occurred.'}), 500
 
 @app.route('/upload_paper', methods=['GET', 'POST'])
 def upload_paper():
@@ -2001,7 +2161,7 @@ def find_actual_file_location(file_name, paper_info=None):
                 for file_path in all_files:
                     file_basename = os.path.basename(file_path).lower()
                     
-                    # 评分系统
+                    # 防止空元素错误
                     score = 0
                     
                     # 检查年份
@@ -2085,7 +2245,6 @@ def papers_list():
         
         # 获取所有试卷，使用复合排序
         papers_query = Paper.query
-        print("成功创建Paper.query")
         
         # 应用筛选条件
         if region:
@@ -2100,10 +2259,12 @@ def papers_list():
             papers_query = papers_query.filter(Paper.source == source)
         if year:
             try:
-                year_int = int(year)
-                papers_query = papers_query.filter(Paper.year == year_int)
-            except ValueError:
-                print(f"年份格式错误: {year}")
+                if isinstance(year, str) and year.isdigit():
+                    papers_query = papers_query.filter(Paper.year == int(year))
+                elif isinstance(year, (int, float)):
+                    papers_query = papers_query.filter(Paper.year == int(year))
+            except (ValueError, TypeError) as e:
+                print(f"年份转换错误: {e}")
         if keyword:
             papers_query = papers_query.filter(Paper.name.like(f'%{keyword}%'))
         
@@ -2279,12 +2440,12 @@ def filter_papers():
                         'region': paper.region,
                         'subject': paper.subject,
                         'stage': paper.stage,
-                        'source_type': paper.source_type,
                         'source': paper.source,
+                        'source_type': paper.source_type,
                         'year': paper.year
                     })
             except Exception as paper_error:
-                print(f"处理试卷数据时出错: {paper_error}")
+                print(f"处理试卷数据时出错: {str(paper_error)}")
         
         return jsonify(papers_data)
     except Exception as e:
@@ -2372,71 +2533,85 @@ def search():
                              error="搜索时出现错误，请稍后再试或修改搜索词。",
                              active_page='search')
 
-# 初始化数据库
-def init_db():
-    """初始化数据库表结构"""
-    db.create_all()
-    print("数据库表结构已初始化")
-
-def upgrade_db():
-    """升级数据库结构和数据"""
-    with app.app_context():
-        # 检查是否需要添加 source_type 字段
-        try:
-            # 尝试查询以检查字段是否存在
-            Paper.query.with_entities(Paper.source_type).first()
-            print("source_type 字段已存在")
-        except Exception as e:
-            if 'no such column' in str(e).lower():
-                # 字段不存在，需要添加
-                try:
-                    # 使用原生SQL添加字段
-                    db.session.execute(text("ALTER TABLE papers ADD COLUMN source_type VARCHAR(20) DEFAULT '地区联考'"))
-                    db.session.commit()
-                    
-                    # 根据来源名称智能判断来源类型并更新
-                    papers = Paper.query.all()
-                    for paper in papers:
-                        # 如果来源中包含"中学"、"附属"、"大学"等关键词，则设为名校调考
-                        if any(keyword in paper.source for keyword in ['中学', '附属', '大学', '一中', '二中', '三中', '四中', '五中', '六中', '七中', '八中', '九中', '十中']):
-                            paper.source_type = '名校调考'
-                        else:
-                            paper.source_type = '地区联考'
-                    
-                    db.session.commit()
-                    print("成功添加 source_type 字段并智能更新现有数据")
-                except Exception as add_error:
-                    db.session.rollback()
-                    print(f"添加 source_type 字段失败: {str(add_error)}")
-
-# Flask 3.x不再支持before_first_request
-def check_db_tables():
-    """在应用启动时检查数据库表结构"""
+@app.route('/get_audio/<int:id>')
+def get_audio(id):
     try:
-        with app.app_context():
-            # 检查是否需要创建表
-            inspector = db.inspect(db.engine)
-            if not inspector.has_table('papers'):
-                init_db()
-                print("数据库表格已创建")
-            else:
-                print("数据库表格已存在")
+        record = SU.query.get_or_404(id)
+        print(f"获取音频ID: {id}, 文件名: {record.audio_filename}, 路径: {record.audio_file_path}")
+        
+        # 检查和记录音频字段状态
+        has_audio_content = hasattr(record, 'audio_content') and record.audio_content is not None and len(record.audio_content or b'') > 0
+        has_audio_path = hasattr(record, 'audio_file_path') and record.audio_file_path is not None and len(record.audio_file_path or '') > 0
+        
+        print(f"音频状态: 内容存在={has_audio_content}, 路径存在={has_audio_path}")
+        
+        # 尝试从内容发送
+        if has_audio_content:
+            print(f"从二进制内容发送音频")
+            return send_file(
+                io.BytesIO(record.audio_content),
+                mimetype='audio/mpeg',
+                as_attachment=False,
+                download_name=record.audio_filename or 'audio.mp3'
+            )
+        
+        # 尝试从文件路径发送
+        elif has_audio_path:
+            audio_path = record.audio_file_path
+            # 如果是相对路径，转换为绝对路径
+            if not os.path.isabs(audio_path):
+                audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), audio_path)
                 
-            # 升级数据库结构
-            upgrade_db()
+            print(f"音频绝对路径: {audio_path}")
+            
+            if os.path.exists(audio_path):
+                print(f"从文件路径发送音频")
+                return send_file(
+                    audio_path,
+                    mimetype='audio/mpeg',
+                    as_attachment=False,
+                    download_name=os.path.basename(audio_path)
+                )
+            else:
+                print(f"音频文件路径存在但文件不存在: {audio_path}")
+        
+        # 无音频情况下返回一个静态MP3作为替代(防止404)
+        default_audio_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
+        
+        # 如果默认音频存在就返回它
+        if os.path.exists(default_audio_path):
+            print(f"返回默认静音音频")
+            return send_file(
+                default_audio_path,
+                mimetype='audio/mpeg',
+                as_attachment=False,
+                download_name='silence.mp3'
+            )
+        
+        # 如果连默认音频都不存在，则生成临时的静音文件
+        print(f"生成临时静音音频")
+        silence = b'\xFF\xFB\x90\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+        return send_file(
+            io.BytesIO(silence),
+            mimetype='audio/mpeg',
+            as_attachment=False,
+            download_name='silence.mp3'
+        )
     except Exception as e:
-        print(f"数据库检查/创建时出错: {str(e)}")
-
-# 主程序入口应放在文件最后
-if __name__ == '__main__':
-    try:
-        print("正在尝试启动在端口 5001...")
-        app.debug = True  # 启用调试模式以获取更详细的错误信息
-        app.run(host='0.0.0.0', port=5002)
-    except OSError:
-        print("端口 5001 被占用，尝试下一个...")
-        app.debug = True  # 启用调试模式以获取更详细的错误信息
-        app.run(host='0.0.0.0', port=5003)
+        print(f"获取音频失败：{str(e)}")
+        traceback.print_exc()
+        
+        # 即使出错也返回静音文件而不是错误，避免前端报错
+        try:
+            silence = b'\xFF\xFB\x90\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            return send_file(
+                io.BytesIO(silence),
+                mimetype='audio/mpeg',
+                as_attachment=False,
+                download_name='silence.mp3'
+            )
+        except:
+            return '音频不可用', 200  # 返回200而不是错误状态码
 
 @app.route('/logo.png')
 def serve_logo():
@@ -2472,6 +2647,103 @@ def serve_fix_pagination_js():
         """
         response = app.response_class(response=js_content, status=200, mimetype='application/javascript')
         return response
+
 # 在应用启动时初始化数据库
 with app.app_context():
     check_db_tables()
+
+# 在现有路由之后添加新路由
+@app.route('/api/english_units', methods=['GET'])
+def get_english_units():
+    """获取英语科目的单元列表，支持按学段和章节筛选"""
+    try:
+        # 获取查询参数
+        education_stage = request.args.get('education_stage', '高中')
+        chapter = request.args.get('chapter', '')
+        
+        # 构建查询
+        query = SU.query.filter(SU.subject == '英语')
+        
+        # 应用学段筛选
+        if education_stage:
+            query = query.filter(SU.education_stage == education_stage)
+        
+        # 应用章节筛选
+        if chapter and chapter != '请选择':
+            query = query.filter(SU.chapter == chapter)
+        
+        # 查询不同的单元
+        units = query.with_entities(SU.unit).distinct().all()
+        
+        # 提取单元名称并过滤空值
+        unit_list = [unit[0] for unit in units if unit[0]]
+        
+        # 记录日志
+        print(f"英语单元筛选API: 找到 {len(unit_list)} 个单元，学段={education_stage}, 章节={chapter}")
+        
+        return jsonify({
+            'success': True,
+            'units': unit_list
+        })
+    except Exception as e:
+        print(f"获取英语单元列表出错: {str(e)}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/english_lessons', methods=['GET'])
+def get_english_lessons():
+    """获取英语科目的课程列表，支持按学段、章节和单元筛选"""
+    try:
+        # 获取查询参数
+        education_stage = request.args.get('education_stage', '高中')
+        chapter = request.args.get('chapter', '')
+        unit = request.args.get('unit', '')
+        
+        # 构建查询
+        query = SU.query.filter(SU.subject == '英语')
+        
+        # 应用学段筛选
+        if education_stage:
+            query = query.filter(SU.education_stage == education_stage)
+        
+        # 应用章节筛选
+        if chapter and chapter != '请选择':
+            query = query.filter(SU.chapter == chapter)
+            
+        # 应用单元筛选
+        if unit and unit != '请选择':
+            query = query.filter(SU.unit == unit)
+        
+        # 查询不同的课程
+        lessons = query.with_entities(SU.lesson).distinct().all()
+        
+        # 提取课程名称并过滤空值
+        lesson_list = [lesson[0] for lesson in lessons if lesson[0]]
+        
+        # 记录日志
+        print(f"英语课程筛选API: 找到 {len(lesson_list)} 个课程，学段={education_stage}, 章节={chapter}, 单元={unit}")
+        
+        return jsonify({
+            'success': True,
+            'lessons': lesson_list
+        })
+    except Exception as e:
+        print(f"获取英语课程列表出错: {str(e)}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+if __name__ == '__main__':
+    try:
+        print("正在尝试启动在端口 5001...")
+        app.debug = True  # 启用调试模式以获取更详细的错误信息
+        app.run(host='0.0.0.0', port=5002)
+    except OSError:
+        print("端口 5001 被占用，尝试下一个...")
+        app.debug = True  # 启用调试模式以获取更详细的错误信息
+        app.run(host='0.0.0.0', port=5003)
