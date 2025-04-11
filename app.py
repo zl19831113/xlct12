@@ -999,10 +999,12 @@ def generate_paper():
 
         question_ids = data.get('question_ids', [])
         paper_title = data.get('paper_title', '试卷')
+        has_audio = data.get('has_audio', False)  # 是否包含音频文件
 
         # 添加日志：打印接收到的数据
         print(f"Received question IDs: {question_ids}")
         print(f"Received paper title: {paper_title}")
+        print(f"Has audio files: {has_audio}")
 
         # ---> ADDED: Limit the number of questions
         MAX_QUESTIONS_LIMIT = 200
@@ -1033,6 +1035,21 @@ def generate_paper():
             # 按照原始顺序排列题目
             questions = [question_map[qid] for qid in question_ids if qid in question_map]
             print(f"Final question count for paper: {len(questions)}")
+            
+            # 检查是否为英语试卷
+            is_english = False
+            has_listening = False
+            audio_questions = []
+            
+            # 检查是否有英语听力题
+            for q in questions:
+                if q.subject == '英语':
+                    is_english = True
+                    if q.question_type == '听力理解' and q.audio_content:
+                        has_listening = True
+                        audio_questions.append(q)
+            
+            print(f"Is English paper: {is_english}, Has listening questions: {has_listening}")
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             traceback.print_exc() # Ensure traceback is printed
@@ -1785,7 +1802,58 @@ def generate_paper():
             # 添加日志：文件生成完成，准备发送
             print(f"Word document generated successfully for title: {paper_title}. Preparing to send.")
 
-            # 发送文件
+            # 针对英语科目有听力题的情况，特殊处理
+            if is_english and has_listening:
+                print("Processing English paper with listening questions - creating ZIP package")
+                temp_dir = tempfile.mkdtemp()
+                
+                try:
+                    # 保存Word文档到临时目录
+                    docx_path = os.path.join(temp_dir, f"{paper_title}.docx")
+                    with open(docx_path, 'wb') as f:
+                        f.write(file_stream.getvalue())
+                    
+                    # 创建ZIP文件
+                    zip_path = os.path.join(temp_dir, f"{paper_title}.zip")
+                    with zipfile.ZipFile(zip_path, 'w') as zip_file:
+                        # 添加Word文档
+                        zip_file.write(docx_path, os.path.basename(docx_path))
+                        
+                        # 添加音频文件
+                        for q in audio_questions:
+                            if q.audio_content and q.audio_filename:
+                                audio_filename = q.audio_filename
+                                audio_path = os.path.join(temp_dir, audio_filename)
+                                
+                                # 保存音频文件到临时目录
+                                with open(audio_path, 'wb') as f:
+                                    f.write(q.audio_content)
+                                
+                                # 添加到ZIP
+                                zip_file.write(audio_path, os.path.join("听力音频", audio_filename))
+                    
+                    # 读取生成的ZIP文件
+                    with open(zip_path, 'rb') as f:
+                        zip_data = f.read()
+                    
+                    # 清理临时文件
+                    shutil.rmtree(temp_dir)
+                    
+                    # 返回ZIP文件
+                    response = make_response(zip_data)
+                    response.headers.set('Content-Type', 'application/zip')
+                    response.headers.set('Content-Disposition', f'attachment; filename="{paper_title}.zip"')
+                    
+                    return response
+                    
+                except Exception as zip_error:
+                    print(f"Error creating ZIP package: {str(zip_error)}")
+                    traceback.print_exc()
+                    # 如果打包失败，仍然返回Word文档
+                    shutil.rmtree(temp_dir)
+                    file_stream.seek(0)  # 重置流位置
+            
+            # 对于非英语科目或没有听力题的英语试卷，直接返回Word文档
             safe_title = paper_title + '.docx'
             return send_file(
                 file_stream,

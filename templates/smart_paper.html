@@ -1057,6 +1057,9 @@
         
         // 生成最终试卷
         function generateFinalPaper(questionIds, paperTitle, audioFiles) {
+            // 检查是否有音频文件
+            const hasAudio = audioFiles && audioFiles.length > 0;
+            
             fetch('/generate_paper', {
                 method: 'POST',
                 headers: {
@@ -1065,7 +1068,7 @@
                 body: JSON.stringify({
                     question_ids: questionIds,
                     paper_title: paperTitle,
-                    has_audio: audioFiles && audioFiles.length > 0
+                    has_audio: hasAudio
                 })
             })
             .then(response => {
@@ -1078,54 +1081,33 @@
                 // 创建下载链接
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
+                
+                // 文件扩展名（如果有音频文件则是zip，否则是docx）
+                const fileExt = hasAudio ? 'zip' : 'docx';
+                a.download = `${paperTitle}.${fileExt}`;
                 a.href = url;
-                a.download = `${paperTitle}.docx`;
                 document.body.appendChild(a);
                 a.click();
+                
+                // 清理
                 window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
                 
-                // 如果有音频文件，提供音频下载链接
-                if (audioFiles && audioFiles.length > 0) {
-                    // 创建音频打包下载链接
-                    fetch('/api/package_audio_files', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            audio_files: audioFiles,
-                            paper_title: paperTitle
-                        })
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('音频打包失败');
-                        }
-                        return response.blob();
-                    })
-                    .then(blob => {
-                        const audioUrl = window.URL.createObjectURL(blob);
-                        const audioLink = document.createElement('a');
-                        audioLink.href = audioUrl;
-                        audioLink.download = `${paperTitle}_听力音频.zip`;
-                        document.body.appendChild(audioLink);
-                        audioLink.click();
-                        window.URL.revokeObjectURL(audioUrl);
-                        
-                        showMessage('试卷和听力音频生成成功！', 'success');
-                    })
-                    .catch(error => {
-                        showMessage('试卷生成成功，但听力音频下载失败：' + error.message, 'warning');
-                    });
-                } else {
-                    showMessage('试卷生成成功！', 'success');
-                }
-                
+                // 更新界面状态
                 document.getElementById('generateButton').disabled = false;
+                document.getElementById('generateButton').innerText = '生成试卷';
+                
+                // 显示成功消息
+                const successMsg = hasAudio 
+                    ? '试卷已成功生成，文件包含Word文档和听力音频文件' 
+                    : '试卷已成功生成';
+                showMessage(successMsg, 'success');
             })
             .catch(error => {
+                console.error('Error generating paper:', error);
                 document.getElementById('generateButton').disabled = false;
-                showMessage('下载试卷失败：' + error.message, 'error');
+                document.getElementById('generateButton').innerText = '生成试卷';
+                showMessage('生成试卷失败: ' + error.message, 'error');
             });
         }
     </script>
