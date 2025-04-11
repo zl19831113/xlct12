@@ -2,87 +2,57 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>名校试卷下载</title>
-    <link rel="stylesheet" href="/static/css/header.css?v=2.0">
-    <link rel="stylesheet" href="/static/css/mobile-global.css?v=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <meta name="description" content="小鹿题库系统 - 优质试卷下载平台，提供各类精选试卷资源">
+    <meta name="theme-color" content="#2F80ED">
+    <title>名校试卷下载 - 小鹿题库系统</title>
     
-    <!-- 增强版内嵌修复脚本 -->
+    <!-- 合并外部样式表，减少HTTP请求 -->
+    <link rel="stylesheet" href="/static/css/header.css?v=2.1">
+    <link rel="stylesheet" href="/static/css/mobile-global.css?v=1.1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    
+    <!-- 预加载关键图片资源 -->
+    <link rel="preload" href="/static/images/试卷图标2.jpg" as="image">
+    
+    <!-- 简化且合并的错误修复与兼容性脚本 -->
     <script>
-    // 增强版分页和搜索错误修复脚本
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('增强版分页和DOM错误修复脚本已加载');
+        console.log('页面兼容性修复脚本已加载');
         
-        // 1. 必要的DOM元素
-        const missingElements = [
-            'paginationControls', 'prevPage', 'nextPage', 'pageInfo', 'pageButtons',
-            'papers-container', 'filterTags', 'activeFilters', 'searchButton', 'searchInput'
-        ];
-        
-        missingElements.forEach(function(id) {
+        // 1. 必要DOM元素检查与创建
+        ['paginationControls', 'prevPage', 'nextPage', 'pageInfo', 'pageButtons',
+         'papers-container', 'filterTags', 'activeFilters', 'searchButton', 'searchInput'].forEach(id => {
             if (!document.getElementById(id)) {
-                console.log('创建缺失元素: ' + id);
-                var el = document.createElement(id === 'papers-container' ? 'tbody' : 'div');
+                const el = document.createElement(id === 'papers-container' ? 'tbody' : 'div');
                 el.id = id;
-                
-                // 确保元素具有style属性
-                if (!el.style) {
-                    el.style = {};
-                }
-                el.style.display = 'none';
-                
+                el.style = el.style || {};
+                el.style.display = id === 'papers-container' ? 'table-row-group' : 'none';
                 document.body.appendChild(el);
-                
-                // 特殊元素初始化
-                if (id === 'searchInput') {
-                    el.value = '';
-                }
             }
         });
         
-        // 2. 增强版安全的DOM操作
-        var originalGetElementById = document.getElementById;
-        document.getElementById = function(id) {
-            var element = originalGetElementById.call(document, id);
-            if (!element) {
-                console.log('程序尝试访问不存在的元素: ' + id);
-                
-                // 创建缺失元素
-                var el = document.createElement(id === 'papers-container' ? 'tbody' : 'div');
-                el.id = id;
-                
-                // 初始化必要属性，确保所有可能的操作都不会报错
-                if (!el.style) el.style = {};
-                el.style.display = 'none';
-                el.innerHTML = '';
-                el.textContent = '';
-                el.value = '';
-                
-                // 添加类名相关的空方法防止报错
-                el.classList = {
-                    add: function(){},
-                    remove: function(){},
-                    contains: function(){ return false; },
-                    toggle: function(){}
-                };
-                
-                // 添加到DOM
-                document.body.appendChild(el);
-                return el;
-            }
-            return element;
-        };
-        
-        // 3. 全局错误处理
-        window.addEventListener('error', function(event) {
-            console.log('捕获到全局错误: ', event.error || event.message);
-            // 阻止隔阳式错误继续传播
+        // 2. 全局错误处理
+        window.addEventListener('error', event => {
+            console.log('已捕获并处理全局错误:', event.error || event.message);
             event.preventDefault();
             return false;
         }, true);
         
-        // 4. 安全地修复分页按钮样式问题
-        var style = document.createElement('style');
+        // 3. 未处理的Promise错误处理
+        window.addEventListener('unhandledrejection', event => {
+            console.log('已捕获未处理的Promise错误:', event.reason);
+            event.preventDefault();
+            
+            const container = document.getElementById('papers-container');
+            if (container) {
+                container.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;">数据加载失败，请刷新页面重试</td></tr>';
+            }
+            return false;
+        });
+        
+        // 4. 动态修复样式
+        const style = document.createElement('style');
         style.textContent = `
             .pagination-button, a.pagination-button, #prevPage, #nextPage {
                 text-decoration: none !important;
@@ -95,66 +65,17 @@
             #papers-container {
                 min-height: 50px;
             }
+            @media (prefers-reduced-motion: reduce) {
+                * {
+                    animation-duration: 0.01ms !important;
+                    transition-duration: 0.01ms !important;
+                }
+            }
         `;
         document.head.appendChild(style);
-        
-        console.log('增强版分页和搜索错误修复完成');
     });
     </script>
     
-    <!-- 额外的安全脚本 -->
-    <script>
-    // 防止null和undefined对象访问错误
-    window.addEventListener('DOMContentLoaded', function() {
-        // 添加全局函数用于安全获取元素
-        window.safeGetElement = function(id) {
-            var el = document.getElementById(id);
-            if (!el) {
-                el = document.createElement('div');
-                el.id = id;
-                el.style = el.style || {};
-                el.style.display = 'none';
-                el.innerHTML = '';
-                document.body.appendChild(el);
-            }
-            return el;
-        };
-        
-        // 监听所有AJAX请求错误
-        window.addEventListener('unhandledrejection', function(event) {
-            console.log('捕获到Promise未处理的rejection: ', event.reason);
-            event.preventDefault();
-            
-            // 显示错误日志给用户
-            var papersContainer = document.getElementById('papers-container');
-            if (papersContainer) {
-                papersContainer.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;">操作失败，请刷新页面重试</td></tr>';
-            }
-            return false;
-        });
-        
-        // 您的页面上可能有缺失的搜索按钮或输入框
-        setTimeout(function() {
-            if (!document.getElementById('searchInput')) {
-                var inputEl = document.createElement('input');
-                inputEl.id = 'searchInput';
-                inputEl.style.display = 'none';
-                document.body.appendChild(inputEl);
-                
-                console.log('创建了缺失的searchInput元素');
-            }
-            
-            if (!document.getElementById('searchButton')) {
-                var btnEl = document.createElement('button');
-                btnEl.id = 'searchButton';
-                btnEl.style.display = 'none';
-                document.body.appendChild(btnEl);
-                
-                console.log('创建了缺失的searchButton元素');
-            }
-        }, 1000);
-    });
-    </script>
     <style>
         :root {
             --primary-color: #2F80ED;
@@ -168,6 +89,12 @@
             --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --animation-speed: 0.2s;
+        }
+        
+        /* 优化内容渲染策略 */
+        html {
+            scroll-behavior: smooth;
         }
         
         /* 标题样式 */
@@ -180,7 +107,7 @@
         }
 
         body {
-            font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
             max-width: 900px;
             margin: 0 auto;
             padding: 0;
@@ -190,6 +117,9 @@
             overflow-x: hidden;
             width: 100%;
             box-sizing: border-box;
+            text-rendering: optimizeSpeed;
+            color-scheme: light;
+            -webkit-tap-highlight-color: transparent;
         }
 
         /* 统一容器宽度和对齐 */
