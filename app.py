@@ -2826,16 +2826,65 @@ def generate_smart_paper():
             
         # 获取题型和数量
         question_count_map = {}
+        
+        # 英语听力特殊处理
+        has_audio = False
+        listening_chapters = []
+        
         for item in question_types:
             q_type = item.get('type')
             q_count = item.get('count', 0)
-            if q_type and q_count > 0:
-                question_count_map[q_type] = q_count
+            
+            # 处理听力特殊条件
+            if q_type == '听力理解题' and subject == '英语':
+                has_audio = True
+                q_chapter = item.get('chapter', '')
+                if q_chapter:
+                    listening_chapters.append({
+                        'chapter': q_chapter,
+                        'count': q_count
+                    })
+                else:
+                    if q_type not in question_count_map:
+                        question_count_map[q_type] = 0
+                    question_count_map[q_type] += q_count
+            elif q_type and q_count > 0:
+                if q_type not in question_count_map:
+                    question_count_map[q_type] = 0
+                question_count_map[q_type] += q_count
         
         # 初始化题目结果列表
         selected_questions = []
         
-        # 按照题型顺序选择题目
+        # 处理英语听力题型的特殊章节
+        audio_id = None
+        if listening_chapters and subject == '英语':
+            for listening_item in listening_chapters:
+                listening_chapter = listening_item['chapter']
+                listening_count = listening_item['count']
+                
+                # 查询特定听力章节的题目
+                listening_questions = query.filter(
+                    SU.question_type == '听力理解题',
+                    SU.chapter == listening_chapter
+                ).all()
+                
+                # 增强随机性 - 打乱题目顺序
+                shuffled_listening = list(listening_questions)
+                random.shuffle(shuffled_listening)
+                
+                # 选择指定数量的题目
+                if len(shuffled_listening) <= listening_count:
+                    selected_questions.extend([q.id for q in shuffled_listening])
+                else:
+                    selected_ids = [q.id for q in shuffled_listening[:listening_count]]
+                    selected_questions.extend(selected_ids)
+                
+                # 记录第一个听力题目的ID，用于可能的MP3下载
+                if not audio_id and shuffled_listening:
+                    audio_id = shuffled_listening[0].id
+        
+        # 按照题型顺序选择非听力题目
         for q_type, count in question_count_map.items():
             # 找出该类型的所有符合条件的题目
             type_questions = query.filter(SU.question_type == q_type).all()
@@ -2858,16 +2907,23 @@ def generate_smart_paper():
         # 如果没有选中任何题目
         if not selected_questions:
             return jsonify({'error': '未找到符合条件的题目'}), 404
-            
-        # 返回选中的题目ID和标题
-        return jsonify({
+        
+        # 返回选中的题目ID和标题，以及听力音频信息
+        response_data = {
             'success': True,
             'question_ids': selected_questions,
             'paper_title': paper_title
-        })
-    
+        }
+        
+        # 如果是英语听力，添加相关标志
+        if has_audio and audio_id:
+            response_data['has_audio'] = True
+            response_data['audio_id'] = audio_id
+        
+        return jsonify(response_data)
+        
     except Exception as e:
-        print(f"智能组卷错误: {str(e)}")
+        print(f"Error in generate_smart_paper: {str(e)}")
         traceback.print_exc()
         return jsonify({'error': f'生成试卷失败: {str(e)}'}), 500
 
@@ -2939,6 +2995,56 @@ def get_lessons():
     lesson_list = [l[0] for l in lessons if l[0]]
     
     return jsonify({'lessons': lesson_list})
+
+@app.route('/download_audio/<int:audio_id>', methods=['GET'])
+def download_audio(audio_id):
+    try:
+        # 查询题目，获取音频信息
+        question = SU.query.get(audio_id)
+        
+        if not question:
+            return jsonify({'error': '找不到指定的听力题目'}), 404
+            
+        # 检查是否有音频文件
+        if not question.audio_content and not question.audio_file_path:
+            return jsonify({'error': '该题目没有关联的音频文件'}), 404
+            
+        # 准备音频数据
+        audio_data = None
+        filename = "listening_audio.mp3"
+        
+        # 优先使用存储在数据库中的音频内容
+        if question.audio_content:
+            audio_data = question.audio_content
+            if question.audio_filename:
+                filename = question.audio_filename
+        # 如果数据库中没有音频内容，尝试从文件路径读取
+        elif question.audio_file_path:
+            try:
+                audio_path = os.path.join(app.config['UPLOADS_FOLDER'], question.audio_file_path)
+                with open(audio_path, 'rb') as f:
+                    audio_data = f.read()
+                if question.audio_filename:
+                    filename = question.audio_filename
+            except Exception as e:
+                print(f"读取音频文件失败: {str(e)}")
+                return jsonify({'error': '读取音频文件失败'}), 500
+        
+        # 如果依然没有音频数据，返回错误
+        if not audio_data:
+            return jsonify({'error': '无法获取音频数据'}), 404
+            
+        # 创建内存文件对象并返回
+        response = make_response(audio_data)
+        response.headers['Content-Type'] = 'audio/mpeg'
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        return response
+        
+    except Exception as e:
+        print(f"下载音频文件失败: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'error': f'下载音频文件失败: {str(e)}'}), 500
 
 if __name__ == '__main__':
     try:

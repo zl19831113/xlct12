@@ -164,50 +164,70 @@
             box-sizing: border-box;
         }
         
+        /* 题型选择样式 */
         .question-types-container {
-            background-color: var(--background-main);
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
-            padding: var(--padding);
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
         
         .question-type-item {
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            padding: 12px;
-            border-bottom: 1px solid var(--border-color);
-            transition: all 0.3s;
+            align-items: center;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            background-color: var(--secondary-color);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+            cursor: move;
+        }
+        
+        /* 听力题型分组样式 */
+        .question-type-group {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.03);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+        }
+        
+        .question-type-group-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+        }
+        
+        .question-type-group .question-type-item {
+            margin-left: 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .question-type-item.dragging {
+            opacity: 0.5;
+        }
+        
+        .type-info {
+            display: flex;
+            align-items: center;
+        }
+        
+        .drag-handle {
+            margin-right: 10px;
+            color: var(--text-secondary);
             cursor: grab;
         }
         
-        .question-type-item:last-child {
-            border-bottom: none;
-        }
-        
-        .question-type-item:hover {
-            background-color: var(--secondary-color);
-        }
-        
         .question-type-name {
-            font-size: 16px;
             font-weight: 500;
         }
         
         .question-count-input {
-            width: 70px;
-            padding: 6px 10px;
+            width: 60px;
+            padding: 5px;
             border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-size: 14px;
+            border-radius: var(--border-radius);
             text-align: center;
-        }
-        
-        .drag-handle {
-            color: #999;
-            cursor: grab;
-            margin-right: 10px;
         }
         
         .generate-button {
@@ -236,12 +256,6 @@
         .required-mark {
             color: #ff4d4f;
             margin-left: 2px;
-        }
-        
-        /* 拖动中的元素样式 */
-        .dragging {
-            opacity: 0.5;
-            background-color: var(--secondary-color);
         }
         
         /* 进度显示 */
@@ -372,14 +386,23 @@
                 </div>
             </div>
             
-            <!-- 生成按钮部分 -->
-            <button id="generateButton" class="generate-button" disabled>智能组卷</button>
-            
-            <!-- 加载进度显示 -->
-            <div id="progressContainer" class="progress-container">
-                <div class="spinner"></div>
-                <p>正在生成试卷，请稍候...</p>
+            <!-- 操作按钮 -->
+            <div class="action-buttons-container">
+                <button id="generateButton" class="btn btn-primary" onclick="generatePaper()" disabled>
+                    <i class="fas fa-file-word"></i> 生成试卷
+                </button>
             </div>
+            
+            <!-- 进度指示器 -->
+            <div id="progressContainer" class="progress-container" style="display: none;">
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                </div>
+                <p id="progressMessage" class="progress-message">处理中，请稍候...</p>
+            </div>
+            
+            <!-- 消息提示 -->
+            <div id="alertMessage" class="alert" style="display: none;"></div>
         </div>
     </div>
 
@@ -743,71 +766,190 @@
                         <input type="number" class="question-count-input" min="0" max="20" value="10" data-type="单选题">
                     </div>
                 `;
-                updateTotalCount();
+                setupDragAndDrop();
                 return;
             }
             
-            // 过滤当前学段和科目的题目
-            const filteredQuestions = allQuestions.filter(q => 
-                q.educationStage === educationStage && q.subject === subject);
+            // 获取该学段和科目下的所有题型
+            const types = [...new Set(
+                allQuestions
+                    .filter(q => q.educationStage === educationStage && q.subject === subject)
+                    .map(q => q.question_type)
+            )].filter(Boolean);
             
-            // 获取可用题型
-            let questionTypes = [...new Set(filteredQuestions.map(q => q.questionType))].filter(Boolean);
-            
-            // 确保选择题始终排在最前面
-            const choiceQuestionTypes = ['单选题', '多选题', '选择题'];
-            
-            // 移除所有选择题类型
-            questionTypes = questionTypes.filter(type => !choiceQuestionTypes.includes(type));
-            
-            // 从筛选结果中找出所有存在的选择题类型
-            const availableChoiceTypes = choiceQuestionTypes.filter(type => 
-                filteredQuestions.some(q => q.questionType === type)
-            );
-            
-            // 将选择题类型放在最前面
-            orderedTypes = [...availableChoiceTypes, ...questionTypes];
-            
-            // 更新题型列表
-            const container = document.getElementById('questionTypesContainer');
-            container.innerHTML = '';
-            
-            orderedTypes.forEach(type => {
-                const item = document.createElement('div');
-                item.className = 'question-type-item';
-                item.setAttribute('data-type', type);
-                item.setAttribute('draggable', 'true');
-                
-                item.innerHTML = `
-                    <div class="type-info">
-                        <span class="drag-handle">☰</span>
-                        <span class="question-type-name">${type}</span>
-                    </div>
-                    <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="${type}">
-                `;
-                
-                container.appendChild(item);
+            // 优先排序，选择题类型始终在最前面
+            const orderedTypes = [];
+            // 先添加选择题类型
+            ['单选题', '多选题', '选择题'].forEach(type => {
+                if (types.includes(type)) {
+                    orderedTypes.push(type);
+                }
+            });
+            // 再添加其他类型
+            types.forEach(type => {
+                if (!orderedTypes.includes(type)) {
+                    orderedTypes.push(type);
+                }
             });
             
-            // 初始化拖拽功能
-            initDragAndDrop();
+            let html = '';
             
-            // 更新总数
-            updateTotalCount();
+            // 对于英语科目的听力题型特殊处理
+            const isEnglishSubject = subject === '英语';
+            const hasListeningType = isEnglishSubject && orderedTypes.includes('听力理解题');
+            
+            // 如果是英语学科并且有听力题型，创建听力分类选择器
+            if (hasListeningType) {
+                // 获取听力题目的章节分类
+                const listeningChapters = [...new Set(
+                    allQuestions
+                        .filter(q => 
+                            q.educationStage === educationStage && 
+                            q.subject === subject && 
+                            q.question_type === '听力理解题'
+                        )
+                        .map(q => q.chapter)
+                )].filter(Boolean).sort();
+                
+                // 先添加非听力题型
+                orderedTypes.forEach(type => {
+                    if (type !== '听力理解题') {
+                        html += `
+                            <div class="question-type-item" data-type="${type}" draggable="true">
+                                <div class="type-info">
+                                    <span class="drag-handle">☰</span>
+                                    <span class="question-type-name">${type}</span>
+                                </div>
+                                <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="${type}">
+                            </div>
+                        `;
+                    }
+                });
+                
+                // 添加听力理解题分类选项
+                html += `
+                    <div class="question-type-group">
+                        <h3 class="question-type-group-title">听力理解题</h3>
+                `;
+                
+                // 添加每个听力章节作为子类型
+                listeningChapters.forEach(chapter => {
+                    const typeId = `听力_${chapter}`;
+                    html += `
+                        <div class="question-type-item" data-type="${typeId}" draggable="true">
+                            <div class="type-info">
+                                <span class="drag-handle">☰</span>
+                                <span class="question-type-name">${chapter}</span>
+                            </div>
+                            <input type="number" class="question-count-input" min="0" max="10" value="3" data-type="${typeId}">
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+            } else {
+                // 普通科目正常显示题型
+                orderedTypes.forEach(type => {
+                    html += `
+                        <div class="question-type-item" data-type="${type}" draggable="true">
+                            <div class="type-info">
+                                <span class="drag-handle">☰</span>
+                                <span class="question-type-name">${type}</span>
+                            </div>
+                            <input type="number" class="question-count-input" min="0" max="20" value="5" data-type="${type}">
+                        </div>
+                    `;
+                });
+            }
+            
+            document.getElementById('questionTypesContainer').innerHTML = html;
+            setupDragAndDrop();
         }
         
         // 显示消息
-        function showMessage(message, type) {
-            const messageBox = document.getElementById('messageBox');
-            messageBox.textContent = message;
-            messageBox.className = 'message-box';
-            messageBox.classList.add(type);
-            messageBox.style.display = 'block';
+        function showMessage(message, type = 'info') {
+            const alertElement = document.getElementById('alertMessage');
+            alertElement.textContent = message;
+            alertElement.className = `alert alert-${type}`;
+            alertElement.style.display = 'block';
             
-            // 5秒后自动隐藏
+            // 3秒后自动隐藏
             setTimeout(() => {
-                messageBox.style.display = 'none';
-            }, 5000);
+                alertElement.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 显示加载提示
+        function showLoading(message = '处理中，请稍候...') {
+            const progressContainer = document.getElementById('progressContainer');
+            const progressMessage = document.getElementById('progressMessage');
+            if (progressMessage) {
+                progressMessage.textContent = message;
+            }
+            progressContainer.style.display = 'block';
+            
+            // 禁用生成按钮
+            document.getElementById('generateButton').disabled = true;
+        }
+        
+        // 隐藏加载提示
+        function hideLoading() {
+            const progressContainer = document.getElementById('progressContainer');
+            progressContainer.style.display = 'none';
+            
+            // 启用生成按钮
+            document.getElementById('generateButton').disabled = false;
+        }
+        
+        // 设置拖拽功能
+        function setupDragAndDrop() {
+            const items = document.querySelectorAll('.question-type-item');
+            let draggedItem = null;
+            
+            items.forEach(item => {
+                // 监听拖拽开始事件
+                item.addEventListener('dragstart', function(e) {
+                    draggedItem = this;
+                    setTimeout(() => {
+                        this.classList.add('dragging');
+                    }, 0);
+                });
+                
+                // 监听拖拽结束事件
+                item.addEventListener('dragend', function() {
+                    this.classList.remove('dragging');
+                    draggedItem = null;
+                });
+                
+                // 监听拖拽经过事件
+                item.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                });
+                
+                // 监听放置事件
+                item.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    if (draggedItem && draggedItem !== this) {
+                        // 获取拖拽项和目标项的父元素
+                        const draggedParent = draggedItem.parentNode;
+                        const targetParent = this.parentNode;
+                        
+                        // 如果是同一个父元素内的排序
+                        if (draggedParent === targetParent) {
+                            const container = draggedParent;
+                            const children = Array.from(container.children);
+                            const draggedIndex = children.indexOf(draggedItem);
+                            const targetIndex = children.indexOf(this);
+                            
+                            if (draggedIndex < targetIndex) {
+                                container.insertBefore(draggedItem, this.nextSibling);
+                            } else {
+                                container.insertBefore(draggedItem, this);
+                            }
+                        }
+                    }
+                });
+            });
         }
         
         // 生成试卷
@@ -828,39 +970,36 @@
             
             typeItems.forEach(item => {
                 const type = item.getAttribute('data-type');
-                const countInput = item.querySelector('.question-count-input');
-                const count = parseInt(countInput.value) || 0;
+                const input = item.querySelector('.question-count-input');
+                const count = parseInt(input.value, 10) || 0;
                 
                 if (count > 0) {
-                    questionTypes.push({
-                        type: type,
-                        count: count
-                    });
+                    // 检查是否是听力子类型
+                    if (type.startsWith('听力_')) {
+                        const chapter = type.replace('听力_', '');
+                        questionTypes.push({
+                            type: '听力理解题',
+                            count: count,
+                            chapter: chapter  // 添加章节信息
+                        });
+                    } else {
+                        questionTypes.push({
+                            type: type,
+                            count: count
+                        });
+                    }
                 }
             });
-            
-            // 验证
-            if (!educationStage || !subject) {
-                showMessage('请选择学段和科目', 'error');
-                return;
-            }
             
             if (questionTypes.length === 0) {
                 showMessage('请至少选择一种题型并设置数量', 'error');
                 return;
             }
             
-            const totalCount = updateTotalCount();
-            if (totalCount > 50) {
-                showMessage('题目总数不能超过50道', 'error');
-                return;
-            }
+            // 显示加载进度
+            showLoading('正在生成试卷，请稍候...');
             
-            // 显示进度
-            document.getElementById('progressContainer').style.display = 'block';
-            document.getElementById('generateButton').disabled = true;
-            
-            // 发送请求
+            // 发送请求到后端
             fetch('/api/generate_smart_paper', {
                 method: 'POST',
                 headers: {
@@ -878,28 +1017,39 @@
             })
             .then(response => response.json())
             .then(data => {
-                document.getElementById('progressContainer').style.display = 'none';
+                hideLoading();
                 
                 if (data.error) {
                     showMessage(data.error, 'error');
-                    document.getElementById('generateButton').disabled = false;
                     return;
                 }
                 
-                if (data.success) {
-                    // 调用生成试卷API
-                    generateFinalPaper(data.question_ids, paperTitle);
+                // 生成试卷成功
+                showMessage('试卷生成成功！', 'success');
+                
+                // 使用题目ID生成试卷Word文档
+                generateWord(data.question_ids, data.paper_title);
+                
+                // 对于英语听力，检查是否需要下载MP3
+                const isEnglishSubject = subject === '英语';
+                const hasListeningType = questionTypes.some(q => q.type === '听力理解题');
+                
+                if (isEnglishSubject && hasListeningType && data.has_audio) {
+                    // 显示MP3下载按钮
+                    showMP3DownloadButton(data.audio_id);
                 }
             })
             .catch(error => {
-                document.getElementById('progressContainer').style.display = 'none';
-                document.getElementById('generateButton').disabled = false;
-                showMessage('生成试卷失败：' + error.message, 'error');
+                hideLoading();
+                console.error('生成试卷失败:', error);
+                showMessage('生成试卷失败，请重试', 'error');
             });
         }
         
-        // 生成最终试卷
-        function generateFinalPaper(questionIds, paperTitle) {
+        // 生成Word文档
+        function generateWord(questionIds, paperTitle) {
+            showLoading('正在生成Word文档，请稍候...');
+            
             fetch('/generate_paper', {
                 method: 'POST',
                 headers: {
@@ -911,10 +1061,13 @@
                 })
             })
             .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => { throw new Error(err.error || '生成试卷失败'); });
+                hideLoading();
+                
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    throw new Error('生成Word文档失败');
                 }
-                return response.blob();
             })
             .then(blob => {
                 // 创建下载链接
@@ -924,14 +1077,67 @@
                 a.download = `${paperTitle}.docx`;
                 document.body.appendChild(a);
                 a.click();
+                document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
-                
-                document.getElementById('generateButton').disabled = false;
-                showMessage('试卷生成成功！', 'success');
             })
             .catch(error => {
-                document.getElementById('generateButton').disabled = false;
-                showMessage('下载试卷失败：' + error.message, 'error');
+                console.error('下载Word文档失败:', error);
+                showMessage('下载Word文档失败，请重试', 'error');
+            });
+        }
+        
+        // 显示MP3下载按钮
+        function showMP3DownloadButton(audioId) {
+            // 创建MP3下载按钮
+            const container = document.querySelector('.action-buttons-container');
+            
+            // 检查是否已有MP3下载按钮
+            const existingButton = document.getElementById('downloadMp3Button');
+            if (existingButton) {
+                existingButton.remove();
+            }
+            
+            const mp3Button = document.createElement('button');
+            mp3Button.id = 'downloadMp3Button';
+            mp3Button.className = 'btn btn-secondary';
+            mp3Button.innerHTML = '<i class="fas fa-music"></i> 下载听力MP3';
+            mp3Button.onclick = function() {
+                downloadMP3Audio(audioId);
+            };
+            
+            container.appendChild(mp3Button);
+        }
+        
+        // 下载MP3文件
+        function downloadMP3Audio(audioId) {
+            showLoading('正在生成听力MP3文件，请稍候...');
+            
+            fetch(`/download_audio/${audioId}`)
+            .then(response => {
+                hideLoading();
+                
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    throw new Error('下载MP3文件失败');
+                }
+            })
+            .then(blob => {
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = '听力音频.mp3';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                showMessage('听力MP3下载成功！', 'success');
+            })
+            .catch(error => {
+                console.error('下载MP3文件失败:', error);
+                showMessage('下载MP3文件失败，请重试', 'error');
             });
         }
     </script>
