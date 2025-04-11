@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>小鹿题库系统 - 智能组卷</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/global.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/header.css') }}">
+    <link rel="stylesheet" href="/static/css/header.css">
     <style>
         :root {
             --primary-color: #2F80ED;
@@ -346,6 +345,166 @@
         .listening-subtype-input {
             width: 60px;
             text-align: center;
+        }
+        
+        /* 移动端布局优化 - 侧边栏和内容区域 */
+        @media (max-width: 991px) {
+            .main-container {
+                flex-direction: column;
+                gap: 10px;
+                margin: 15px auto;
+            }
+            
+            .filter-sidebar {
+                width: 100%;
+                max-width: 100%;
+                position: static;
+                max-height: none;
+                margin-bottom: 15px;
+            }
+            
+            .content-area {
+                width: 100%;
+                margin-left: 0;
+            }
+            
+            /* 减小移动端筛选项的高度 */
+            .filter-item {
+                padding: 8px 0;
+            }
+            
+            /* 减少移动端的表单元素间距 */
+            .filter-item label {
+                margin-bottom: 4px;
+                font-size: 13px;
+            }
+            
+            select {
+                padding: 6px 10px;
+                font-size: 13px;
+                border-radius: 8px;
+            }
+            
+            /* 调整题型选择区域 */
+            .section-title {
+                font-size: 16px;
+                margin-bottom: 15px;
+                padding-bottom: 8px;
+            }
+            
+            .question-type-item {
+                padding: 10px 8px;
+            }
+            
+            .question-type-name {
+                font-size: 14px;
+            }
+            
+            .question-count-input {
+                width: 60px;
+                padding: 4px 8px;
+                font-size: 13px;
+            }
+            
+            .drag-handle {
+                margin-right: 6px;
+            }
+            
+            /* 调整试卷标题输入框 */
+            .paper-title-input-container {
+                margin-bottom: 15px;
+                padding: 10px;
+            }
+            
+            .paper-title-input-container label {
+                margin-bottom: 6px;
+                font-size: 13px;
+            }
+            
+            .paper-title-input {
+                padding: 8px;
+                font-size: 14px;
+            }
+            
+            /* 调整听力题型区域 */
+            .listening-type-container {
+                margin-bottom: 12px;
+            }
+            
+            .listening-header {
+                padding: 8px;
+            }
+            
+            .listening-subtypes {
+                padding: 8px;
+            }
+            
+            .listening-subtype-item {
+                padding: 6px 8px;
+                margin-bottom: 6px;
+            }
+            
+            .subtype-name {
+                font-size: 13px;
+            }
+            
+            .listening-subtype-input {
+                width: 50px;
+            }
+            
+            /* 调整生成按钮 */
+            .generate-button {
+                padding: 10px 18px;
+                font-size: 15px;
+                margin-top: 15px;
+            }
+        }
+        
+        /* 小屏幕设备的更多优化 */
+        @media (max-width: 480px) {
+            .main-container {
+                margin: 10px auto;
+                padding: 0 8px;
+            }
+            
+            .filter-sidebar {
+                margin-bottom: 10px;
+            }
+            
+            /* 更小的筛选项 */
+            .filter-item {
+                padding: 6px 0;
+            }
+            
+            /* 更小的表单元素 */
+            select {
+                padding: 5px 8px;
+                font-size: 12px;
+                border-radius: 6px;
+            }
+            
+            /* 更紧凑的题型选择区 */
+            .question-types-container {
+                padding: 10px;
+            }
+            
+            .section-title {
+                font-size: 15px;
+                margin-bottom: 12px;
+                padding-bottom: 6px;
+            }
+            
+            /* 最小化边距以利用空间 */
+            .question-type-item {
+                padding: 8px 6px;
+            }
+            
+            .question-count-input,
+            .listening-subtype-input {
+                width: 50px;
+                padding: 3px 6px;
+                font-size: 12px;
+            }
         }
     </style>
 </head>

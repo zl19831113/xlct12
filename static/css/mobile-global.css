@@ -1,0 +1,265 @@
+/* 移动端全局样式 - 防止左右滑动 v1.1 */
+
+/* 全局防滑动规则 */
+html, body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent; /* 移除移动端点击高亮 */
+}
+
+/* 确保所有容器不会超出宽度 */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+/* 主要容器约束 */
+.container, 
+.content-container, 
+.main-container,
+.content-area,
+.question-list,
+.papers-list,
+.filter-buttons,
+.search-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+}
+
+/* 表格容器优化 */
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+/* 响应式图片 */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* 响应式表格 */
+table {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* 小屏幕额外优化 */
+@media (max-width: 576px) {
+    body {
+        padding: 5px !important;
+    }
+    
+    /* 减小内边距 */
+    .container, 
+    .content-container, 
+    .main-container,
+    .content-area {
+        padding-left: 5px !important;
+        padding-right: 5px !important;
+    }
+}
+
+/* 移动端全局按钮样式优化 */
+@media (max-width: 768px) {
+    /* 通用按钮样式 */
+    button, .btn, a.btn, .header-link, .answer-btn, .select-btn {
+        font-weight: 500 !important;
+        text-decoration: none !important;
+        touch-action: manipulation; /* 优化触摸操作 */
+    }
+    
+    button:hover, .btn:hover, a.btn:hover,
+    button:active, .btn:active, a.btn:active,
+    button:focus, .btn:focus, a.btn:focus,
+    .header-link:hover, .header-link:active, .header-link:focus,
+    .answer-btn:hover, .answer-btn:active, .answer-btn:focus,
+    .select-btn:hover, .select-btn:active, .select-btn:focus {
+        text-decoration: none !important;
+    }
+    
+    /* 购物车按钮样式 */
+    .cart-icon, .download-panel {
+        background-color: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+    
+    /* 按钮间距优化 */
+    .header-nav {
+        display: flex;
+        justify-content: center;
+        flex-wrap: nowrap;
+        gap: 2px;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    
+    /* 确保按钮样式一致且左右对齐 */
+    .question-actions {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        gap: 0 !important;
+        padding: 0 !important;
+        margin-top: 20px !important;
+    }
+    
+    /* 解析按钮样式 */
+    .answer-btn {
+        display: inline-block !important;
+        background-color: transparent !important;
+        color: #2F80ED !important;
+        padding: 6px 0 !important;
+        font-size: 15px !important;
+        line-height: 1.5 !important;
+        text-align: left !important;
+        font-weight: 400 !important;
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        min-width: auto !important;
+    }
+    
+    /* 组卷按钮样式 */
+    .select-btn {
+        display: inline-block !important;
+        padding: 6px 0 !important;
+        font-size: 15px !important;
+        line-height: 1.5 !important;
+        text-align: right !important;
+        font-weight: 400 !important;
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        min-width: auto !important;
+    }
+    
+    /* ===== 头部导航优化 ===== */
+    /* 头部容器优化 */
+    .header {
+        padding: 10px 8px !important;
+        height: auto !important;
+        flex-direction: column !important;
+        gap: 6px !important;
+    }
+    
+    /* 头部左侧区域 */
+    .header-left {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 100% !important;
+        margin-bottom: 5px !important;
+    }
+    
+    /* LOGO大小限制 */
+    .header-logo {
+        height: 70px !important;
+        width: auto !important;
+    }
+    
+    /* 智能组卷按钮移动端优化 */
+    .smart-paper-btn {
+        padding: 6px 10px !important;
+        margin: 2px 5px !important;
+        font-size: 14px !important;
+        border-radius: 4px !important;
+        white-space: nowrap !important;
+    }
+    
+    .smart-paper-icon {
+        width: 24px !important;
+        height: 24px !important;
+        margin-right: 6px !important;
+    }
+    
+    /* 头部导航菜单按钮 */
+    .header-link {
+        padding: 6px 10px !important;
+        margin: 3px !important;
+        font-size: 14px !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        border-radius: 4px !important;
+        min-width: auto !important;
+    }
+    
+    /* ===== 智能组卷页面移动端优化 ===== */
+    /* 主容器布局 */
+    .main-container {
+        display: flex;
+        flex-direction: column !important;
+        margin-top: 15px !important;
+        padding: 0 10px !important;
+    }
+    
+    /* 侧边筛选栏移动端样式 */
+    .filter-sidebar {
+        position: static !important;
+        width: 100% !important;
+        max-height: none !important;
+    }
+    
+    /* 内容区域 */
+    .content-area {
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-top: 15px !important;
+    }
+    
+    /* 题型选择容器 */
+    .question-types-container {
+        padding: 12px !important;
+    }
+    
+    /* 题型条目 */
+    .question-type-item {
+        padding: 10px 8px !important;
+    }
+    
+    /* 题型名称 */
+    .question-type-name {
+        font-size: 14px !important;
+    }
+    
+    /* 输入框调整 */
+    .question-count-input,
+    .listening-subtype-input {
+        width: 60px !important;
+        padding: 4px 6px !important;
+        font-size: 14px !important;
+    }
+    
+    /* 生成按钮调整 */
+    .generate-button {
+        padding: 10px 0 !important;
+        font-size: 15px !important;
+        border-radius: 4px !important;
+        margin-top: 15px !important;
+    }
+    
+    /* 英语听力子题型区域 */
+    .listening-subtypes {
+        padding: 8px !important;
+    }
+    
+    /* 听力子题型项 */
+    .listening-subtype-item {
+        padding: 6px 10px !important;
+        margin-bottom: 6px !important;
+    }
+}
