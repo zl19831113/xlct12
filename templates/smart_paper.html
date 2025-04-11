@@ -28,17 +28,6 @@
             color: #333;
         }
 
-        /* 页面标题样式优化 */
-        .page-title {
-            text-align: center;
-            margin: 30px 0;
-            font-size: 28px;
-            font-weight: 600;
-            color: var(--primary-color);
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-            letter-spacing: 1px;
-        }
-
         .main-container {
             display: flex;
             gap: 16px;
@@ -363,9 +352,6 @@
     <!-- 引入公共头部组件 -->
     {% include 'header.html' %}
 
-    <!-- 添加居中页面标题 -->
-    <h1 class="page-title">智能组卷系统</h1>
-
     <div class="main-container">
         <div class="filter-sidebar">
             <div class="filter-box">
@@ -394,8 +380,7 @@
                             <option value="地理">地理</option>
                         </select>
                     </div>
-                    <!-- 隐藏章节选择器 -->
-                    <div class="filter-item" style="display: none;">
+                    <div class="filter-item">
                         <label for="chapter">章节</label>
                         <select id="chapter" disabled>
                             <option value="">选择章节</option>
@@ -685,97 +670,134 @@
             const subject = document.getElementById('subject').value;
             const chapterSelect = document.getElementById('chapter');
             const unitSelect = document.getElementById('unit');
+            const lessonSelect = document.getElementById('lesson');
             
             // 重置下级选择器
             chapterSelect.innerHTML = '<option value="">选择章节</option>';
             unitSelect.innerHTML = '<option value="">选择单元</option>';
-            document.getElementById('lesson').innerHTML = '<option value="">选择课程</option>';
+            lessonSelect.innerHTML = '<option value="">选择课程</option>';
             
             // 禁用下级选择器
-            document.getElementById('lesson').disabled = true;
+            chapterSelect.disabled = true;
+            unitSelect.disabled = true;
+            lessonSelect.disabled = true;
             
-            if (!educationStage || !subject) {
-                chapterSelect.disabled = true;
-                unitSelect.disabled = true;
-                return;
-            }
+            if (!educationStage || !subject) return;
             
-            // 获取当前学段和科目下的所有章节（虽然不显示，但我们仍然需要设置值）
-            const chapters = [...new Set(
-                allQuestions
-                    .filter(q => q.educationStage === educationStage && q.subject === subject)
-                    .map(q => q.chapter)
-            )].filter(Boolean).sort();
+            // 获取当前学段和科目下的所有题目
+            const relevantQuestions = allQuestions.filter(q => 
+                q.educationStage === educationStage && q.subject === subject
+            );
             
-            // 填充章节选择器（隐藏的）
-            chapters.forEach(chapter => {
-                const option = document.createElement('option');
-                option.value = chapter;
-                option.textContent = chapter;
-                chapterSelect.appendChild(option);
-            });
-            
-            // 自动选择第一个章节（如果有）
-            if (chapters.length > 0) {
-                chapterSelect.value = chapters[0];
+            // 英语科目特殊处理：保持章节为标签，不可交互
+            if (subject === '英语') {
+                console.log("英语科目: 章节保持为标签");
                 
-                // 获取当前学段、科目和自动选择的章节下的所有单元
-                const units = [...new Set(
-                    allQuestions
-                        .filter(q => 
-                            q.educationStage === educationStage && 
-                            q.subject === subject && 
-                            q.chapter === chapters[0]
-                        )
-                        .map(q => q.unit)
-                )].filter(Boolean).sort();
+                // 直接获取所有单元和课程，不依赖章节
+                const units = [...new Set(relevantQuestions.map(q => q.unit))].filter(Boolean);
+                const lessons = [...new Set(relevantQuestions.map(q => q.lesson))].filter(Boolean);
+                
+                // 对单元和课程进行自然排序
+                const sortedUnits = naturalSort(units);
+                const sortedLessons = naturalSort(lessons);
                 
                 // 填充单元选择器
-                units.forEach(unit => {
+                sortedUnits.forEach(unit => {
                     const option = document.createElement('option');
                     option.value = unit;
                     option.textContent = unit;
                     unitSelect.appendChild(option);
                 });
                 
-                // 启用单元选择器
+                // 填充课程选择器
+                sortedLessons.forEach(lesson => {
+                    const option = document.createElement('option');
+                    option.value = lesson;
+                    option.textContent = lesson;
+                    lessonSelect.appendChild(option);
+                });
+                
+                // 启用单元和课程选择器
                 unitSelect.disabled = false;
-                console.log(`已加载${units.length}个单元到选择器`);
+                lessonSelect.disabled = false;
+            } 
+            // 非英语科目：正常显示章节，并实现层级过滤
+            else {
+                console.log("非英语科目: 启用章节筛选");
+                
+                // 获取并排序章节
+                const chapters = [...new Set(relevantQuestions.map(q => q.chapter))].filter(Boolean);
+                const sortedChapters = naturalSort(chapters);
+                
+                // 填充章节选择器
+                sortedChapters.forEach(chapter => {
+                    const option = document.createElement('option');
+                    option.value = chapter;
+                    option.textContent = chapter;
+                    chapterSelect.appendChild(option);
+                });
+                
+                // 启用章节选择器
+                chapterSelect.disabled = false;
+                
+                // 章节选择器有内容时，启用单元选择器
+                if (sortedChapters.length > 0) {
+                    // 章节为空时，显示所有单元
+                    updateUnitsForChapter(educationStage, subject, '');
+                }
             }
+            
+            console.log(`科目变化: ${subject}`);
         }
         
-        // 处理章节变化（虽然已隐藏，但函数仍保留处理逻辑）
+        // 处理章节变化
         function handleChapterChange() {
             const educationStage = document.getElementById('educationStage').value;
             const subject = document.getElementById('subject').value;
             const chapter = document.getElementById('chapter').value;
+            
+            if (subject === '英语') {
+                // 英语科目不依赖章节
+                return;
+            }
+            
+            // 更新单元选择器
+            updateUnitsForChapter(educationStage, subject, chapter);
+        }
+        
+        // 根据章节更新单元选择器
+        function updateUnitsForChapter(educationStage, subject, chapter) {
             const unitSelect = document.getElementById('unit');
+            const lessonSelect = document.getElementById('lesson');
             
-            // 重置下级选择器
+            // 重置单元和课程选择器
             unitSelect.innerHTML = '<option value="">选择单元</option>';
-            document.getElementById('lesson').innerHTML = '<option value="">选择课程</option>';
+            lessonSelect.innerHTML = '<option value="">选择课程</option>';
             
-            // 禁用下级选择器
-            document.getElementById('lesson').disabled = true;
+            // 禁用课程选择器
+            lessonSelect.disabled = true;
             
-            if (!educationStage || !subject || !chapter) {
+            if (!educationStage || !subject) {
                 unitSelect.disabled = true;
                 return;
             }
             
-            // 获取当前学段、科目和章节下的所有单元
-            const units = [...new Set(
-                allQuestions
-                    .filter(q => 
-                        q.educationStage === educationStage && 
-                        q.subject === subject && 
-                        q.chapter === chapter
-                    )
-                    .map(q => q.unit)
-            )].filter(Boolean).sort();
+            // 根据是否选择了章节构建查询条件
+            let filteredQuestions = allQuestions.filter(q => 
+                q.educationStage === educationStage && q.subject === subject
+            );
+            
+            // 如果选择了章节，进一步过滤
+            if (chapter) {
+                filteredQuestions = filteredQuestions.filter(q => q.chapter === chapter);
+            }
+            
+            // 获取并排序单元
+            const units = [...new Set(filteredQuestions.map(q => q.unit))].filter(Boolean);
+            const sortedUnits = naturalSort(units);
             
             // 填充单元选择器
-            units.forEach(unit => {
+            sortedUnits.forEach(unit => {
                 const option = document.createElement('option');
                 option.value = unit;
                 option.textContent = unit;
@@ -785,7 +807,7 @@
             // 启用单元选择器
             unitSelect.disabled = false;
             
-            console.log(`已加载${units.length}个单元到选择器`);
+            console.log(`章节变化: 加载了${sortedUnits.length}个单元`);
         }
         
         // 处理单元变化
@@ -799,25 +821,29 @@
             // 重置课程选择器
             lessonSelect.innerHTML = '<option value="">选择课程</option>';
             
-            if (!educationStage || !subject || !chapter || !unit) {
+            if (!educationStage || !subject || !unit) {
                 lessonSelect.disabled = true;
                 return;
             }
             
-            // 获取当前学段、科目、章节和单元下的所有课程
-            const lessons = [...new Set(
-                allQuestions
-                    .filter(q => 
-                        q.educationStage === educationStage && 
-                        q.subject === subject && 
-                        q.chapter === chapter && 
-                        q.unit === unit
-                    )
-                    .map(q => q.lesson)
-            )].filter(Boolean).sort();
+            // 构建查询条件
+            let filteredQuestions = allQuestions.filter(q => 
+                q.educationStage === educationStage && 
+                q.subject === subject && 
+                q.unit === unit
+            );
+            
+            // 如果是非英语科目且选择了章节，进一步过滤
+            if (subject !== '英语' && chapter) {
+                filteredQuestions = filteredQuestions.filter(q => q.chapter === chapter);
+            }
+            
+            // 获取并排序课程
+            const lessons = [...new Set(filteredQuestions.map(q => q.lesson))].filter(Boolean);
+            const sortedLessons = naturalSort(lessons);
             
             // 填充课程选择器
-            lessons.forEach(lesson => {
+            sortedLessons.forEach(lesson => {
                 const option = document.createElement('option');
                 option.value = lesson;
                 option.textContent = lesson;
@@ -827,7 +853,74 @@
             // 启用课程选择器
             lessonSelect.disabled = false;
             
-            console.log(`已加载${lessons.length}个课程到选择器`);
+            console.log(`单元变化: 加载了${sortedLessons.length}个课程`);
+        }
+        
+        // 自然排序函数（处理"第一单元"、"第二单元"等序号排序）
+        function naturalSort(array) {
+            // 检测是否包含"第X单元"的模式
+            const unitPattern = /第([一二三四五六七八九十\d]+)单元/;
+            const gradePattern = /高([一二三四五六七八九十\d]+)(上|下)/;
+            
+            // 中文数字映射到阿拉伯数字
+            const chineseNumMap = {
+                '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+                '六': 6, '七': 7, '八': 8, '九': 9, '十': 10
+            };
+            
+            // 判断是否为单元模式
+            const isUnitPattern = array.some(item => unitPattern.test(item));
+            // 判断是否为年级模式
+            const isGradePattern = array.some(item => gradePattern.test(item));
+            
+            if (isUnitPattern) {
+                // 为单元排序
+                return array.sort((a, b) => {
+                    const matchA = a.match(unitPattern);
+                    const matchB = b.match(unitPattern);
+                    
+                    // 提取数字部分
+                    const numA = matchA ? (chineseNumMap[matchA[1]] || parseInt(matchA[1])) : 999;
+                    const numB = matchB ? (chineseNumMap[matchB[1]] || parseInt(matchB[1])) : 999;
+                    
+                    return numA - numB;
+                });
+            } else if (isGradePattern) {
+                // 为年级排序 (高一上, 高一下, 高二上, 高二下)
+                return array.sort((a, b) => {
+                    const matchA = a.match(gradePattern);
+                    const matchB = b.match(gradePattern);
+                    
+                    if (!matchA) return 1;
+                    if (!matchB) return -1;
+                    
+                    // 提取年级数字
+                    const gradeA = chineseNumMap[matchA[1]] || parseInt(matchA[1]);
+                    const gradeB = chineseNumMap[matchB[1]] || parseInt(matchB[1]);
+                    
+                    // 比较年级
+                    if (gradeA !== gradeB) {
+                        return gradeA - gradeB;
+                    }
+                    
+                    // 相同年级比较上下学期 (上学期排在前面)
+                    return matchA[2] === '上' ? -1 : 1;
+                });
+            } else {
+                // 尝试从字符串中提取数字进行排序
+                return array.sort((a, b) => {
+                    // 尝试提取数字部分
+                    const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
+                    const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
+                    
+                    if (numA !== numB) {
+                        return numA - numB;
+                    }
+                    
+                    // 如果数字部分相同或没有数字，按字母顺序排序
+                    return a.localeCompare(b, 'zh-CN');
+                });
+            }
         }
         
         // 更新筛选器
