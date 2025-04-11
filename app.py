@@ -1302,13 +1302,13 @@ def generate_paper():
                             
                             # 添加主段落
                             p = doc.add_paragraph(style='Normal')
-                            p.paragraph_format.line_spacing = 1.0  # 设置为单倍行距
-                            p.paragraph_format.space_after = Pt(0)
+                            p.paragraph_format.line_spacing = 1.5  # 设置为1.5倍行距
+                            p.paragraph_format.space_after = Pt(12)  # 段落后增加12点的间距
                             
                             # 添加题号和文本
                             question_number_run = p.add_run(f"{overall_question_num}．")
-                            question_number_run.font.bold = False
-                            question_number_run.font.size = Pt(10.5)
+                            question_number_run.font.bold = True  # 题号加粗
+                            question_number_run.font.size = Pt(12)  # 题号加大字号
                             
                             # 添加主题干文本，保留段落结构
                             paragraphs = cleaned_text.split('\n')
@@ -1319,31 +1319,93 @@ def generate_paper():
                                 if re.search(r'([\(（].*来源.*[\)）])', first_para) or '来源' in first_para:
                                     if len(paragraphs) > 1:
                                         # 跳过包含来源的第一行，使用第二行作为题干开始
-                                        p.add_run(paragraphs[1].strip()).font.size = Pt(10.5)
+                                        p.add_run(" " + paragraphs[1].strip()).font.size = Pt(12)  # 题号和题干之间加空格
                                         # 后续段落从第三行开始
                                         remaining_paras = paragraphs[2:]
                                     else:
                                         # 如果只有一行且包含来源，提取主要题干部分
                                         clean_para = re.sub(r'[\(（].*来源.*[\)）]', '', first_para).strip()
-                                        p.add_run(clean_para).font.size = Pt(10.5)
+                                        p.add_run(" " + clean_para).font.size = Pt(12)  # 题号和题干之间加空格
                                         remaining_paras = []
                                 else:
                                     # 第一行不包含来源信息，正常显示
-                                    p.add_run(first_para).font.size = Pt(10.5)
+                                    p.add_run(" " + first_para).font.size = Pt(12)  # 题号和题干之间加空格
                                     # 后续段落从第二行开始
                                     remaining_paras = paragraphs[1:]
                                 
-                                # 处理剩余段落
+                                # 处理剩余段落，增加间距和缩进
                                 for para in remaining_paras:
                                     if para.strip():
                                         para_p = doc.add_paragraph(style='Normal')
-                                        para_p.paragraph_format.line_spacing = 1.0  # 单倍行距
-                                        para_p.paragraph_format.first_line_indent = Inches(0.25)
-                                        para_p.add_run(para.strip()).font.size = Pt(10.5)
+                                        para_p.paragraph_format.line_spacing = 1.5  # 增加行距为1.5倍
+                                        para_p.paragraph_format.first_line_indent = Inches(0.3)  # 首行缩进
+                                        para_p.paragraph_format.space_after = Pt(10)  # 段落间距
+                                        para_p.add_run(para.strip()).font.size = Pt(12)
+                            
+                            # 如果是主观题（简答题、论述题、分析题等），添加适当的答题空间和标记
+                            if q.question_type in ['简答题', '论述题', '分析题']:
+                                # 添加评分标准（如果存在）
+                                if hasattr(q, 'grading_standard') and q.grading_standard and q.grading_standard.strip():
+                                    standard_p = doc.add_paragraph(style='Normal')
+                                    standard_p.paragraph_format.line_spacing = 1.5
+                                    standard_p.paragraph_format.space_before = Pt(12)
+                                    standard_p.paragraph_format.space_after = Pt(12)
+                                    standard_p.paragraph_format.left_indent = Inches(0.5)
+                                    standard_p.paragraph_format.right_indent = Inches(0.5)
+                                    standard_run = standard_p.add_run("【评分标准】\n" + clean_html_content(q.grading_standard))
+                                    standard_run.font.size = Pt(10)
+                                    standard_run.italic = True
+                                
+                                # 添加答题空间
+                                # 先添加一个空行，表示答题区开始
+                                doc.add_paragraph().paragraph_format.space_after = Pt(12)
+                                
+                                # 添加足够的空行用于作答
+                                for i in range(10):  # 主观题预留10行作答空间
+                                    blank_p = doc.add_paragraph(style='Normal')
+                                    blank_p.paragraph_format.line_spacing = 1.5
+                                    blank_p.paragraph_format.space_after = Pt(0)  # 无额外间距
+                                    if i == 0:  # 第一行的上方有更大间距
+                                        blank_p.paragraph_format.space_before = Pt(12)
+                                
+                                # 在答题区后添加一个空行
+                                doc.add_paragraph().paragraph_format.space_after = Pt(24)
+                            
+                            # 如果是填空题，在题干后添加空行用于填写
+                            elif q.question_type == '填空题':
+                                # 检查有多少个空
+                                blank_count = cleaned_text.count('____') + cleaned_text.count('_') + cleaned_text.count('（）')
+                                blank_count = max(1, blank_count)  # 至少有1个空
+                                
+                                # 添加足够的空行用于填空
+                                doc.add_paragraph().paragraph_format.space_after = Pt(6)  # 在题目和填空线之间加一点间距
+                                for i in range(blank_count):
+                                    blank_p = doc.add_paragraph(style='Normal')
+                                    blank_p.paragraph_format.space_after = Pt(12) if i < blank_count - 1 else Pt(24)
+                                    blank_p.paragraph_format.line_spacing = 1.5
+                                    blank_p.add_run("_" * 50).font.size = Pt(12)
+                            
+                            # 计算题添加解答空间
+                            elif q.question_type in ['计算题', '解答题', '应用题']:
+                                # 添加一点间距
+                                doc.add_paragraph().paragraph_format.space_after = Pt(12)
+                                
+                                # 添加足够的空行用于解答
+                                for i in range(16):  # 计算题预留更多行作答空间
+                                    blank_p = doc.add_paragraph(style='Normal')
+                                    blank_p.paragraph_format.line_spacing = 1.5
+                                    blank_p.paragraph_format.space_after = Pt(0)  # 无额外间距
+                                
+                                # 在解答区后添加更大间距
+                                doc.add_paragraph().paragraph_format.space_after = Pt(24)
+                            
+                            # 其他类型题目，添加适当间距
+                            else:
+                                # 在题目后添加适当间距
+                                doc.add_paragraph().paragraph_format.space_after = Pt(24)
                             
                             # Increment overall question number
                             overall_question_num += 1
-                            # 非选择题不要空行
                             continue # Skip MCQ formatting for this question
 
                         # --- Formatting for MCQ Types (Updated Logic) --- 
@@ -2808,6 +2870,75 @@ def generate_smart_paper():
         print(f"智能组卷错误: {str(e)}")
         traceback.print_exc()
         return jsonify({'error': f'生成试卷失败: {str(e)}'}), 500
+
+@app.route('/api/get_chapters', methods=['GET'])
+def get_chapters():
+    education_stage = request.args.get('education_stage')
+    subject = request.args.get('subject')
+    
+    if not education_stage or not subject:
+        return jsonify({'error': '需要学段和科目参数'}), 400
+    
+    # 查询符合条件的章节
+    chapters = db.session.query(SU.chapter).distinct().filter(
+        SU.education_stage == education_stage,
+        SU.subject == subject,
+        SU.chapter != None,
+        SU.chapter != ''
+    ).all()
+    
+    # 提取章节名称并过滤掉None值
+    chapter_list = [ch[0] for ch in chapters if ch[0]]
+    
+    return jsonify({'chapters': chapter_list})
+
+@app.route('/api/get_units', methods=['GET'])
+def get_units():
+    education_stage = request.args.get('education_stage')
+    subject = request.args.get('subject')
+    chapter = request.args.get('chapter')
+    
+    if not education_stage or not subject or not chapter:
+        return jsonify({'error': '需要学段、科目和章节参数'}), 400
+    
+    # 查询符合条件的单元
+    units = db.session.query(SU.unit).distinct().filter(
+        SU.education_stage == education_stage,
+        SU.subject == subject,
+        SU.chapter == chapter,
+        SU.unit != None,
+        SU.unit != ''
+    ).all()
+    
+    # 提取单元名称并过滤掉None值
+    unit_list = [u[0] for u in units if u[0]]
+    
+    return jsonify({'units': unit_list})
+
+@app.route('/api/get_lessons', methods=['GET'])
+def get_lessons():
+    education_stage = request.args.get('education_stage')
+    subject = request.args.get('subject')
+    chapter = request.args.get('chapter')
+    unit = request.args.get('unit')
+    
+    if not education_stage or not subject or not chapter or not unit:
+        return jsonify({'error': '需要学段、科目、章节和单元参数'}), 400
+    
+    # 查询符合条件的课程
+    lessons = db.session.query(SU.lesson).distinct().filter(
+        SU.education_stage == education_stage,
+        SU.subject == subject,
+        SU.chapter == chapter,
+        SU.unit == unit,
+        SU.lesson != None,
+        SU.lesson != ''
+    ).all()
+    
+    # 提取课程名称并过滤掉None值
+    lesson_list = [l[0] for l in lessons if l[0]]
+    
+    return jsonify({'lessons': lesson_list})
 
 if __name__ == '__main__':
     try:
