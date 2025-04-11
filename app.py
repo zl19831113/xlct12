@@ -1657,7 +1657,21 @@ def generate_paper():
                         p = doc.add_paragraph()
                         p.style = 'Normal'
                         p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
-                        p.add_run(letter_answer).font.size = Pt(10.5)
+                        
+                        # 特殊处理英语听力理解题型的答案，显示全部答案选项
+                        if q.subject == '英语' and q.question_type == '听力理解':
+                            # 查找所有的字母答案（可能有多个A、B、C、D）
+                            all_answers = re.findall(r'\b([A-D])\b', detailed_explanation)
+                            if all_answers:
+                                # 显示所有找到的答案，用逗号分隔
+                                full_answer = ', '.join(all_answers)
+                                p.add_run(full_answer).font.size = Pt(10.5)
+                            else:
+                                # 如果没找到，至少显示已提取的单个答案
+                                p.add_run(letter_answer).font.size = Pt(10.5)
+                        else:
+                            # 其他类型题目保持原样，显示单个答案
+                            p.add_run(letter_answer).font.size = Pt(10.5)
                     
                     # 添加详解部分
                     if '【详解】' in detailed_explanation:
