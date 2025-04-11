@@ -1108,15 +1108,15 @@ def generate_paper():
             style.paragraph_format.line_spacing = 1.5  # 1.5倍行距
             style.paragraph_format.space_after = Pt(0)  # 默认段落间距
             
-            # 创建标题样式（宋体，15磅，加粗，居中）
+            # 创建标题样式（宋体，20磅，加粗，居中）
             title_style = doc.styles.add_style('Title Bold', WD_STYLE_TYPE.PARAGRAPH)
             title_style.base_style = doc.styles['Normal']
             title_style.font.name = '宋体'
             title_style.font.bold = True
-            title_style.font.size = Pt(15)
+            title_style.font.size = Pt(20) # 调大字号从15变为20
             title_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            title_style.paragraph_format.space_before = Pt(0)
-            title_style.paragraph_format.space_after = Pt(10)
+            title_style.paragraph_format.space_before = Pt(10)
+            title_style.paragraph_format.space_after = Pt(20) # 增加标题后的间距从10变为20
             
             # 创建章节标题样式（宋体，10.5磅，加粗，左对齐）
             section_style = doc.styles.add_style('Section Title', WD_STYLE_TYPE.PARAGRAPH)
@@ -1173,11 +1173,13 @@ def generate_paper():
                     title_cell.width = Inches(4.5)  # 标题占75%宽度
                     title_paragraph = title_cell.paragraphs[0]
                     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    title_paragraph.style = doc.styles['Title Bold']
+                    title_paragraph.style = 'Title Bold'  # 使用自定义标题样式
+                    
+                    # 自定义标题样式，替代表格内部的Title Bold样式
                     title_run = title_paragraph.add_run(paper_title)
-                    title_run.font.name = '黑体'  # 使用黑体而不是宋体
-                    title_run.font.size = Pt(18)  # 增大字号为18磅
+                    title_run.font.name = '宋体'
                     title_run.font.bold = True
+                    title_run.font.size = Pt(20)
                     
                     # 右侧单元格：二维码
                     qr_cell = header_table.cell(0, 1)
@@ -1215,83 +1217,64 @@ def generate_paper():
                     scan_run.font.size = Pt(9)
                     scan_run.font.bold = True
                     
-                    # 保留表格边框，使抬头有框
+                    # 去除表格边框 - 完全隐藏表格线
                     try:
-                        header_table.style = 'Table Grid'
-                        # 设置边框粗细为1磅
+                        # 设置表格为无边框
+                        header_table.style = 'Table Grid'  # 先应用网格样式获取边框属性
+                        
+                        # 然后完全清除所有边框
                         from docx.oxml.ns import qn
                         for cell in header_table.cells:
                             tc_pr = cell._tc.get_or_add_tcPr()
+                            
+                            # 创建或获取边框元素
                             tc_borders = tc_pr.first_child_found_in("w:tcBorders")
-                            if tc_borders:
-                                for border in ['top', 'left', 'bottom', 'right']:
-                                    border_elem = tc_borders.find(f"w:{border}")
-                                    if border_elem is not None:
-                                        border_elem.set(qn('w:val'), 'single')
-                                        border_elem.set(qn('w:sz'), '4')  # 1pt = 4 units
-                                        border_elem.set(qn('w:space'), '0')
-                                        border_elem.set(qn('w:color'), '000000')
+                            if not tc_borders:
+                                tc_borders = OxmlElement('w:tcBorders')
+                                tc_pr.append(tc_borders)
+                            
+                            # 明确设置所有边框为无
+                            for border in ['top', 'left', 'bottom', 'right']:
+                                border_elem = tc_borders.find(f"w:{border}")
+                                if border_elem is not None:
+                                    tc_borders.remove(border_elem)
+                                
+                                new_border = OxmlElement(f'w:{border}')
+                                new_border.set(qn('w:val'), 'nil')  # 'nil'表示无边框
+                                new_border.set(qn('w:sz'), '0')     # 宽度为0
+                                new_border.set(qn('w:space'), '0')  # 间距为0
+                                new_border.set(qn('w:color'), 'auto')
+                                tc_borders.append(new_border)
+                        
+                        # 确保表格整体也没有边框
+                        tbl_pr = header_table._element.find('.//{w:tblPr}')
+                        if tbl_pr:
+                            tbl_borders = tbl_pr.find('.//{w:tblBorders}')
+                            if tbl_borders:
+                                tbl_pr.remove(tbl_borders)
                     except Exception as border_err:
                         print(f"处理表格边框时出错: {border_err}")
                 except Exception as qr_err:
                     print(f"创建二维码和表格时出错: {qr_err}")
                     # 创建普通标题作为备用
-                    title_paragraph = doc.add_paragraph(paper_title)
-                    title_paragraph.style = doc.styles['Title Bold']
+                    title_paragraph = doc.add_paragraph()
                     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            else:
-                # 添加带方框的标题
-                try:
-                    # 创建表格作为标题方框
-                    header_table = doc.add_table(rows=1, cols=1)
-                    header_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-                    
-                    # 设置表格宽度
-                    header_table.autofit = False
-                    header_table.width = Inches(6.0)
-                    
-                    # 标题单元格
-                    title_cell = header_table.cell(0, 0)
-                    title_paragraph = title_cell.paragraphs[0]
-                    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    title_paragraph.style = doc.styles['Title Bold']
                     title_run = title_paragraph.add_run(paper_title)
-                    title_run.font.name = '黑体'  # 使用黑体
-                    title_run.font.size = Pt(18)  # 18磅字号
+                    title_run.font.name = '宋体'
                     title_run.font.bold = True
-                    
-                    # 设置边框
-                    header_table.style = 'Table Grid'
-                    # 确保单元格有可见边框
-                    from docx.oxml.ns import qn
-                    for cell in header_table.cells:
-                        tc_pr = cell._tc.get_or_add_tcPr()
-                        tc_borders = tc_pr.get_or_add_tcBorders()
-                        for border in ['top', 'left', 'bottom', 'right']:
-                            border_elem = OxmlElement(f'w:{border}')
-                            border_elem.set(qn('w:val'), 'single')
-                            border_elem.set(qn('w:sz'), '4')  # 1pt = 4 units
-                            border_elem.set(qn('w:space'), '0')
-                            border_elem.set(qn('w:color'), '000000')
-                            tc_borders.append(border_elem)
-                    
-                    # 设置单元格内边距
-                    title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                    # 单元格填充间距 (尝试设置上下间距)
-                    tc_pr = title_cell._tc.get_or_add_tcPr()
-                    tc_mar = OxmlElement('w:tcMar')
-                    for margin_type, margin_val in [('top', '0'), ('bottom', '0'), ('left', '200'), ('right', '200')]:
-                        node = OxmlElement(f'w:{margin_type}')
-                        node.set(qn('w:w'), margin_val)
-                        node.set(qn('w:type'), 'dxa')
-                        tc_mar.append(node)
-                    tc_pr.append(tc_mar)
-                except Exception as title_err:
-                    print(f"创建带方框的标题时出错: {title_err}")
-                    # 备用标题
-                    title_paragraph = doc.add_paragraph(paper_title)
-                    title_paragraph.style = doc.styles['Title Bold']
-                    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    title_run.font.size = Pt(20)
+                    title_paragraph.paragraph_format.space_before = Pt(10)
+                    title_paragraph.paragraph_format.space_after = Pt(20)
+            else:
+                # 添加标题（宋体，20磅，加粗，居中）
+                title_paragraph = doc.add_paragraph()
+                title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                title_run = title_paragraph.add_run(paper_title)
+                title_run.font.name = '宋体'
+                title_run.font.bold = True
+                title_run.font.size = Pt(20)
+                title_paragraph.paragraph_format.space_before = Pt(10)
+                title_paragraph.paragraph_format.space_after = Pt(20)
 
             # 3) 对题目按类型分组并添加章节标题
             try:
