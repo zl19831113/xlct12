@@ -1174,7 +1174,12 @@ def generate_paper():
                     title_paragraph = title_cell.paragraphs[0]
                     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     title_paragraph.style = doc.styles['Title Bold']
-                    title_paragraph.add_run(paper_title)
+                    title_run = title_paragraph.add_run(paper_title)
+                    title_run.bold = True
+                    title_run.font.size = Pt(15)
+                    
+                    # 设置单元格垂直居中
+                    title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                     
                     # 右侧单元格：二维码
                     qr_cell = header_table.cell(0, 1)
