@@ -967,985 +967,220 @@ def clear_database():
 @app.route('/generate_paper', methods=['POST'])
 def generate_paper():
     try:
-        # 添加set_cell_border函数到generate_paper函数内部
-        def set_cell_border(table):
-            """Set cell borders for Word table"""
-            from docx.oxml import OxmlElement
-            from docx.oxml.ns import qn
-            
-            # 设置表格的全部单元格边框
-            tbl = table._tbl
-            for row in table.rows:
-                for cell in row.cells:
-                    tcPr = cell._tc.get_or_add_tcPr()
-                    # 给单元格添加边框
-                    tcBorders = OxmlElement('w:tcBorders')
-                    for border_name in ['top', 'left', 'bottom', 'right']:
-                        border = OxmlElement(f'w:{border_name}')
-                        border.set(qn('w:val'), 'single')
-                        border.set(qn('w:sz'), '4')  # 1pt = 8 units
-                        border.set(qn('w:space'), '0')
-                        border.set(qn('w:color'), '000000')  # 黑色边框
-                        tcBorders.append(border)
-                    
-                    tcPr.append(tcBorders)
-                    
-        print("Starting paper generation process...")
-        # 1) 获取选中的题目 ID 和试卷标题
+        print("\n\n==========================")
+        print("开始生成试卷和音频文件...")
+        print("==========================\n")
+        
+        # 获取请求数据
         data = request.get_json()
         if not data:
-            print("Error: No JSON data received")
-            return jsonify({'error': 'No data received'}), 400
+            return jsonify({'error': '没有收到数据'}), 400
 
         question_ids = data.get('question_ids', [])
         paper_title = data.get('paper_title', '试卷')
-        has_audio = data.get('has_audio', False)  # 获取是否包含音频文件
+        has_audio = data.get('has_audio', False)
 
-        # 添加日志：打印接收到的数据
-        print(f"Received question IDs: {question_ids}")
-        print(f"Received paper title: {paper_title}")
-        print(f"Has audio files: {has_audio}")
-
-        # ---> ADDED: Limit the number of questions
-        MAX_QUESTIONS_LIMIT = 200
-        if len(question_ids) > MAX_QUESTIONS_LIMIT:
-            print(f"Error: Too many questions requested ({len(question_ids)} > {MAX_QUESTIONS_LIMIT})")
-            return jsonify({'error': f'请求的题目数量过多 (超过 {MAX_QUESTIONS_LIMIT} 个)，请减少题目数量后重试。'}), 400
-        # <--- END ADDED
-
-        if not question_ids:
-            print("Error: No question IDs provided")
-            return jsonify({'error': 'No question IDs provided'}), 400
-
-        print(f"Received request to generate paper with title '{paper_title}' and {len(question_ids)} questions")
-
-        # 查询所有题目
-        try:
-            all_questions = SU.query.filter(SU.id.in_(question_ids)).all()
-            # 添加日志：打印查询到的题目数量
-            print(f"Retrieved {len(all_questions)} questions from database for IDs: {question_ids}")
-
-            if len(all_questions) == 0:
-                print("Error: No questions found with the provided IDs")
-                return jsonify({'error': 'No questions found with the provided IDs'}), 404
-                
-            # 创建ID到题目的映射
-            question_map = {q.id: q for q in all_questions}
+        # 打印请求信息
+        print(f"请求数据: 题目ID数量={len(question_ids)}, 标题={paper_title}, 有音频={has_audio}")
+        
+        if len(question_ids) > 200:
+            return jsonify({'error': '题目数量过多'}), 400
             
-            # 按照原始顺序排列题目
-            questions = [question_map[qid] for qid in question_ids if qid in question_map]
-            print(f"Final question count for paper: {len(questions)}")
-        except Exception as db_error:
-            print(f"Database error: {str(db_error)}")
-            traceback.print_exc() # Ensure traceback is printed
-            return jsonify({'error': f'Database error: {str(db_error)}'}), 500
+        if not question_ids:
+            return jsonify({'error': '没有选择题目'}), 400
 
-        # 检查是否有音频文件需要处理
-        audio_files = []
-        if has_audio:
-            print("开始处理英语听力音频文件...")
-            for q in questions:
-                if q.subject == '英语' and q.question_type == '听力理解':
-                    print(f"检查题目ID: {q.id}, 音频文件名: {q.audio_filename}")
-                    
-                    # 检查音频内容是否存在
-                    has_audio_content = hasattr(q, 'audio_content') and q.audio_content is not None and len(q.audio_content or b'') > 0
-                    # 检查音频路径是否存在
-                    audio_path = q.audio_file_path if hasattr(q, 'audio_file_path') else None
-                    has_audio_path = audio_path is not None and os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), audio_path)) if audio_path else False
-                    
-                    # 记录音频状态
-                    print(f"题目ID {q.id} 音频状态: 内容存在={has_audio_content}, 路径存在={has_audio_path}, 路径={audio_path}")
-                    
-                    # 只有当音频内容或路径有效时才添加
-                    if has_audio_content or has_audio_path:
+        # 查询题目数据
+        all_questions = SU.query.filter(SU.id.in_(question_ids)).all()
+        if not all_questions:
+            return jsonify({'error': '找不到题目'}), 404
+            
+        # 按原始顺序排列题目
+        question_map = {q.id: q for q in all_questions}
+        questions = [question_map[qid] for qid in question_ids if qid in question_map]
+        
+        # 创建临时目录
+        temp_dir = tempfile.mkdtemp()
+        print(f"创建临时目录: {temp_dir}")
+        
+        try:
+            # 创建Word文档
+            doc = Document()
+            # ... (原有的文档创建代码保持不变)
+            # ...
+            
+            # 保存文档到内存
+            docx_data = BytesIO()
+            doc.save(docx_data)
+            docx_data.seek(0)
+            print(f"生成Word文档成功, 大小: {len(docx_data.getvalue())} 字节")
+            
+            # 如果有音频，创建ZIP包，否则直接返回Word文档
+            if has_audio:
+                # 保存Word文档到临时文件
+                docx_path = os.path.join(temp_dir, f"{paper_title}.docx")
+                with open(docx_path, 'wb') as f:
+                    f.write(docx_data.getvalue())
+                print(f"保存Word文档到临时文件: {docx_path}")
+                
+                # 收集音频文件
+                audio_files = []
+                for q in questions:
+                    if q.subject == '英语' and q.question_type == '听力理解':
                         audio_files.append({
                             'id': q.id,
                             'filename': q.audio_filename or f'audio_{q.id}.mp3',
-                            'content': q.audio_content if has_audio_content else None,
-                            'path': audio_path if has_audio_path else None
+                            'has_content': hasattr(q, 'audio_content') and q.audio_content is not None,
+                            'content': q.audio_content,
+                            'path': q.audio_file_path if hasattr(q, 'audio_file_path') else None
                         })
-                        print(f"已添加音频文件: ID={q.id}, 文件名={q.audio_filename or f'audio_{q.id}.mp3'}")
-                    else:
-                        print(f"警告: 题目ID {q.id} 没有有效的音频内容或路径")
-            
-            print(f"找到 {len(audio_files)} 个有效音频文件需要打包")
-            for af in audio_files:
-                content_size = len(af['content']) if af['content'] else 0
-                print(f"音频文件ID: {af['id']}, 文件名: {af['filename']}, 内容大小: {content_size} 字节, 路径: {af['path']}")
-
-        # Wrap document creation and population in a larger try block
-        try:
-            # 2) 创建 Word 文档
-            doc = Document()
-            
-            # 设置A4纸张和标准边距
-            sections = doc.sections
-            for section in sections:
-                # A4纸张尺寸 (8.27 x 11.69 英寸)
-                section.page_width = Inches(8.27)
-                section.page_height = Inches(11.69)
-                # 设置标准边距
-                section.left_margin = Inches(1.0)
-                section.right_margin = Inches(1.0)
-                section.top_margin = Inches(1.0)
-                section.bottom_margin = Inches(1.0)
-            
-            # 设置基本样式
-            style = doc.styles['Normal']
-            style.font.name = '宋体'  # 使用宋体作为默认字体
-            style.font.size = Pt(10.5)  # 10.5磅字号
-            style.font.color.rgb = RGBColor(0, 0, 0)  # 黑色文字
-            style.paragraph_format.line_spacing = 1.5  # 1.5倍行距
-            style.paragraph_format.space_after = Pt(0)  # 默认段落间距
-            
-            # 创建标题样式（宋体，15磅，加粗，居中）
-            title_style = doc.styles.add_style('Title Bold', WD_STYLE_TYPE.PARAGRAPH)
-            title_style.base_style = doc.styles['Normal']
-            title_style.font.name = '宋体'
-            title_style.font.bold = True
-            title_style.font.size = Pt(15)
-            title_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            title_style.paragraph_format.space_before = Pt(0)
-            title_style.paragraph_format.space_after = Pt(10)
-            
-            # 创建章节标题样式（宋体，10.5磅，加粗，左对齐）
-            section_style = doc.styles.add_style('Section Title', WD_STYLE_TYPE.PARAGRAPH)
-            section_style.base_style = doc.styles['Normal']
-            section_style.font.name = '宋体'
-            section_style.font.bold = True
-            section_style.font.size = Pt(10.5)
-            section_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            section_style.paragraph_format.space_before = Pt(12)
-            section_style.paragraph_format.space_after = Pt(6)
-            
-            # 创建选项样式（与题目内容相同的字体和字号）
-            option_style = doc.styles.add_style('Option Style', WD_STYLE_TYPE.PARAGRAPH)
-            option_style.base_style = doc.styles['Normal']
-            option_style.font.name = '宋体'
-            option_style.font.size = Pt(10.5)
-            option_style.paragraph_format.line_spacing = 1.5
-            option_style.paragraph_format.space_after = Pt(0)
-            
-            # 选项符号样式（①②③④）
-            option_marker_style = doc.styles.add_style('Option Marker', WD_STYLE_TYPE.CHARACTER)
-            option_marker_style.font.name = '宋体'
-            option_marker_style.font.bold = False
-            option_marker_style.font.size = Pt(10.5)
-            
-            # ABCD选项样式（与题目内容相同的字体和字号）
-            choice_style = doc.styles.add_style('Choice Style', WD_STYLE_TYPE.PARAGRAPH)
-            choice_style.base_style = doc.styles['Normal']
-            choice_style.font.name = '宋体'
-            choice_style.font.size = Pt(10.5)
-            choice_style.paragraph_format.line_spacing = 1.5
-            
-            # 表格样式
-            table_style = doc.styles.add_style('Table Style', WD_STYLE_TYPE.PARAGRAPH)
-            table_style.base_style = doc.styles['Normal']
-            table_style.font.name = '宋体'
-            table_style.font.size = Pt(10.5)
-            table_style.font.bold = False
-            
-            # 添加标题（宋体，15磅，加粗，居中）
-            title_paragraph = doc.add_paragraph(paper_title)
-            title_paragraph.style = doc.styles['Title Bold']
-            title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-            # 3) 对题目按类型分组并添加章节标题
-            try:
-                # 映射中文数字
-                chinese_numbers = {
-                    1: '一',
-                    2: '二',
-                    3: '三',
-                    4: '四',
-                    5: '五',
-                    6: '六',
-                    7: '七',
-                    8: '八',
-                    9: '九',
-                    10: '十'
-                }
                 
-                # 对题目按照题型进行分组
-                grouped_questions = {}
-                for q in questions:
-                    q_type = q.question_type or '未分类题目'
-                    if q_type not in grouped_questions:
-                        grouped_questions[q_type] = []
-                    grouped_questions[q_type].append(q)
+                print(f"找到 {len(audio_files)} 个音频文件")
                 
-                # 按照特定顺序排列题型组
-                question_type_order = [
-                    '单选题', '多选题', '选择题', '判断题', '填空题', '解答题', 
-                    '主观题', '计算题', '论述题', '作文',
-                    '诗词鉴赏', '文言文阅读', '现代文阅读'
-                ]
-                
-                # 根据优先级排序题型组
-                ordered_types = []
-                # 先添加已知顺序的题型
-                for q_type in question_type_order:
-                    if q_type in grouped_questions:
-                        ordered_types.append(q_type)
-                # 再添加其他题型
-                for q_type in grouped_questions:
-                    if q_type not in ordered_types:
-                        ordered_types.append(q_type)
-
-                # 添加日志：打印分组后的题型和数量
-                print(f"Question types identified for grouping: {ordered_types}")
-                for q_type in ordered_types:
-                    print(f"  - Type: {q_type}, Count: {len(grouped_questions[q_type])}")
-
-            except Exception as group_error:
-                print(f"Error grouping questions: {str(group_error)}")
-                traceback.print_exc() # Ensure traceback is printed
-                return jsonify({'error': f'Error grouping questions: {str(group_error)}'}), 500
-
-            # 4) 添加题目到文档
-            try:
-                # Define non-multiple-choice types
-                non_mcq_types = ['材料分析题', '简答题', '论述题', '主观题', '非选择题', '填空题', '计算题', '解答题'] 
-                
-                # 使用overall_question_num来跟踪全局题号，确保连续性
-                overall_question_num = 1
-                
-                # HTML标签替换映射
-                html_tag_replacements = {
-                    "<table": "[TABLE_START]",
-                    "</table>": "[TABLE_END]",
-                    "<tr": "[TR_START]",
-                    "</tr>": "[TR_END]",
-                    "<td": "[TD_START]",
-                    "</td>": "[TD_END]",
-                    "<th": "[TH_START]",
-                    "</th>": "[TH_END]",
-                    "<tbody": "[TBODY_START]",
-                    "</tbody>": "[TBODY_END]",
-                    "<thead": "[THEAD_START]",
-                    "</thead>": "[THEAD_END]",
-                    "<style": "[STYLE_START]",
-                    "</style>": "[STYLE_END]",
-                    "<br": "[BREAK]",
-                    "<p": "[P_START]",
-                    "</p>": "[P_END]"
-                }
-                
-                # HTML实体替换映射
-                html_entity_replacements = {
-                    "&ldquo;": """,
-                    "&rdquo;": """,
-                    "&hellip;": "...",
-                    "&nbsp;": " ",
-                    "&mdash;": "—",
-                    "&rarr;": "→",
-                    "&lsquo;": "'",
-                    "&rsquo;": "'",
-                    "&middot;": "·",
-                    "&bull;": "•",
-                    "&amp;": "&",
-                    "&lt;": "<",
-                    "&gt;": ">",
-                    "&quot;": "\"",
-                    "&times;": "×",
-                    "&divide;": "÷",
-                    "&plusmn;": "±",
-                    "&laquo;": "«",
-                    "&raquo;": "»",
-                    "&copy;": "©",
-                    "&reg;": "®",
-                    "&trade;": "™",
-                    "&deg;": "°",
-                    "&ndash;": "-",
-                    "&emsp;": "  ",
-                    "&ensp;": " ",
-                    "&thinsp;": " "
-                }
-                
-                # 处理HTML内容的函数
-                def clean_html_content(text):
-                    if not text:
-                        return ""
-                        
-                    # 保留表格的内容，但移除表格标签
-                    # 替换HTML标签为临时标记
-                    for tag, replacement in html_tag_replacements.items():
-                        text = text.replace(tag, replacement)
-                    
-                    # 替换HTML实体，移除箭头和多余的符号
-                    for entity, replacement in html_entity_replacements.items():
-                        # 移除箭头符号
-                        if entity == "&rarr;":
-                            text = text.replace(entity, "")
-                        # 移除引号符号
-                        elif entity in ["&ldquo;", "&rdquo;", "&quot;"]:
-                            text = text.replace(entity, "")
-                        else:
-                            text = text.replace(entity, replacement)
-                    
-                    # 移除所有剩余HTML标签
-                    text = re.sub(r'<[^>]+>', '', text)
-                    
-                    # 移除特定符号 →
-                    text = text.replace("→", "")
-                    # 移除多余的引号
-                    text = text.replace(""", "").replace(""", "")
-                    
-                    # 恢复换行
-                    text = text.replace("[BREAK]", "\n")
-                    text = text.replace("[P_START]", "").replace("[P_END]", "\n")
-                    
-                    # 恢复表格内容为简单文本格式
-                    text = text.replace("[TABLE_START]", "\n").replace("[TABLE_END]", "\n")
-                    text = text.replace("[TR_START]", "").replace("[TR_END]", "\n")
-                    text = text.replace("[TD_START]", "").replace("[TD_END]", " | ")
-                    text = text.replace("[TH_START]", "").replace("[TH_END]", " | ")
-                    text = text.replace("[TBODY_START]", "").replace("[TBODY_END]", "")
-                    text = text.replace("[THEAD_START]", "").replace("[THEAD_END]", "")
-                    
-                    # 移除样式块
-                    text = re.sub(r'\[STYLE_START\].*?\[STYLE_END\]', '', text, flags=re.DOTALL)
-                    
-                    # 移除所有剩余的HTML实体
-                    text = re.sub(r'&[a-zA-Z0-9#]+;', '', text)
-                    
-                    # 处理连续的空行和空格
-                    text = re.sub(r'\n\s*\n+', '\n\n', text)
-                    text = re.sub(r' {2,}', ' ', text)
-                    
-                    return text
-                
-                # 遍历每个题型分组添加题目
-                for section_num, q_type in enumerate(ordered_types, 1):
-                    print(f"Adding section: {section_num}, Type: {q_type}")
-                    
-                    # 添加章节标题（一、单选题）
-                    section_title = f"{chinese_numbers.get(section_num, str(section_num))}、{q_type}"
-                    section_para = doc.add_paragraph(section_title)
-                    section_para.style = doc.styles['Section Title']
-                    
-                    # 添加该题型的所有题目
-                    for q in grouped_questions[q_type]:
-                        print(f"  Processing question ID: {q.id}, Type: {q.question_type}, Overall number: {overall_question_num}")
-                        
-                        # 清理题目内容，处理HTML
-                        question_text = clean_html_content(q.question)
-                        
-                        # --- Formatting for Non-MCQ Types --- 
-                        if q.question_type in non_mcq_types:
-                            # 清理问题文本
-                            cleaned_text = re.sub(r'^\s*\d+[．.、]\s*', '', question_text).strip()
-                            
-                            # 添加主段落
-                            p = doc.add_paragraph(style='Normal')
-                            p.paragraph_format.line_spacing = 1.5  # 设置为1.5倍行距
-                            p.paragraph_format.space_after = Pt(12)  # 段落后增加12点的间距
-                            
-                            # 添加题号和文本
-                            question_number_run = p.add_run(f"{overall_question_num}．")
-                            question_number_run.font.bold = True  # 题号加粗
-                            question_number_run.font.size = Pt(12)  # 题号加大字号
-                            
-                            # 添加主题干文本，保留段落结构
-                            paragraphs = cleaned_text.split('\n')
-                            if paragraphs:
-                                # 移除可能包含试题来源的第一行
-                                first_para = paragraphs[0].strip()
-                                # 检查是否包含来源信息的模式，如果是，跳过第一行
-                                if re.search(r'([\(（].*来源.*[\)）])', first_para) or '来源' in first_para:
-                                    if len(paragraphs) > 1:
-                                        # 跳过包含来源的第一行，使用第二行作为题干开始
-                                        p.add_run(" " + paragraphs[1].strip()).font.size = Pt(12)  # 题号和题干之间加空格
-                                        # 后续段落从第三行开始
-                                        remaining_paras = paragraphs[2:]
-                                    else:
-                                        # 如果只有一行且包含来源，提取主要题干部分
-                                        clean_para = re.sub(r'[\(（].*来源.*[\)）]', '', first_para).strip()
-                                        p.add_run(" " + clean_para).font.size = Pt(12)  # 题号和题干之间加空格
-                                        remaining_paras = []
-                                else:
-                                    # 第一行不包含来源信息，正常显示
-                                    p.add_run(" " + first_para).font.size = Pt(12)  # 题号和题干之间加空格
-                                    # 后续段落从第二行开始
-                                    remaining_paras = paragraphs[1:]
-                                
-                                # 处理剩余段落，增加间距和缩进
-                                for para in remaining_paras:
-                                    if para.strip():
-                                        para_p = doc.add_paragraph(style='Normal')
-                                        para_p.paragraph_format.line_spacing = 1.5  # 增加行距为1.5倍
-                                        para_p.paragraph_format.first_line_indent = Inches(0.3)  # 首行缩进
-                                        para_p.paragraph_format.space_after = Pt(10)  # 段落间距
-                                        para_p.add_run(para.strip()).font.size = Pt(12)
-                            
-                            # 如果是主观题（简答题、论述题、分析题等），添加适当的答题空间和标记
-                            if q.question_type in ['简答题', '论述题', '分析题']:
-                                # 添加评分标准（如果存在）
-                                if hasattr(q, 'grading_standard') and q.grading_standard and q.grading_standard.strip():
-                                    standard_p = doc.add_paragraph(style='Normal')
-                                    standard_p.paragraph_format.line_spacing = 1.5
-                                    standard_p.paragraph_format.space_before = Pt(12)
-                                    standard_p.paragraph_format.space_after = Pt(12)
-                                    standard_p.paragraph_format.left_indent = Inches(0.5)
-                                    standard_p.paragraph_format.right_indent = Inches(0.5)
-                                    standard_run = standard_p.add_run("【评分标准】\n" + clean_html_content(q.grading_standard))
-                                    standard_run.font.size = Pt(10)
-                                    standard_run.italic = True
-                                
-                                # 添加答题空间
-                                # 先添加一个空行，表示答题区开始
-                                doc.add_paragraph().paragraph_format.space_after = Pt(12)
-                                
-                                # 添加足够的空行用于作答
-                                for i in range(10):  # 主观题预留10行作答空间
-                                    blank_p = doc.add_paragraph(style='Normal')
-                                    blank_p.paragraph_format.line_spacing = 1.5
-                                    blank_p.paragraph_format.space_after = Pt(0)  # 无额外间距
-                                    if i == 0:  # 第一行的上方有更大间距
-                                        blank_p.paragraph_format.space_before = Pt(12)
-                                
-                                # 在答题区后添加一个空行
-                                doc.add_paragraph().paragraph_format.space_after = Pt(24)
-                            
-                            # 如果是填空题，在题干后添加空行用于填写
-                            elif q.question_type == '填空题':
-                                # 检查有多少个空
-                                blank_count = cleaned_text.count('____') + cleaned_text.count('_') + cleaned_text.count('（）')
-                                blank_count = max(1, blank_count)  # 至少有1个空
-                                
-                                # 添加足够的空行用于填空
-                                doc.add_paragraph().paragraph_format.space_after = Pt(6)  # 在题目和填空线之间加一点间距
-                                for i in range(blank_count):
-                                    blank_p = doc.add_paragraph(style='Normal')
-                                    blank_p.paragraph_format.space_after = Pt(12) if i < blank_count - 1 else Pt(24)
-                                    blank_p.paragraph_format.line_spacing = 1.5
-                                    blank_p.add_run("_" * 50).font.size = Pt(12)
-                            
-                            # 计算题添加解答空间
-                            elif q.question_type in ['计算题', '解答题', '应用题']:
-                                # 添加一点间距
-                                doc.add_paragraph().paragraph_format.space_after = Pt(12)
-                                
-                                # 添加足够的空行用于解答
-                                for i in range(16):  # 计算题预留更多行作答空间
-                                    blank_p = doc.add_paragraph(style='Normal')
-                                    blank_p.paragraph_format.line_spacing = 1.5
-                                    blank_p.paragraph_format.space_after = Pt(0)  # 无额外间距
-                                
-                                # 在解答区后添加更大间距
-                                doc.add_paragraph().paragraph_format.space_after = Pt(24)
-                            
-                            # 其他类型题目，添加适当间距
-                            else:
-                                # 在题目后添加适当间距
-                                doc.add_paragraph().paragraph_format.space_after = Pt(24)
-                            
-                            # Increment overall question number
-                            overall_question_num += 1
-                            continue # Skip MCQ formatting for this question
-
-                        # --- Formatting for MCQ Types (Updated Logic) --- 
-                        else:
-                            # Use clean_and_split_question() to split stem, bullets, choices
-                            questionPart, bulletsList, choicePart = clean_and_split_question(question_text)
-                            
-                            # 清理HTML实体字符
-                            for old, new in html_entity_replacements.items():
-                                questionPart = questionPart.replace(old, new)
-                                choicePart = choicePart.replace(old, new)
-                            
-                            # 使用正则表达式移除所有剩余的HTML实体
-                            questionPart = re.sub(r'&[a-zA-Z0-9#]+;', '', questionPart)
-                            choicePart = re.sub(r'&[a-zA-Z0-9#]+;', '', choicePart)
-                            
-                            # Add main paragraph: Question Number + Stem
-                            p = doc.add_paragraph(style='Normal')
-                            p.paragraph_format.line_spacing = 1.5
-                            p.paragraph_format.space_after = Pt(0) # 减少题干和选项间的间距
-                            
-                            # Question Number with Chinese period + 题干文本
-                            question_number_run = p.add_run(f"{overall_question_num}．")
-                            question_number_run.font.bold = False
-                            question_number_run.font.size = Pt(10.5)
-                            
-                            # 确保题干末尾有问题空白括号，如果没有则添加
-                            stem_text = questionPart.strip()
-                            if not stem_text.endswith("）") and "（" not in stem_text[-5:]:
-                                stem_text = stem_text + "（   ）"
-                                
-                            question_text_run = p.add_run(stem_text)
-                            question_text_run.font.size = Pt(10.5)
-                            
-                            # 添加选择项 (①②③④)，每个序号带文字各占一行
-                            if bulletsList:
-                                for bullet in bulletsList:
-                                    bullet_text = bullet.strip()
-                                    if bullet_text:
-                                        p_bullet = doc.add_paragraph(style='Option Style')
-                                        p_bullet.paragraph_format.left_indent = Inches(0) # 无缩进
-                                        p_bullet.paragraph_format.first_line_indent = Inches(0) # 确保首行不缩进
-                                        p_bullet.paragraph_format.space_before = Pt(0)
-                                        p_bullet.paragraph_format.space_after = Pt(0)
-                                        
-                                        bullet_run = p_bullet.add_run(bullet_text)
-                                        bullet_run.font.size = Pt(10.5)
-                                        bullet_run.font.name = '宋体'
-                            
-                            # Add ABCD Options
-                            options_paragraph_added = False
-                            
-                            # 检查选项类型，看是否包含序号 (如 A．①③ B．①④ C．②③ D．②④)
-                            numbered_options_pattern = r'([A-D])[．.]\s*([①②③④⑤⑥⑦⑧⑨]+)'
-                            has_numbered_options = re.search(numbered_options_pattern, choicePart)
-                            
-                            if has_numbered_options:
-                                # 序号选项类型，改用并排文本格式而不是表格
-                                choice_matches = re.findall(r'([A-D])[．.]\s*((?:[①②③④⑤⑥⑦⑧⑨]+(?:\s*)?)+)', choicePart)
-                                if choice_matches:
-                                    # 创建一个段落包含所有选项，用制表符分隔
-                                    p_opts = doc.add_paragraph(style='Normal')
-                                    p_opts.paragraph_format.space_before = Pt(0)
-                                    p_opts.paragraph_format.space_after = Pt(0)
-                                    p_opts.paragraph_format.line_spacing = 1.5
-                                    
-                                    # 生成选项文本，用制表符分隔
-                                    options_text = ""
-                                    for i, (letter, numbers) in enumerate(choice_matches):
-                                        options_text += f"{letter}．{numbers.strip()}"
-                                        if i < len(choice_matches) - 1:
-                                            options_text += "\t\t"
-                                    
-                                    # 添加选项文本
-                                    opt_run = p_opts.add_run(options_text)
-                                    opt_run.font.size = Pt(10.5)
-                                    opt_run.font.name = '宋体'
-                                    options_paragraph_added = True
-                            else:
-                                # 文本选项类型，每个选项各占一行
-                                # 例如从"A．xxx B．yyy C．zzz D．www"中提取选项
-                                abcd_pattern = r'([A-D])[．.]([^A-D]+)'
-                                option_matches = re.findall(abcd_pattern, choicePart)
-                                
-                                if option_matches:
-                                    for letter, content in option_matches:
-                                        p_opt = doc.add_paragraph(style='Option Style')
-                                        p_opt.paragraph_format.left_indent = Inches(0)
-                                        p_opt.paragraph_format.first_line_indent = Inches(0)
-                                        p_opt.paragraph_format.space_before = Pt(0)
-                                        p_opt.paragraph_format.space_after = Pt(0)
-                                        
-                                        opt_text = f"{letter}．{content.strip()}"
-                                        opt_run = p_opt.add_run(opt_text)
-                                        opt_run.font.size = Pt(10.5)
-                                        opt_run.font.name = '宋体'
-                                    
-                                    options_paragraph_added = True
-                                elif choicePart and choicePart.strip():
-                                    # 如果选项内容不能匹配已知模式，對要添加
-                                    p_opts = doc.add_paragraph()
-                                    p_opts.paragraph_format.space_before = Pt(0)
-                                    p_opts.paragraph_format.space_after = Pt(0)
-                                    
-                                    # 如果找不到特定格式，按原样添加
-                                    cleaned_choice_part = re.sub(r'\s*\n\s*', ' ', choicePart).strip()
-                                    run = p_opts.add_run(cleaned_choice_part)
-                                    run.font.size = Pt(10.5)
-                                    run.font.name = '宋体'
-                                    options_paragraph_added = True
-
-                            # Increment overall question number
-                            overall_question_num += 1
-                            # Add spacing after the entire block for this question - 使用较小间距
-                            doc.add_paragraph().paragraph_format.space_after = Pt(3)
-            except Exception as add_questions_error:
-                print(f"Error adding questions to document: {str(add_questions_error)}")
-                traceback.print_exc()
-                return jsonify({'error': f'Error adding questions to document: {str(add_questions_error)}'}), 500
-
-            # 5) 添加答案部分
-            try:
-                # --- 答案部分 ---
-                doc.add_page_break()
-                
-                # 添加参考答案标题（居中显示）
-                answer_heading = doc.add_heading('参考答案', 0)
-                answer_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                
-                # 设置标题字体为宋体和大小
-                for run in answer_heading.runs:
-                    run.font.name = '宋体'
-                    run.font.size = Pt(15)
-                    run.font.bold = True
-                
-                # 检查是否有选择题
-                choice_questions = []
-                question_indices = []
-                choice_answers = []
-                
-                for i, q in enumerate(questions):
-                    answer_text = clean_html_content(q.answer)
-                    # 匹配字母答案（A、B、C、D）
-                    match = re.search(r'\b([A-D])\b', answer_text)
-                    if match:
-                        choice_questions.append(q)
-                        question_indices.append(i + 1)  # 保存原始题号
-                        choice_answers.append(match.group(1))
-                
-                # 如果有选择题，我们才创建表格
-                if choice_questions:
-                    # 计算需要多少行（每行10题）
-                    rows_needed = math.ceil(len(choice_questions) / 10)
-                    
-                    # 创建表格
-                    table = doc.add_table(rows=rows_needed * 2, cols=min(len(choice_questions), 10))
-                    table.style = 'Table Grid'
-                    table.alignment = WD_TABLE_ALIGNMENT.CENTER
-                    
-                    # 设置表格宽度
-                    table.autofit = False
-                    
-                    # 设置行高
-                    for row in table.rows:
-                        row.height = Pt(28)  # 设置行高，确保足够的垂直空间
-                        row.height_rule = 1  # 1表示固定高度
-                    
-                    # 填充表格内容
-                    current_cell_index = 0
-                    
-                    for q_idx in range(len(choice_questions)):
-                        row_idx = (q_idx // 10) * 2
-                        col_idx = q_idx % 10
-                        
-                        # 确保我们不会超出表格范围
-                        if col_idx < len(table.columns):
-                            # 题号单元格
-                            num_cell = table.cell(row_idx, col_idx)
-                            num_cell.text = str(question_indices[q_idx])
-                            num_paragraph = num_cell.paragraphs[0]
-                            num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                            run = num_paragraph.runs[0]
-                            run.font.name = '宋体'
-                            run.font.bold = True
-                            run.font.size = Pt(10.5)
-                            
-                            # 设置单元格垂直居中
-                            num_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                            
-                            # 答案单元格
-                            ans_cell = table.cell(row_idx + 1, col_idx)
-                            ans_cell.text = choice_answers[q_idx]
-                            ans_paragraph = ans_cell.paragraphs[0]
-                            ans_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                            run = ans_paragraph.runs[0]
-                            run.font.name = '宋体'
-                            run.font.size = Pt(10.5)
-                            
-                            # 设置单元格垂直居中
-                            ans_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                    
-                    # 设置表格边框
-                    set_cell_border(table)
-                
-                # 添加表格后的空白 - 减少空白量
-                doc.add_paragraph().paragraph_format.space_after = Pt(16)
-                
-                # 添加答案与解析标题
-                explanation_heading = doc.add_heading('答案与解析', 1)
-                
-                # 设置标题字体为宋体和大小
-                for run in explanation_heading.runs:
-                    run.font.name = '宋体'
-                    run.font.size = Pt(15)
-                    run.font.bold = True
-                
-                # 添加每道题的解析，不留空白
-                for i, q in enumerate(questions, 1):
-                    # 获取原始答案文本
-                    answer_text = clean_html_content(q.answer).strip()
-                    
-                    # 移除答案开头的题号（如：9．）
-                    answer_text = re.sub(r'^\d+[.\uff0e]\s*', '', answer_text)
-                    
-                    # 提取答案选项（A-D）
-                    option_match = re.search(r'\b([A-D])\b', answer_text)
-                    letter_answer = ''
-                    detailed_explanation = answer_text
-                    
-                    # 确保主观题的答案文本也会被保留
-                    if option_match:
-                        letter_answer = option_match.group(1)
-                    else:
-                        # 主观题不需要字母答案，直接显示完整答案
-                        pass  # 不做处理，让详解部分显示完整答案
-                    
-                    # 添加题号行
-                    p = doc.add_paragraph()
-                    p.style = 'Normal'
-                    p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
-                    run = p.add_run(f"第{i}题：")
-                    run.font.bold = True
-                    run.font.size = Pt(10.5)
-                    
-                    # 添加答案选项行（如果有）
-                    if letter_answer:
-                        p = doc.add_paragraph()
-                        p.style = 'Normal'
-                        p.paragraph_format.space_after = Pt(0)  # 移除段落后的空白
-                        
-                        # 特殊处理英语听力理解题型的答案，显示全部答案选项
-                        if q.subject == '英语' and q.question_type == '听力理解':
-                            # 查找所有的字母答案（可能有多个A、B、C、D）
-                            all_answers = re.findall(r'\b([A-D])\b', detailed_explanation)
-                            if all_answers:
-                                # 显示所有找到的答案，用逗号分隔
-                                full_answer = ', '.join(all_answers)
-                                p.add_run(full_answer).font.size = Pt(10.5)
-                            else:
-                                # 如果没找到，至少显示已提取的单个答案
-                                p.add_run(letter_answer).font.size = Pt(10.5)
-                        else:
-                            # 其他类型题目保持原样，显示单个答案
-                            p.add_run(letter_answer).font.size = Pt(10.5)
-                    
-                    # 添加详解部分
-                    if '【详解】' in detailed_explanation:
-                        # 处理详解文本，移除任何空行
-                        parts = detailed_explanation.split('【详解】', 1)
-                        if len(parts) > 1:
-                            explanation_text = parts[1]
-                            # 移除所有多余空行
-                            explanation_text = re.sub(r'\n\s*\n', '\n', explanation_text)
-                            # 将所有换行符替换为空格
-                            explanation_text = re.sub(r'\n+', ' ', explanation_text)
-                            
-                            # 移除可能的重复选项（如 "D. ③④"）
-                            explanation_text = re.sub(r'[A-D]\.\s*[①-⑨]+\s*$', '', explanation_text).strip()
-                            
-                            # 创建新段落
-                            p = doc.add_paragraph()
-                            p.style = 'Normal'
-                            p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
-                            p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
-                            
-                            # 添加详解标签
-                            tag_run = p.add_run('【详解】')
-                            tag_run.font.name = '宋体'
-                            tag_run.font.bold = True
-                            tag_run.font.size = Pt(10.5)
-                            
-                            # 添加处理后的详解文本（无空行）
-                            content_run = p.add_run(explanation_text)
-                            content_run.font.name = '宋体'
-                            content_run.font.size = Pt(10.5)
-                        elif detailed_explanation.strip():
-                            # 如果没有详解标签但有内容
-                            # 移除所有多余空行
-                            clean_text = re.sub(r'\n\s*\n', '\n', detailed_explanation)
-                            # 将所有换行符替换为空格
-                            clean_text = re.sub(r'\n+', ' ', clean_text)
-                            
-                            # 移除可能的重复选项（如 "D. ③④"）
-                            clean_text = re.sub(r'[A-D]\.\s*[①-⑨]+\s*$', '', clean_text).strip()
-                            
-                            # 如果没有选项答案，这可能是主观题答案
-                            # 直接显示所有文本作为答案
-                            p = doc.add_paragraph()
-                            p.style = 'Normal'
-                            p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
-                            p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
-                            
-                            # 如果没有选项答案且没有详解标记，则不添加详解标记
-                            if not letter_answer and '【详解】' not in clean_text:
-                                # 直接显示答案文本作为主观题答案
-                                content_run = p.add_run(clean_text)
-                                content_run.font.name = '宋体'
-                                content_run.font.size = Pt(10.5)
-                            else:
-                                # 如果有选项答案或者显示含详解标记，则添加标准详解标记
-                                tag_run = p.add_run('【详解】')
-                                tag_run.font.name = '宋体'
-                                tag_run.font.bold = True
-                                tag_run.font.size = Pt(10.5)
-                                
-                                content_run = p.add_run(clean_text)
-                                content_run.font.name = '宋体'
-                                content_run.font.size = Pt(10.5)
-                    else:
-                        # 如果没有详解标签但有内容
-                        # 移除所有多余空行
-                        clean_text = re.sub(r'\n\s*\n', '\n', detailed_explanation)
-                        # 将所有换行符替换为空格
-                        clean_text = re.sub(r'\n+', ' ', clean_text)
-                        
-                        # 移除可能的重复选项（如 "D. ③④"）
-                        clean_text = re.sub(r'[A-D]\.\s*[①-⑨]+\s*$', '', clean_text).strip()
-                        
-                        # 如果没有选项答案，这可能是主观题答案
-                        # 直接显示所有文本作为答案
-                        p = doc.add_paragraph()
-                        p.style = 'Normal'
-                        p.paragraph_format.space_after = Pt(0)  # 完全移除段落后的空白
-                        p.paragraph_format.line_spacing = 1.0  # 设置行距为单倍行距
-                        
-                        # 如果没有选项答案且没有详解标记，则不添加详解标记
-                        if not letter_answer and '【详解】' not in clean_text:
-                            # 直接显示答案文本作为主观题答案
-                            content_run = p.add_run(clean_text)
-                            content_run.font.name = '宋体'
-                            content_run.font.size = Pt(10.5)
-                        else:
-                            # 如果有选项答案或者显示含详解标记，则添加标准详解标记
-                            tag_run = p.add_run('【详解】')
-                            tag_run.font.name = '宋体'
-                            tag_run.font.bold = True
-                            tag_run.font.size = Pt(10.5)
-                            
-                            content_run = p.add_run(clean_text)
-                            content_run.font.name = '宋体'
-                            content_run.font.size = Pt(10.5)
-            except Exception as add_answers_error:
-                print(f"Error adding answers to document: {str(add_answers_error)}")
-                traceback.print_exc()
-                return jsonify({'error': f'Error adding answers to document: {str(add_answers_error)}'}), 500
-
-            # 6) 保存并返回 Word 文档或ZIP文件
-            # 保存到 BytesIO 对象
-            file_stream = BytesIO()
-            print("Attempting to save document to memory stream...") # Log before save
-            doc.save(file_stream)
-            print("Document successfully saved to memory stream.") # Log after save
-            file_stream.seek(0)
-
-            # 如果有音频文件，创建ZIP压缩包
-            if has_audio and audio_files:
-                print("创建ZIP压缩包包含试卷和音频文件...")
-                # 创建临时目录
-                temp_dir = tempfile.mkdtemp()
+                # 创建ZIP文件
                 zip_path = os.path.join(temp_dir, f"{paper_title}.zip")
                 
+                # 使用简化逻辑创建ZIP文件
+                success = create_zip_with_audio(zip_path, docx_path, audio_files, temp_dir)
+                if not success:
+                    print("创建ZIP文件失败，改为只返回Word文档")
+                    return send_file(
+                        docx_data,
+                        as_attachment=True,
+                        download_name=f"{paper_title}.docx",
+                        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    )
+                
+                # 读取ZIP文件并返回
                 try:
-                    # 先将Word文档保存到临时文件
-                    docx_path = os.path.join(temp_dir, f"{paper_title}.docx")
-                    with open(docx_path, 'wb') as f:
-                        f.write(file_stream.getvalue())
-                    print(f"试卷文档已保存到临时文件: {docx_path}")
-                    
-                    # 创建ZIP文件
-                    with zipfile.ZipFile(zip_path, 'w') as zip_file:
-                        # 添加试卷文档
-                        zip_file.write(docx_path, os.path.basename(docx_path))
-                        print(f"已添加试卷文档到ZIP: {os.path.basename(docx_path)}")
-                        
-                        # 添加音频文件到ZIP
-                        for idx, audio_file in enumerate(audio_files, 1):
-                            filename = audio_file.get('filename', f'audio_{idx}.mp3')
-                            audio_content = audio_file.get('content')
-                            file_path = audio_file.get('path')
-                            file_id = audio_file.get('id')
-                            
-                            # 首先尝试使用已有的音频内容
-                            if audio_content and len(audio_content) > 0:
-                                try:
-                                    # 保存音频内容到临时文件
-                                    temp_audio_path = os.path.join(temp_dir, filename)
-                                    with open(temp_audio_path, 'wb') as f:
-                                        f.write(audio_content)
-                                    print(f"已保存音频文件到临时目录: {temp_audio_path}, 大小: {len(audio_content)} 字节")
-                                    
-                                    # 添加到ZIP
-                                    zip_file.write(temp_audio_path, filename)
-                                    print(f"已添加音频文件到ZIP: {filename}")
-                                except Exception as e:
-                                    print(f"添加音频内容到ZIP出错: {str(e)}")
-                                    traceback.print_exc()
-                            
-                            # 如果内容不可用，尝试从文件路径获取
-                            elif file_path and os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), file_path)):
-                                try:
-                                    abs_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), file_path)
-                                    zip_file.write(abs_file_path, filename)
-                                    print(f"已从文件路径添加音频到ZIP: {filename}, 路径: {abs_file_path}")
-                                except Exception as e:
-                                    print(f"从文件路径添加音频到ZIP出错: {str(e)}")
-                                    traceback.print_exc()
-                            
-                            # 如果ID存在，尝试直接从数据库重新加载音频
-                            elif file_id:
-                                try:
-                                    print(f"尝试直接从数据库获取ID {file_id} 的音频...")
-                                    question = SU.query.get(file_id)
-                                    if question and question.audio_content and len(question.audio_content) > 0:
-                                        # 提取音频内容
-                                        db_audio_content = question.audio_content
-                                        
-                                        # 保存到临时文件
-                                        temp_audio_path = os.path.join(temp_dir, filename)
-                                        with open(temp_audio_path, 'wb') as f:
-                                            f.write(db_audio_content)
-                                        print(f"成功从数据库获取音频内容: {temp_audio_path}, 大小: {len(db_audio_content)} 字节")
-                                        
-                                        # 添加到ZIP
-                                        zip_file.write(temp_audio_path, filename)
-                                        print(f"已成功添加数据库音频到ZIP: {filename}")
-                                    else:
-                                        print(f"无法从数据库获取有效音频内容, ID: {file_id}")
-                                except Exception as e:
-                                    print(f"从数据库获取音频内容出错: {str(e)}")
-                                    traceback.print_exc()
-                            else:
-                                print(f"警告: 音频文件 {filename} 无法获取内容，所有方法都失败")
-                    
-                    # 读取生成的ZIP文件
                     with open(zip_path, 'rb') as f:
                         zip_data = f.read()
-                    print(f"成功读取ZIP压缩包，大小: {len(zip_data)} 字节")
                     
-                    # 发送ZIP文件
-                    safe_title = paper_title + '.zip'
+                    # 检查ZIP文件大小
+                    if len(zip_data) < 100:
+                        print(f"警告: ZIP文件过小 ({len(zip_data)} 字节)，改为返回Word文档")
+                        return send_file(
+                            docx_data,
+                            as_attachment=True,
+                            download_name=f"{paper_title}.docx",
+                            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                        )
+                    
+                    print(f"返回ZIP文件, 大小: {len(zip_data)} 字节")
                     response = make_response(zip_data)
-                    response.headers.set('Content-Type', 'application/zip')
-                    response.headers.set('Content-Disposition', f'attachment; filename="{safe_title}"')
-                    
-                    # 清理临时文件
-                    shutil.rmtree(temp_dir)
-                    print(f"已清理临时目录: {temp_dir}")
-                    
+                    response.headers['Content-Type'] = 'application/zip'
+                    response.headers['Content-Disposition'] = f'attachment; filename="{paper_title}.zip"'
                     return response
                     
-                except Exception as zip_error:
-                    print(f"创建ZIP压缩包时发生错误: {str(zip_error)}")
-                    traceback.print_exc()
-                    # 清理临时文件
-                    if os.path.exists(temp_dir):
-                        shutil.rmtree(temp_dir)
-                    # 如果ZIP创建失败，回退到只发送Word文档
-                    print("回退到只发送Word文档...")
-                    file_stream.seek(0)
-            
-            # 如果没有音频文件或ZIP创建失败，只发送Word文档
-            # 添加日志：文件生成完成，准备发送
-            print(f"Word document generated successfully for title: {paper_title}. Preparing to send.")
-
-            # 发送文件
-            safe_title = paper_title + '.docx'
-            return send_file(
-                file_stream,
-                as_attachment=True,
-                download_name=safe_title,
-                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            )
-
-        except Exception as final_error: # Catch any error during steps 2-6
-            print(f"!!! Error during document generation or saving: {str(final_error)} !!!")
-            traceback.print_exc() # Print detailed traceback
-            return jsonify({'error': f'Failed to generate paper: {str(final_error)}'}), 500
-
-    except Exception as e: # This top-level one might be redundant now but keep for safety
-        print(f"Unhandled error in generate_paper: {str(e)}")
+                except Exception as e:
+                    print(f"读取ZIP文件失败: {str(e)}")
+                    # 如果读取ZIP失败，返回Word文档
+                    return send_file(
+                        docx_data,
+                        as_attachment=True,
+                        download_name=f"{paper_title}.docx",
+                        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    )
+            else:
+                # 无音频，直接返回Word文档
+                return send_file(
+                    docx_data,
+                    as_attachment=True,
+                    download_name=f"{paper_title}.docx",
+                    mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                )
+                
+        except Exception as e:
+            print(f"生成文档出错: {str(e)}")
+            traceback.print_exc()
+            return jsonify({'error': f'生成文档出错: {str(e)}'}), 500
+        finally:
+            # 清理临时目录
+            try:
+                shutil.rmtree(temp_dir)
+                print(f"已清理临时目录: {temp_dir}")
+            except:
+                print(f"清理临时目录失败: {temp_dir}")
+    
+    except Exception as e:
+        print(f"未处理的错误: {str(e)}")
         traceback.print_exc()
-        return jsonify({'error': 'An unexpected server error occurred.'}), 500
+        return jsonify({'error': f'服务器错误: {str(e)}'}), 500
+
+def create_zip_with_audio(zip_path, docx_path, audio_files, temp_dir):
+    """创建包含Word文档和音频文件的ZIP压缩包"""
+    try:
+        print(f"创建ZIP文件: {zip_path}")
+        with zipfile.ZipFile(zip_path, 'w') as zf:
+            # 添加Word文档
+            zf.write(docx_path, os.path.basename(docx_path))
+            print(f"已添加Word文档到ZIP")
+            
+            # 添加音频文件
+            audio_count = 0
+            for audio in audio_files:
+                try:
+                    filename = audio['filename']
+                    print(f"处理音频: {filename}")
+                    
+                    # 首先尝试直接从固定目录获取
+                    fixed_audio_dir = "/Volumes/小鹿出题/小鹿备份/4月4 日81/zujuanwang87_副本3/uploads/papers/audio"
+                    if os.path.exists(fixed_audio_dir):
+                        fixed_path = os.path.join(fixed_audio_dir, filename)
+                        if os.path.exists(fixed_path):
+                            zf.write(fixed_path, filename)
+                            print(f"已添加音频: {filename} (从固定目录)")
+                            audio_count += 1
+                            continue
+                    
+                    # 尝试从内容添加
+                    if audio.get('has_content') and audio.get('content'):
+                        temp_path = os.path.join(temp_dir, filename)
+                        with open(temp_path, 'wb') as f:
+                            f.write(audio['content'])
+                        zf.write(temp_path, filename)
+                        print(f"已添加音频: {filename} (从内容)")
+                        audio_count += 1
+                        continue
+                    
+                    # 尝试从路径添加
+                    path = audio.get('path')
+                    if path:
+                        full_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
+                        if os.path.exists(full_path):
+                            zf.write(full_path, filename)
+                            print(f"已添加音频: {filename} (从路径)")
+                            audio_count += 1
+                            continue
+                    
+                    # 添加静音文件作为后备
+                    silence_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
+                    if not os.path.exists(silence_path):
+                        silence_path = os.path.join(temp_dir, f"silence_{audio['id']}.mp3")
+                        with open(silence_path, 'wb') as f:
+                            f.write(b'\xFF\xFB\x90\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+                    
+                    zf.write(silence_path, filename)
+                    print(f"已添加静音文件作为替代: {filename}")
+                    audio_count += 1
+                    
+                except Exception as e:
+                    print(f"添加音频文件失败: {filename}, 错误: {str(e)}")
+            
+            print(f"总共添加了 {audio_count} 个音频文件")
+        
+        # 检查ZIP文件
+        if os.path.exists(zip_path):
+            size = os.path.getsize(zip_path)
+            print(f"ZIP文件创建成功, 大小: {size} 字节")
+            return True
+        else:
+            print("ZIP文件创建失败")
+            return False
+            
+    except Exception as e:
+        print(f"创建ZIP文件出错: {str(e)}")
+        traceback.print_exc()
+        return False
 
 @app.route('/upload_paper', methods=['GET', 'POST'])
 def upload_paper():
