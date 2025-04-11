@@ -2779,6 +2779,61 @@ def get_audio(id):
             else:
                 print(f"音频文件路径存在但文件不存在: {audio_path}")
         
+        # 尝试从用户指定的固定路径查找
+        if hasattr(record, 'audio_filename') and record.audio_filename:
+            filename = record.audio_filename
+            fixed_audio_dir = "/Volumes/小鹿出题/小鹿备份/4月4 日81/zujuanwang87_副本3/uploads/papers/audio"
+            
+            if os.path.exists(fixed_audio_dir):
+                # 先尝试直接匹配文件名
+                fixed_path = os.path.join(fixed_audio_dir, filename)
+                if os.path.exists(fixed_path):
+                    print(f"从固定路径发送音频: {fixed_path}")
+                    return send_file(
+                        fixed_path,
+                        mimetype='audio/mpeg',
+                        as_attachment=False,
+                        download_name=filename
+                    )
+                    
+                # 尝试通过ID查找
+                id_matches = glob.glob(os.path.join(fixed_audio_dir, f"*{id}*.mp3"))
+                if id_matches:
+                    print(f"从固定路径按ID匹配发送音频: {id_matches[0]}")
+                    return send_file(
+                        id_matches[0],
+                        mimetype='audio/mpeg',
+                        as_attachment=False,
+                        download_name=filename
+                    )
+                
+                # 尝试通过听力类型匹配
+                if "听短对话" in filename or "dialog" in filename.lower():
+                    dialog_matches = glob.glob(os.path.join(fixed_audio_dir, "*dialog*.mp3")) + glob.glob(os.path.join(fixed_audio_dir, "*对话*.mp3"))
+                    if dialog_matches:
+                        print(f"从固定路径按对话类型匹配发送音频: {dialog_matches[0]}")
+                        return send_file(
+                            dialog_matches[0],
+                            mimetype='audio/mpeg',
+                            as_attachment=False,
+                            download_name=filename
+                        )
+                        
+                if "听短文" in filename or "passage" in filename.lower():
+                    passage_matches = glob.glob(os.path.join(fixed_audio_dir, "*passage*.mp3")) + glob.glob(os.path.join(fixed_audio_dir, "*短文*.mp3"))
+                    if passage_matches:
+                        print(f"从固定路径按短文类型匹配发送音频: {passage_matches[0]}")
+                        return send_file(
+                            passage_matches[0],
+                            mimetype='audio/mpeg',
+                            as_attachment=False,
+                            download_name=filename
+                        )
+                        
+                print(f"在固定路径中未找到匹配的音频文件: {fixed_audio_dir}")
+            else:
+                print(f"指定的固定音频目录不存在: {fixed_audio_dir}")
+        
         # 无音频情况下返回一个静态MP3作为替代(防止404)
         default_audio_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
         
@@ -3097,6 +3152,15 @@ def package_audio_files():
         temp_dir = tempfile.mkdtemp()
         zip_path = os.path.join(temp_dir, f"{paper_title}_听力音频.zip")
         
+        # 用户指定的固定音频目录
+        fixed_audio_dir = "/Volumes/小鹿出题/小鹿备份/4月4 日81/zujuanwang87_副本3/uploads/papers/audio"
+        has_fixed_dir = os.path.exists(fixed_audio_dir)
+        
+        if has_fixed_dir:
+            print(f"找到固定音频目录: {fixed_audio_dir}")
+        else:
+            print(f"固定音频目录不存在: {fixed_audio_dir}")
+        
         # 创建ZIP文件
         with zipfile.ZipFile(zip_path, 'w') as zip_file:
             # 添加每个音频文件到ZIP
@@ -3105,9 +3169,14 @@ def package_audio_files():
                 filename = audio_file.get('filename', f'audio_{idx}.mp3')
                 file_path = audio_file.get('path')
                 
-                # 从数据库查询音频内容
+                print(f"正在处理音频文件 {idx}/{len(audio_files)}: ID={file_id}, 文件名={filename}")
+                
+                # 从各种来源尝试获取音频内容
+                audio_added = False
+                
+                # 1. 先尝试从数据库查询音频内容
                 question = SU.query.get(file_id)
-                if question and question.audio_content:
+                if question and question.audio_content and len(question.audio_content) > 0:
                     # 将音频内容写入临时文件
                     temp_audio_path = os.path.join(temp_dir, filename)
                     with open(temp_audio_path, 'wb') as f:
@@ -3115,16 +3184,69 @@ def package_audio_files():
                     
                     # 添加到ZIP
                     zip_file.write(temp_audio_path, filename)
+                    print(f"从数据库内容获取到音频 {filename}, 大小: {len(question.audio_content)} 字节")
+                    audio_added = True
+                
+                # 2. 尝试从文件路径获取
                 elif file_path and os.path.exists(file_path):
-                    # 如果数据库没有内容但有文件路径
+                    # 直接使用给定的文件路径
                     zip_file.write(file_path, filename)
-                else:
-                    # 跳过不存在的音频
-                    continue
+                    print(f"从文件路径获取到音频 {filename}, 路径: {file_path}")
+                    audio_added = True
+                    
+                # 3. 尝试从固定目录查找
+                elif has_fixed_dir:
+                    # 首先尝试直接用文件名匹配
+                    fixed_path = os.path.join(fixed_audio_dir, filename)
+                    if os.path.exists(fixed_path):
+                        zip_file.write(fixed_path, filename)
+                        print(f"从固定目录按文件名匹配获取到音频: {filename}")
+                        audio_added = True
+                    else:
+                        # 尝试通过ID匹配
+                        id_matches = glob.glob(os.path.join(fixed_audio_dir, f"*{file_id}*.mp3"))
+                        if id_matches:
+                            zip_file.write(id_matches[0], filename)
+                            print(f"从固定目录按ID匹配获取到音频: {id_matches[0]} -> {filename}")
+                            audio_added = True
+                        else:
+                            # 尝试通过听力类型匹配
+                            if "听短对话" in filename or "dialog" in filename.lower():
+                                dialog_matches = glob.glob(os.path.join(fixed_audio_dir, "*dialog*.mp3")) + glob.glob(os.path.join(fixed_audio_dir, "*对话*.mp3"))
+                                if dialog_matches:
+                                    zip_file.write(dialog_matches[0], filename)
+                                    print(f"从固定目录按对话类型匹配获取到音频: {dialog_matches[0]} -> {filename}")
+                                    audio_added = True
+                                    
+                            if not audio_added and ("听短文" in filename or "passage" in filename.lower()):
+                                passage_matches = glob.glob(os.path.join(fixed_audio_dir, "*passage*.mp3")) + glob.glob(os.path.join(fixed_audio_dir, "*短文*.mp3"))
+                                if passage_matches:
+                                    zip_file.write(passage_matches[0], filename)
+                                    print(f"从固定目录按短文类型匹配获取到音频: {passage_matches[0]} -> {filename}")
+                                    audio_added = True
+                
+                # 4. 如果以上方法都失败，添加静音文件
+                if not audio_added:
+                    print(f"无法找到音频 {filename}，添加静音文件替代")
+                    silence_mp3_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
+                    
+                    if os.path.exists(silence_mp3_path):
+                        zip_file.write(silence_mp3_path, filename)
+                        print(f"添加静音文件作为替代: {filename}")
+                    else:
+                        # 如果静音文件不存在，创建一个
+                        temp_silence_path = os.path.join(temp_dir, f"silence_{idx}.mp3")
+                        with open(temp_silence_path, 'wb') as f:
+                            # 写入一个最小有效的MP3头
+                            f.write(b'\xFF\xFB\x90\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+                        zip_file.write(temp_silence_path, filename)
+                        print(f"创建并添加静音文件: {filename}")
         
         # 读取生成的ZIP文件
         with open(zip_path, 'rb') as f:
             zip_data = f.read()
+        
+        print(f"成功生成ZIP文件，大小: {len(zip_data)} 字节")
         
         # 清理临时文件
         shutil.rmtree(temp_dir)
