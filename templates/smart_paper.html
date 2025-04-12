@@ -1262,6 +1262,14 @@
             }, 5000);
         }
         
+        // 隐藏消息
+        function hideMessage() {
+            const messageBox = document.getElementById('messageBox');
+            if (messageBox) {
+                messageBox.style.display = 'none';
+            }
+        }
+        
         // 生成试卷
         function generatePaper() {
             // 获取筛选条件
