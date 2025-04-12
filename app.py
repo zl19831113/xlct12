@@ -1214,10 +1214,16 @@ def generate_paper():
                     qr_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     
                     # 生成二维码
-                    # 使用固定服务器地址而不是动态获取
-                    # base_url = request.host_url.rstrip('/')
-                    base_url = "http://120.26.12.100"
-                    qr_url = f"{base_url}/audio_player/{paper_uuid}"
+                    base_url = request.host_url.rstrip('/')  # 获取当前主机URL
+                    
+                    # 修复服务器环境下二维码URL生成问题
+                    if 'localhost' in base_url or '127.0.0.1' in base_url:
+                        # 本地开发环境
+                        qr_url = f"{base_url}/audio_player/{paper_uuid}"
+                    else:
+                        # 服务器生产环境 - 使用完整的外部URL
+                        server_url = "http://120.26.12.100"  # 固定服务器地址
+                        qr_url = f"{server_url}/audio_player/{paper_uuid}"
                     
                     # 创建二维码图像
                     qr = qrcode.QRCode(
