@@ -113,6 +113,18 @@ def clean_and_split_question(question_text):
     if not question_text:
         return "", [], ""
     
+    # 替换空引号或连续引号，避免格式问题
+    question_text = re.sub(r'"+\s*"+', '"', question_text)
+    # 替换中英文引号为统一的中文引号
+    question_text = question_text.replace('"', '"').replace('"', '"')
+    question_text = question_text.replace("'", "'").replace("'", "'")
+    
+    # 移除文本中的逗号后的空格和换行
+    question_text = re.sub(r',\s*\n+', ', ', question_text)
+    
+    # 确保引号和逗号不引起换行
+    question_text = re.sub(r'([，,"""])\s*\n', r'\1 ', question_text)
+    
     # 确保所有HTML实体被正确处理
     replacements = {
         "&ldquo;": """,
@@ -135,41 +147,6 @@ def clean_and_split_question(question_text):
         "&laquo;": "«",
         "&raquo;": "»"
     }
-    
-    # 检查是否为听力对话类题目，需要特殊处理
-    is_listening_dialogue = False
-    if "听下面一段较长对话" in question_text or "听下面一段对话" in question_text or "听长对话选答案" in question_text or "听短对话选答案" in question_text:
-        is_listening_dialogue = True
-    
-    # 如果是听力对话类题目，返回整个问题文本作为题干，不进行拆分
-    if is_listening_dialogue:
-        # 清理HTML实体
-        for old, new in replacements.items():
-            question_text = question_text.replace(old, new)
-        
-        # 使用正则表达式移除所有剩余的HTML实体
-        question_text = re.sub(r'&[a-zA-Z0-9#]+;', '', question_text)
-        
-        # 移除多余空格和换行但保留段落结构
-        question_text = re.sub(r'\n\s*\n+', '\n\n', question_text)  # 多个空行替换为双换行
-        question_text = re.sub(r'[ \t]+', ' ', question_text)     # 多个空格替换为单个空格
-        
-        return question_text, [], ""  # 返回整个文本作为题干，空的序号列表和选项部分
-    
-    # 非听力对话题型的正常处理流程
-    # 替换空引号或连续引号，避免格式问题
-    question_text = re.sub(r'"+\s*"+', '"', question_text)
-    # 替换中英文引号为统一的中文引号
-    question_text = question_text.replace('"', '"').replace('"', '"')
-    question_text = question_text.replace("'", "'").replace("'", "'")
-    
-    # 移除文本中的逗号后的空格和换行
-    question_text = re.sub(r',\s*\n+', ', ', question_text)
-    
-    # 确保引号和逗号不引起换行
-    question_text = re.sub(r'([，,"""])\s*\n', r'\1 ', question_text)
-    
-    # 对剩余的文本应用HTML实体替换
     for old, new in replacements.items():
         question_text = question_text.replace(old, new)
     
@@ -1589,9 +1566,6 @@ def generate_paper():
 
                         # --- Formatting for MCQ Types (Updated Logic) --- 
                         else:
-                            # 判断是否为英语听力题型
-                            is_listening_question = (subject == '英语' and q.question_type == '听力理解')
-                            
                             # Use clean_and_split_question() to split stem, bullets, choices
                             questionPart, bulletsList, choicePart = clean_and_split_question(question_text)
                             
@@ -1614,19 +1588,13 @@ def generate_paper():
                             question_number_run.font.bold = False
                             question_number_run.font.size = Pt(10.5)
                             
-                            # 对于听力题目，保留整个原始格式
-                            if is_listening_question and ("听下面一段较长对话" in questionPart or "听下面一段对话" in questionPart):
-                                # 如果是听力对话题目，整段显示
-                                question_text_run = p.add_run(questionPart)
-                                question_text_run.font.size = Pt(10.5)
-                            else:
-                                # 确保题干末尾有问题空白括号，如果没有则添加
-                                stem_text = questionPart.strip()
-                                if not stem_text.endswith("）") and "（" not in stem_text[-5:]:
-                                    stem_text = stem_text + "（   ）"
-                                    
-                                question_text_run = p.add_run(stem_text)
-                                question_text_run.font.size = Pt(10.5)
+                            # 确保题干末尾有问题空白括号，如果没有则添加
+                            stem_text = questionPart.strip()
+                            if not stem_text.endswith("）") and "（" not in stem_text[-5:]:
+                                stem_text = stem_text + "（   ）"
+                                
+                            question_text_run = p.add_run(stem_text)
+                            question_text_run.font.size = Pt(10.5)
                             
                             # 添加选择项 (①②③④)，每个序号带文字各占一行
                             if bulletsList:
