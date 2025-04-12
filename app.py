@@ -3387,7 +3387,7 @@ def api_subjects_only():
     """只返回不同的科目列表，不加载所有题目数据"""
     # 使用distinct优化查询，只获取不同的科目
     try:
-        subjects = db.session.query(SU.subject, SU.educationStage).distinct().filter(SU.subject != None).all()
+        subjects = db.session.query(SU.subject, SU.education_stage).distinct().filter(SU.subject != None).all()
         
         # 按学段分组科目
         result = {}
@@ -3410,7 +3410,8 @@ def api_subjects_only():
         return jsonify(formatted_result)
     except Exception as e:
         print(f"获取科目列表时出错: {str(e)}")
-        return jsonify([]), 500
+        traceback.print_exc()  # 添加详细的错误堆栈信息
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/question/<int:question_id>')
 def api_question_detail(question_id):
