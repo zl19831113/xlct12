@@ -156,24 +156,7 @@ def clean_and_split_question(question_text):
     # 移除多余空格和换行
     question_text = re.sub(r'\n\s*\n+', '\n', question_text)  # 多个空行替换为单个换行
     question_text = re.sub(r'[ \t]+', ' ', question_text)     # 多个空格替换为单个空格
-    
-    # 检测问题是否包含阅读材料或特殊题型
-    contains_material = re.search(r'阅读材料|材料\d|[Rr]ead the (text|passage|article|material)', question_text) is not None
-    contains_mp3 = re.search(r'听录音|[Ll]isten to the (recording|MP3)', question_text) is not None
 
-    # 对于含有材料或MP3的题目，避免拆分
-    if contains_material or contains_mp3:
-        # 尝试提取（）中的空缺，但保持题目结构不变
-        blanks = re.findall(r'（\s*）|\(\s*\)', question_text)
-        bullet_list = []
-        
-        # 尝试寻找ABCD选项格式，但不从原文移除
-        options_pattern = r'([A-D][．.、]\s*[^A-D]+)(?=[A-D][．.、]|$)'
-        options = re.findall(options_pattern, question_text)
-        choices = " ".join(options) if options else ""
-        
-        return question_text, bullet_list, choices
-    
     # 先尝试提取带①②③④的部分
     bullet_pattern = r'([①②③④⑤⑥⑦⑧⑨])([^①②③④⑤⑥⑦⑧⑨A-D]+)(?=[①②③④⑤⑥⑦⑧⑨A-D]|$)'
     bullet_matches = re.finditer(bullet_pattern, question_text)
@@ -237,14 +220,9 @@ def clean_and_split_question(question_text):
     # 移除题干开始的题号（如果有）
     question_text = re.sub(r'^\d+[．.、]\s*', '', question_text).strip()
     
-    # 检查题干是否已经含有括号
-    has_brackets = re.search(r'（\s*）|\(\s*\)', question_text) is not None
-    # 确保题干末尾有括号（如果没有且需要添加）
-    if not has_brackets and not question_text.endswith("）") and "（" not in question_text[-5:]:
-        # 检查此题是否需要括号（选择题通常需要）
-        needs_brackets = (choice_part and not contains_material and not contains_mp3)
-        if needs_brackets:
-            question_text = question_text + "（  ）"
+    # 确保题干末尾有括号（如果没有）
+    if not question_text.endswith("）") and "（" not in question_text[-5:]:
+        question_text = question_text + "（  ）"
     
     return question_text, bullet_list, choice_part
 
@@ -260,47 +238,6 @@ csrf = CSRFProtect(app)
 instance_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
 if not os.path.exists(instance_path):
     os.makedirs(instance_path)
-
-# 确保静态音频目录存在
-static_audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'audio')
-if not os.path.exists(static_audio_path):
-    os.makedirs(static_audio_path)
-    print(f"创建静态音频目录: {static_audio_path}")
-
-# 确保silence.mp3文件存在
-silence_mp3_path = os.path.join(static_audio_path, 'silence.mp3')
-if not os.path.exists(silence_mp3_path):
-    # 创建一个1秒静音MP3文件
-    try:
-        import wave
-        import struct
-        import array
-        
-        # 尝试创建一个静音WAV文件，然后转换为MP3
-        temp_wav_path = os.path.join(static_audio_path, 'silence.wav')
-        with wave.open(temp_wav_path, 'w') as wav_file:
-            wav_file.setparams((1, 2, 44100, 44100, 'NONE', 'not compressed'))
-            values = array.array('h', [0] * 44100)  # 1秒44.1kHz静音
-            wav_file.writeframes(values.tobytes())
-            
-        # 如果系统有ffmpeg，转换为MP3
-        import subprocess
-        try:
-            subprocess.run(['ffmpeg', '-i', temp_wav_path, '-codec:a', 'libmp3lame', '-qscale:a', '2', silence_mp3_path], 
-                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            os.remove(temp_wav_path)  # 删除临时WAV文件
-            print(f"已创建静音MP3文件: {silence_mp3_path}")
-        except (subprocess.SubprocessError, FileNotFoundError):
-            # 如果ffmpeg不可用，直接复制一个空白文件作为MP3
-            with open(silence_mp3_path, 'wb') as f:
-                # 写入一个最小的有效MP3头部
-                f.write(bytes.fromhex('FFFB9064000280000000'))
-            print(f"已创建最小静音MP3文件: {silence_mp3_path}")
-    except Exception as e:
-        print(f"无法创建静音MP3文件: {str(e)}")
-        # 创建一个空文件作为备用
-        with open(silence_mp3_path, 'wb') as f:
-            f.write(b'')
 
 # 使用本地数据库文件
 db_path = os.path.join(instance_path, 'xlct12.db')
@@ -1008,40 +945,51 @@ def browse_images():
 def client():
     return render_template('client.html', active_page='client')
 
-@app.route('/api/questions', methods=['GET'])
+@app.route('/api/questions')
 def api_questions():
-    # 使用缓存机制更新数据
-    update_cache()
+    # 从SU表中获取所有题目
+    questions = SU.query.all()
+    result = []
     
-    # 如果数据已缓存，直接使用缓存数据
-    if cache['questions']:
-        return jsonify(cache['questions'])
-    
-    try:
-        # 从SU表中获取所有题目
-        questions = SU.query.all()
+    for q in questions:
+        # 添加ID到每个问题
+        question_dict = {
+            "id": q.id,
+            "subject": q.subject,
+            "textbook": q.textbook,
+            "chapter": q.chapter,
+            "unit": q.unit,
+            "lesson": q.lesson,
+            "question": q.question,
+            "answer": q.answer,
+            "questionType": q.question_type,
+            "educationStage": getattr(q, 'education_stage', '高中')  # 默认为高中
+        }
         
-        # 将查询结果转换为JSON格式
-        result = []
-        for q in questions:
-            result.append({
-                'id': q.id,
-                'question': q.question,
-                'answer': q.answer,
-                'questionType': q.questionType,
-                'subject': q.subject,
-                'educationStage': q.educationStage,
-                'chapter': q.chapter,
-                'unit': q.unit,
-                'lesson': q.lesson,
-                'difficulty': q.difficulty,
-                'knowledgePoint': q.knowledgePoint
-            })
+        # 检查是否有问题图片和答案图片
+        if q.question_image is not None and len(q.question_image) > 0:
+            question_dict["has_question_image"] = True
+            question_dict["question_image_url"] = f"/get_image/{q.id}/question"
+        else:
+            question_dict["has_question_image"] = False
+            
+        if q.answer_image is not None and len(q.answer_image) > 0:
+            question_dict["has_answer_image"] = True
+            question_dict["answer_image_url"] = f"/get_image/{q.id}/answer"
+        else:
+            question_dict["has_answer_image"] = False
         
-        return jsonify(result)
-    except Exception as e:
-        app.logger.error(f"获取试题时出错: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        # 检查是否有音频文件
+        if q.audio_file_path and q.audio_filename:
+            question_dict["has_audio"] = True
+            question_dict["audio_url"] = f"/get_audio/{q.id}"
+            question_dict["question_number"] = q.question_number
+        else:
+            question_dict["has_audio"] = False
+        
+        result.append(question_dict)
+        
+    return jsonify(result)
 
 @app.route('/clear_database', methods=['POST'])
 @csrf.exempt
@@ -1157,8 +1105,41 @@ def generate_paper():
                     'files': audio_files,
                     'created_at': datetime.now().isoformat()
                 }
-                print(f"Created audio playlist for paper ID: {paper_uuid} with {len(audio_files)} files")
                 
+                # 将音频信息保存到数据库
+                try:
+                    # 将音频文件列表转换为JSON字符串存储
+                    audio_data_json = json.dumps({
+                        'title': paper_title,
+                        'files': audio_files,
+                        'created_at': datetime.now().isoformat()
+                    })
+                    
+                    # 检查是否已存在记录
+                    existing_record = PaperAudio.query.filter_by(paper_uuid=paper_uuid).first()
+                    if existing_record:
+                        # 更新现有记录
+                        existing_record.paper_title = paper_title
+                        existing_record.audio_data = audio_data_json
+                        existing_record.created_at = datetime.now()
+                    else:
+                        # 创建新记录
+                        new_record = PaperAudio(
+                            paper_uuid=paper_uuid,
+                            paper_title=paper_title,
+                            audio_data=audio_data_json
+                        )
+                        db.session.add(new_record)
+                    
+                    db.session.commit()
+                    print(f"已将音频信息保存到数据库，试卷ID: {paper_uuid}")
+                except Exception as db_err:
+                    print(f"保存音频信息到数据库时出错: {str(db_err)}")
+                    db.session.rollback()
+                    # 错误不阻止后续处理
+                
+                print(f"Created audio playlist for paper ID: {paper_uuid} with {len(audio_files)} files")
+            
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             traceback.print_exc() # Ensure traceback is printed
@@ -1273,8 +1254,8 @@ def generate_paper():
                         # 本地开发环境
                         qr_url = f"{base_url}/audio_player/{paper_uuid}"
                     else:
-                        # 服务器生产环境 - 使用请求的原始域名而不是硬编码IP
-                        server_url = request.host_url.rstrip('/')  # 获取当前请求的完整URL（包含域名）
+                        # 服务器生产环境 - 使用完整的外部URL
+                        server_url = "http://120.26.12.100"  # 固定服务器地址
                         qr_url = f"{server_url}/audio_player/{paper_uuid}"
                     
                     # 创建二维码图像
@@ -3316,32 +3297,44 @@ paper_audio_files = {}
 def audio_player(paper_id):
     """音频播放页面，通过二维码扫描访问"""
     try:
-        # 从存储中获取该试卷ID对应的音频文件列表
-        # 添加日志记录
-        print(f"请求音频播放页面，试卷ID: {paper_id}")
-        print(f"当前存储的音频文件记录: {list(paper_audio_files.keys())}")
-        
-        if paper_id not in paper_audio_files:
-            print(f"未找到试卷ID为 {paper_id} 的音频文件记录")
+        # 首先检查内存缓存
+        if paper_id in paper_audio_files:
+            audio_list = paper_audio_files[paper_id]
+            paper_title = audio_list.get('title', '英语听力')
+            
+            print(f"从内存缓存中找到试卷音频信息: {paper_id}")
             return render_template('audio_player.html', 
-                                  error="未找到相关音频文件或链接已过期", 
                                   paper_id=paper_id,
-                                  audio_files=[])
+                                  paper_title=paper_title,
+                                  audio_files=audio_list.get('files', []),
+                                  error=None)
+                                  
+        # 如果内存中没有，尝试从数据库加载
+        paper_audio = PaperAudio.query.filter_by(paper_uuid=paper_id).first()
+        if paper_audio:
+            # 解析存储的JSON数据
+            try:
+                audio_data = json.loads(paper_audio.audio_data)
+                
+                # 将数据加载到内存缓存
+                paper_audio_files[paper_id] = audio_data
+                
+                print(f"从数据库加载试卷音频信息: {paper_id}")
+                return render_template('audio_player.html', 
+                                      paper_id=paper_id,
+                                      paper_title=audio_data.get('title', '英语听力'),
+                                      audio_files=audio_data.get('files', []),
+                                      error=None)
+            except json.JSONDecodeError:
+                print(f"解析音频数据JSON出错: {paper_id}")
         
-        audio_list = paper_audio_files[paper_id]
-        paper_title = audio_list.get('title', '英语听力')
-        
-        # 记录找到的文件信息
-        files = audio_list.get('files', [])
-        print(f"找到 {len(files)} 个音频文件，试卷标题: {paper_title}")
-        for i, audio in enumerate(files):
-            print(f"  音频 {i+1}: ID={audio.get('id')}, 标题={audio.get('title')}")
-        
+        # 既不在内存也不在数据库中
+        print(f"找不到试卷音频信息: {paper_id}")
         return render_template('audio_player.html', 
+                              error="未找到相关音频文件或链接已过期", 
                               paper_id=paper_id,
-                              paper_title=paper_title,
-                              audio_files=files,
-                              error=None)
+                              audio_files=[])
+        
     except Exception as e:
         print(f"音频播放页面加载错误: {str(e)}")
         traceback.print_exc()
@@ -3354,44 +3347,47 @@ def audio_player(paper_id):
 def get_audio_by_paper(paper_id, audio_index):
     """根据试卷ID和音频索引获取音频文件"""
     try:
-        print(f"请求音频文件：试卷ID={paper_id}, 索引={audio_index}")
+        audio_list = None
         
-        # 检查试卷ID是否存在
-        if paper_id not in paper_audio_files:
-            print(f"错误：试卷ID {paper_id} 不存在于音频记录中")
+        # 首先尝试从内存缓存获取
+        if paper_id in paper_audio_files:
+            audio_list = paper_audio_files[paper_id]
+        else:
+            # 如果内存中没有，尝试从数据库加载
+            paper_audio = PaperAudio.query.filter_by(paper_uuid=paper_id).first()
+            if paper_audio:
+                try:
+                    audio_data = json.loads(paper_audio.audio_data)
+                    paper_audio_files[paper_id] = audio_data  # 加载到内存
+                    audio_list = audio_data
+                    print(f"从数据库加载音频文件信息: {paper_id}")
+                except json.JSONDecodeError:
+                    print(f"解析音频数据JSON出错: {paper_id}")
+        
+        # 如果既不在内存也不在数据库中
+        if not audio_list:
+            print(f"找不到试卷音频信息: {paper_id}")
             return "试卷音频不存在或已过期", 404
             
-        audio_list = paper_audio_files[paper_id]
         files = audio_list.get('files', [])
         
         # 检查音频索引是否有效
         if audio_index < 0 or audio_index >= len(files):
-            print(f"错误：音频索引 {audio_index} 超出范围 (0-{len(files)-1})")
             return "音频文件索引无效", 404
             
         # 获取音频文件信息
         audio_file = files[audio_index]
         file_id = audio_file.get('id')
         
-        print(f"查找ID为 {file_id} 的音频记录")
-        
         # 通过ID获取音频内容
-        record = SU.query.get(file_id)
-        if not record:
-            print(f"错误：数据库中未找到ID为 {file_id} 的记录")
-            return "未找到对应的音频记录", 404
+        record = SU.query.get_or_404(file_id)
         
         # 检查和记录音频字段状态
         has_audio_content = hasattr(record, 'audio_content') and record.audio_content is not None and len(record.audio_content or b'') > 0
         has_audio_path = hasattr(record, 'audio_file_path') and record.audio_file_path is not None and len(record.audio_file_path or '') > 0
         
-        print(f"音频记录状态：has_content={has_audio_content}, has_path={has_audio_path}")
-        if has_audio_path:
-            print(f"音频文件路径: {record.audio_file_path}")
-        
         # 尝试从内容发送
         if has_audio_content:
-            print(f"从二进制内容返回音频，大小: {len(record.audio_content)} 字节")
             return send_file(
                 io.BytesIO(record.audio_content),
                 mimetype='audio/mpeg',
@@ -3404,42 +3400,19 @@ def get_audio_by_paper(paper_id, audio_index):
             audio_path = record.audio_file_path
             # 如果是相对路径，转换为绝对路径
             if not os.path.isabs(audio_path):
-                base_path = os.path.dirname(os.path.abspath(__file__))
-                audio_path = os.path.join(base_path, audio_path)
+                audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), audio_path)
                 
-            print(f"尝试从文件路径加载音频: {audio_path}")
             if os.path.exists(audio_path):
-                print(f"文件存在，返回音频文件")
                 return send_file(
                     audio_path,
                     mimetype='audio/mpeg',
                     as_attachment=False,
                     download_name=os.path.basename(audio_path)
                 )
-            else:
-                print(f"错误：文件路径 {audio_path} 不存在")
-                
-        # 尝试从音频文件名搜索静态目录
-        if hasattr(record, 'audio_filename') and record.audio_filename:
-            static_audio_path = os.path.join(app.static_folder, 'audio', record.audio_filename)
-            if os.path.exists(static_audio_path):
-                print(f"在静态目录找到音频文件: {static_audio_path}")
-                return send_file(
-                    static_audio_path,
-                    mimetype='audio/mpeg',
-                    as_attachment=False,
-                    download_name=record.audio_filename
-                )
                 
         # 无音频情况下返回一个静态MP3作为替代
-        silence_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
-        if not os.path.exists(silence_path):
-            print(f"警告：替代音频文件 {silence_path} 不存在")
-            return "未找到音频文件", 404
-            
-        print(f"未找到有效音频，返回静音文件")
         return send_file(
-            silence_path,
+            os.path.join(app.static_folder, 'audio', 'silence.mp3'),
             mimetype='audio/mpeg',
             as_attachment=False,
             download_name='silence.mp3'
@@ -3450,39 +3423,281 @@ def get_audio_by_paper(paper_id, audio_index):
         traceback.print_exc()
         return "获取音频失败", 500
 
-# 在Flask 3.x不再支持before_first_request 上方添加全局缓存变量
-# 全局缓存对象
-cache = {
-    'subjects': None,
-    'education_stages': None,
-    'question_types': None,
-    'last_update': None
-}
+@app.route('/api/subjects', methods=['GET'])
+def get_subjects():
+    # 获取学段参数，如果没有则默认为高中
+    education_stage = request.args.get('educationStage', '高中')
+    
+    # 直接查询去重的科目列表，而不是所有题目
+    query = "SELECT DISTINCT subject FROM su WHERE education_stage=? AND subject IS NOT NULL"
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute(query, (education_stage,))
+    subjects = [row[0] for row in cursor.fetchall() if row[0]]
+    conn.close()
+    
+    # 按字母顺序排序
+    subjects.sort()
+    
+    return jsonify(subjects)
 
-def update_cache():
-    """更新缓存的数据"""
-    # 避免频繁更新缓存
-    current_time = datetime.now()
-    if cache['last_update'] and (current_time - cache['last_update']).seconds < 3600:  # 缓存1小时更新一次
-        return
+# 创建一个存储试卷音频关联的模型
+class PaperAudio(db.Model):
+    __tablename__ = 'paper_audio'
+    id = db.Column(db.Integer, primary_key=True)
+    paper_uuid = db.Column(db.String(50), unique=True, nullable=False)
+    paper_title = db.Column(db.String(200))
+    audio_data = db.Column(db.Text)  # 存储JSON格式的音频文件列表
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+# 全局音频文件集合 - 仅作为内存缓存使用，实际数据存储在数据库
+paper_audio_files = {}
+
+@app.route('/api/debug_question/<int:question_id>')
+def debug_question(question_id):
+    """调试特定题目内容，查看完整数据"""
+    try:
+        question = SU.query.get_or_404(question_id)
         
-    with app.app_context():
-        try:
-            # 缓存所有科目和教育阶段
-            cache['subjects'] = db.session.query(SU.subject).distinct().all()
-            cache['education_stages'] = db.session.query(SU.education_stage).distinct().all()
-            cache['question_types'] = db.session.query(SU.question_type).distinct().all()
-            cache['last_update'] = current_time
-            print(f"已更新数据缓存，科目数量: {len(cache['subjects'])}, 学段数量: {len(cache['education_stages'])}")
-        except Exception as e:
-            print(f"更新缓存失败: {str(e)}")
+        # 构建完整的题目信息
+        result = {
+            "id": question.id,
+            "subject": question.subject,
+            "education_stage": getattr(question, 'education_stage', '高中'),
+            "chapter": question.chapter,
+            "unit": question.unit,
+            "lesson": question.lesson,
+            "question_type": question.question_type,
+            "full_question": question.question,  # 完整题目内容
+            "full_answer": question.answer,      # 完整答案内容
+            "has_question_image": hasattr(question, 'question_image') and question.question_image is not None,
+            "has_answer_image": hasattr(question, 'answer_image') and question.answer_image is not None,
+            "has_audio": hasattr(question, 'audio_content') and question.audio_content is not None
+        }
+        
+        # 添加调试信息 - 题目长度统计
+        if question.question:
+            result["question_length"] = len(question.question)
+            result["question_first_200"] = question.question[:200]  # 前200个字符
+            result["question_last_200"] = question.question[-200:] if len(question.question) > 200 else ""  # 后200个字符
+        
+        # 添加调试信息 - 特殊字符和换行符检查
+        if question.question:
+            result["contains_newlines"] = "\n" in question.question
+            result["contains_html"] = "<" in question.question and ">" in question.question
+            result["newline_count"] = question.question.count("\n")
+            result["special_chars"] = re.findall(r'[^\x00-\x7F]+', question.question)
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
-# 原来的Flask 3.x不再支持before_first_request代码
+@app.route('/api/find_questions', methods=['GET'])
+def find_questions():
+    """根据关键词查找题目"""
+    keyword = request.args.get('keyword', '')
+    if not keyword:
+        return jsonify({"error": "请提供关键词"}), 400
+    
+    try:
+        # 在SU表中搜索包含关键词的题目
+        questions = SU.query.filter(SU.question.like(f'%{keyword}%')).all()
+        
+        result = []
+        for q in questions:
+            question_info = {
+                "id": q.id,
+                "subject": q.subject,
+                "education_stage": getattr(q, 'education_stage', '高中'),
+                "question_type": q.question_type,
+                # 提取前后100个字符包含关键词的片段
+                "excerpt": extract_context(q.question, keyword, 100) if q.question else ""
+            }
+            result.append(question_info)
+        
+        return jsonify({
+            "count": len(result),
+            "questions": result
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
+def extract_context(text, keyword, context_size=100):
+    """提取关键词周围的上下文"""
+    if not text or not keyword:
+        return ""
+    
+    # 找到关键词在文本中的位置
+    pos = text.lower().find(keyword.lower())
+    if pos == -1:
+        return text[:200] + "..." if len(text) > 200 else text
+    
+    # 计算上下文的起始和结束位置
+    start = max(0, pos - context_size)
+    end = min(len(text), pos + len(keyword) + context_size)
+    
+    # 提取上下文
+    context = text[start:end]
+    
+    # 如果上下文不是从文本开头开始的，添加省略号
+    if start > 0:
+        context = "..." + context
+    
+    # 如果上下文不是到文本结尾结束的，添加省略号
+    if end < len(text):
+        context = context + "..."
+    
+    return context
+
+@app.route('/api/fix_questions', methods=['GET'])
+def fix_questions():
+    """修复不完整或格式有问题的题目"""
+    try:
+        # 查找可能存在问题的题目
+        # 1. 查找包含半个中文引号的题目(只有一个引号)
+        # 2. 查找包含不完整选项的题目(只有A没有B或只有前一部分)
+        
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # 查找包含英语选择题关键词但可能不完整的题目
+        cursor.execute("SELECT id, question FROM su WHERE subject = '英语' AND question LIKE '%（  ）%A．%' AND question NOT LIKE '%B．%'")
+        incomplete_english_questions = cursor.fetchall()
+        
+        # 查找包含政治选择题关键词但可能不完整的题目
+        cursor.execute("SELECT id, question FROM su WHERE subject = '政治' AND question LIKE '%．（%）%A．%' AND question NOT LIKE '%B．%'")
+        incomplete_politics_questions = cursor.fetchall()
+        
+        # 合并可能存在问题的题目ID
+        problem_ids = [q[0] for q in incomplete_english_questions + incomplete_politics_questions]
+        
+        result = {
+            "total_problem_questions": len(problem_ids),
+            "problem_ids": problem_ids,
+            "english_questions": [{"id": q[0], "preview": q[1][:100] + "..."} for q in incomplete_english_questions],
+            "politics_questions": [{"id": q[0], "preview": q[1][:100] + "..."} for q in incomplete_politics_questions]
+        }
+        
+        conn.close()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
+@app.route('/api/repair_question/<int:question_id>', methods=['GET'])
+def repair_question(question_id):
+    """尝试修复指定ID的不完整题目"""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # 获取原始题目
+        cursor.execute("SELECT id, question, answer, subject, edu_stage FROM su WHERE id = ?", (question_id,))
+        question_data = cursor.fetchone()
+        
+        if not question_data:
+            conn.close()
+            return jsonify({"error": f"题目ID {question_id} 不存在"}), 404
+        
+        id, question_text, answer, subject, edu_stage = question_data
+        
+        # 原始状态
+        original = {
+            "id": id,
+            "question": question_text,
+            "answer": answer,
+            "subject": subject,
+            "edu_stage": edu_stage,
+            "question_length": len(question_text) if question_text else 0
+        }
+        
+        # 修复状态（默认与原始状态相同）
+        fixed = dict(original)
+        fixed["was_fixed"] = False
+        fixed["fix_method"] = None
+        
+        # 根据不同类型的题目进行修复尝试
+        if subject == '英语' and '（  ）' in question_text and 'A．' in question_text and 'B．' not in question_text:
+            # 尝试查找同类题目进行补全
+            similar_query = question_text.split('A．')[0] + '%'
+            cursor.execute("SELECT question FROM su WHERE subject = ? AND id != ? AND question LIKE ? AND question LIKE '%B．%' LIMIT 1", 
+                          (subject, id, similar_query))
+            similar = cursor.fetchone()
+            
+            if similar:
+                similar_text = similar[0]
+                # 提取选项部分
+                if 'A．' in similar_text:
+                    options_part = similar_text.split('A．')[1]
+                    if 'B．' in options_part and 'C．' in options_part:
+                        # 只保留原题的A选项，然后添加B、C、D选项
+                        original_a_option = question_text.split('A．')[1].strip() if len(question_text.split('A．')) > 1 else ""
+                        options_format = options_part.split('B．')[1]
+                        
+                        # 重构题目
+                        fixed_question = question_text.split('A．')[0] + 'A．' + original_a_option
+                        if not fixed_question.endswith(' '):
+                            fixed_question += ' '
+                        fixed_question += 'B．' + options_format
+                        
+                        fixed["question"] = fixed_question
+                        fixed["was_fixed"] = True
+                        fixed["fix_method"] = "similar_question_options"
+                        fixed["question_length"] = len(fixed_question)
+        
+        elif subject == '政治' and 'A．' in question_text and 'B．' not in question_text:
+            # 尝试查找同类题目进行补全
+            cursor.execute("SELECT question FROM su WHERE subject = ? AND id != ? AND question LIKE '%A．%B．%C．%D．%' LIMIT 1", 
+                          (subject, id))
+            similar = cursor.fetchone()
+            
+            if similar:
+                similar_text = similar[0]
+                # 提取选项格式
+                if 'A．' in similar_text:
+                    options_part = similar_text.split('A．')[1]
+                    if 'B．' in options_part:
+                        # 获取原题A选项
+                        original_a_option = question_text.split('A．')[1].strip() if len(question_text.split('A．')) > 1 else ""
+                        
+                        # 从相似题目中提取B、C、D选项格式
+                        b_format = options_part.split('B．')[1].split('C．')[0].strip()
+                        c_format = options_part.split('C．')[1].split('D．')[0].strip()
+                        d_format = options_part.split('D．')[1].strip()
+                        
+                        # 根据题目类型生成缺失的选项
+                        if "社会主义" in question_text or "马克思" in question_text:
+                            b_option = "与社会实践相结合"
+                            c_option = "与时俱进"
+                            d_option = "实事求是" 
+                        else:
+                            b_option = "具体问题具体分析"
+                            c_option = "求真务实"
+                            d_option = "与时俱进"
+                        
+                        # 重构题目
+                        question_stem = question_text.split('A．')[0]
+                        fixed_question = question_stem + 'A．' + original_a_option + ' B．' + b_option + ' C．' + c_option + ' D．' + d_option
+                        
+                        fixed["question"] = fixed_question
+                        fixed["was_fixed"] = True
+                        fixed["fix_method"] = "template_options"
+                        fixed["question_length"] = len(fixed_question)
+        
+        # 如果进行了修复，保存修复后的题目
+        if fixed["was_fixed"]:
+            cursor.execute("UPDATE su SET question = ? WHERE id = ?", (fixed["question"], id))
+            conn.commit()
+        
+        conn.close()
+        return jsonify({
+            "original": original,
+            "fixed": fixed
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 if __name__ == '__main__':
     try:
-        print("正在初始化数据缓存...")
-        update_cache()
         print("正在尝试启动在端口 5001...")
         app.debug = True  # 启用调试模式以获取更详细的错误信息
         app.run(host='0.0.0.0', port=5002)
