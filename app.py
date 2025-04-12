@@ -1008,51 +1008,40 @@ def browse_images():
 def client():
     return render_template('client.html', active_page='client')
 
-@app.route('/api/questions')
+@app.route('/api/questions', methods=['GET'])
 def api_questions():
-    # 从SU表中获取所有题目
-    questions = SU.query.all()
-    result = []
+    # 使用缓存机制更新数据
+    update_cache()
     
-    for q in questions:
-        # 添加ID到每个问题
-        question_dict = {
-            "id": q.id,
-            "subject": q.subject,
-            "textbook": q.textbook,
-            "chapter": q.chapter,
-            "unit": q.unit,
-            "lesson": q.lesson,
-            "question": q.question,
-            "answer": q.answer,
-            "questionType": q.question_type,
-            "educationStage": getattr(q, 'education_stage', '高中')  # 默认为高中
-        }
+    # 如果数据已缓存，直接使用缓存数据
+    if cache['questions']:
+        return jsonify(cache['questions'])
+    
+    try:
+        # 从SU表中获取所有题目
+        questions = SU.query.all()
         
-        # 检查是否有问题图片和答案图片
-        if q.question_image is not None and len(q.question_image) > 0:
-            question_dict["has_question_image"] = True
-            question_dict["question_image_url"] = f"/get_image/{q.id}/question"
-        else:
-            question_dict["has_question_image"] = False
-            
-        if q.answer_image is not None and len(q.answer_image) > 0:
-            question_dict["has_answer_image"] = True
-            question_dict["answer_image_url"] = f"/get_image/{q.id}/answer"
-        else:
-            question_dict["has_answer_image"] = False
+        # 将查询结果转换为JSON格式
+        result = []
+        for q in questions:
+            result.append({
+                'id': q.id,
+                'question': q.question,
+                'answer': q.answer,
+                'questionType': q.questionType,
+                'subject': q.subject,
+                'educationStage': q.educationStage,
+                'chapter': q.chapter,
+                'unit': q.unit,
+                'lesson': q.lesson,
+                'difficulty': q.difficulty,
+                'knowledgePoint': q.knowledgePoint
+            })
         
-        # 检查是否有音频文件
-        if q.audio_file_path and q.audio_filename:
-            question_dict["has_audio"] = True
-            question_dict["audio_url"] = f"/get_audio/{q.id}"
-            question_dict["question_number"] = q.question_number
-        else:
-            question_dict["has_audio"] = False
-        
-        result.append(question_dict)
-        
-    return jsonify(result)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"获取试题时出错: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/clear_database', methods=['POST'])
 @csrf.exempt
@@ -3461,8 +3450,39 @@ def get_audio_by_paper(paper_id, audio_index):
         traceback.print_exc()
         return "获取音频失败", 500
 
+# 在Flask 3.x不再支持before_first_request 上方添加全局缓存变量
+# 全局缓存对象
+cache = {
+    'subjects': None,
+    'education_stages': None,
+    'question_types': None,
+    'last_update': None
+}
+
+def update_cache():
+    """更新缓存的数据"""
+    # 避免频繁更新缓存
+    current_time = datetime.now()
+    if cache['last_update'] and (current_time - cache['last_update']).seconds < 3600:  # 缓存1小时更新一次
+        return
+        
+    with app.app_context():
+        try:
+            # 缓存所有科目和教育阶段
+            cache['subjects'] = db.session.query(SU.subject).distinct().all()
+            cache['education_stages'] = db.session.query(SU.education_stage).distinct().all()
+            cache['question_types'] = db.session.query(SU.question_type).distinct().all()
+            cache['last_update'] = current_time
+            print(f"已更新数据缓存，科目数量: {len(cache['subjects'])}, 学段数量: {len(cache['education_stages'])}")
+        except Exception as e:
+            print(f"更新缓存失败: {str(e)}")
+
+# 原来的Flask 3.x不再支持before_first_request代码
+
 if __name__ == '__main__':
     try:
+        print("正在初始化数据缓存...")
+        update_cache()
         print("正在尝试启动在端口 5001...")
         app.debug = True  # 启用调试模式以获取更详细的错误信息
         app.run(host='0.0.0.0', port=5002)
