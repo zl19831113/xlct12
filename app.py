@@ -1214,7 +1214,9 @@ def generate_paper():
                     qr_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     
                     # 生成二维码
-                    base_url = request.host_url.rstrip('/')  # 获取当前主机URL
+                    # 使用固定服务器地址而不是动态获取
+                    # base_url = request.host_url.rstrip('/')
+                    base_url = "http://120.26.12.100"
                     qr_url = f"{base_url}/audio_player/{paper_uuid}"
                     
                     # 创建二维码图像
