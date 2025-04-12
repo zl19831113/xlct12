@@ -499,6 +499,12 @@ def parse_questions(text):
     # 清理HTML标签
     clean_text = re.sub(r'<[^>]+>', '', text)
     
+    # 修复听力题目中格式不正确的选项
+    # 例如将 "A．" "B．" "C．" 转换为 "A. " "B. " "C. "
+    clean_text = re.sub(r'([A-Z])．(\s*)', r'\1. \2', clean_text)
+    # 修复连续的选项标记，确保每个选项有正确的内容
+    clean_text = re.sub(r'([A-Z])\.\s+([A-Z])\.\s+([A-Z])\.', r'\1. 选项1 \2. 选项2 \3. 选项3', clean_text)
+    
     # 匹配主题目，忽略子问题编号
     pattern = r'(?:^|\n)\s*(\d+)[．.、]\s*(.*?)(?=(?:\n\s*\d+[．.、])|$)'
     matches = re.finditer(pattern, clean_text, re.DOTALL)
@@ -947,121 +953,49 @@ def client():
 
 @app.route('/api/questions')
 def api_questions():
-    """获取题目数据，支持按科目筛选"""
-    try:
-        # 获取查询参数
-        subject = request.args.get('subject')
+    # 从SU表中获取所有题目
+    questions = SU.query.all()
+    result = []
+    
+    for q in questions:
+        # 添加ID到每个问题
+        question_dict = {
+            "id": q.id,
+            "subject": q.subject,
+            "textbook": q.textbook,
+            "chapter": q.chapter,
+            "unit": q.unit,
+            "lesson": q.lesson,
+            "question": q.question,
+            "answer": q.answer,
+            "questionType": q.question_type,
+            "educationStage": getattr(q, 'education_stage', '高中')  # 默认为高中
+        }
         
-        # 构建查询
-        query = SU.query
-        
-        # 应用筛选条件
-        if subject:
-            query = query.filter(SU.subject == subject)
+        # 检查是否有问题图片和答案图片
+        if q.question_image is not None and len(q.question_image) > 0:
+            question_dict["has_question_image"] = True
+            question_dict["question_image_url"] = f"/get_image/{q.id}/question"
+        else:
+            question_dict["has_question_image"] = False
             
-        # 从SU表中获取题目
-        questions = query.all()
-        result = []
+        if q.answer_image is not None and len(q.answer_image) > 0:
+            question_dict["has_answer_image"] = True
+            question_dict["answer_image_url"] = f"/get_image/{q.id}/answer"
+        else:
+            question_dict["has_answer_image"] = False
         
-        for q in questions:
-            try:
-                # 添加ID到每个问题，确保处理长文本
-                question_text = q.question
-                answer_text = q.answer
-                
-                # 处理可能的None值
-                if question_text is None:
-                    question_text = ""
-                if answer_text is None:
-                    answer_text = ""
-                
-                # 记录异常长的题目，可能包含特殊字符
-                if len(question_text) > 1000:
-                    print(f"警告: 题目ID={q.id} 的文本异常长 ({len(question_text)}字符)")
-                
-                question_dict = {
-                    "id": q.id,
-                    "subject": q.subject or "",
-                    "textbook": q.textbook or "",
-                    "chapter": q.chapter or "",
-                    "unit": q.unit or "",
-                    "lesson": q.lesson or "",
-                    "question": question_text,
-                    "answer": answer_text,
-                    "questionType": q.question_type or "",
-                    "educationStage": getattr(q, 'education_stage', '高中')  # 默认为高中
-                }
-                
-                # 检查是否有问题图片和答案图片
-                if q.question_image is not None and len(q.question_image) > 0:
-                    question_dict["has_question_image"] = True
-                    question_dict["question_image_url"] = f"/get_image/{q.id}/question"
-                else:
-                    question_dict["has_question_image"] = False
-                    
-                if q.answer_image is not None and len(q.answer_image) > 0:
-                    question_dict["has_answer_image"] = True
-                    question_dict["answer_image_url"] = f"/get_image/{q.id}/answer"
-                else:
-                    question_dict["has_answer_image"] = False
-                
-                # 检查是否有音频文件
-                if q.audio_file_path and q.audio_filename:
-                    question_dict["has_audio"] = True
-                    question_dict["audio_url"] = f"/get_audio/{q.id}"
-                    question_dict["question_number"] = q.question_number
-                else:
-                    question_dict["has_audio"] = False
-                
-                result.append(question_dict)
-            except Exception as item_err:
-                print(f"处理题目ID={q.id}时出错: {str(item_err)}")
-                # 继续处理下一个题目，不中断整个过程
-                continue
+        # 检查是否有音频文件
+        if q.audio_file_path and q.audio_filename:
+            question_dict["has_audio"] = True
+            question_dict["audio_url"] = f"/get_audio/{q.id}"
+            question_dict["question_number"] = q.question_number
+        else:
+            question_dict["has_audio"] = False
         
-        # 使用默认JSON编码器可能失败，使用自定义JSON序列化
-        def custom_json_serializer(obj):
-            try:
-                import json
-                return json.dumps(obj, ensure_ascii=False)
-            except:
-                # 如果常规序列化失败，尝试单独处理每个字段
-                import json
-                sanitized_obj = []
-                for item in obj:
-                    try:
-                        json.dumps(item, ensure_ascii=False)
-                        sanitized_obj.append(item)
-                    except:
-                        # 如果单个对象序列化失败，尝试清理其字段
-                        sanitized_item = {}
-                        for key, value in item.items():
-                            try:
-                                json.dumps({key: value}, ensure_ascii=False)
-                                sanitized_item[key] = value
-                            except:
-                                # 如果字段值序列化失败，使用字符串表示
-                                try:
-                                    sanitized_item[key] = str(value)
-                                except:
-                                    sanitized_item[key] = "无法显示的内容"
-                        sanitized_obj.append(sanitized_item)
-                return json.dumps(sanitized_obj, ensure_ascii=False)
+        result.append(question_dict)
         
-        try:
-            # 尝试使用Flask的jsonify
-            return jsonify(result)
-        except Exception as jsonify_err:
-            print(f"jsonify序列化失败，尝试自定义JSON序列化: {str(jsonify_err)}")
-            
-            # 使用自定义JSON序列化
-            response = make_response(custom_json_serializer(result))
-            response.headers['Content-Type'] = 'application/json; charset=utf-8'
-            return response
-            
-    except Exception as e:
-        print(f"获取题目时出错: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+    return jsonify(result)
 
 @app.route('/clear_database', methods=['POST'])
 @csrf.exempt
@@ -1288,19 +1222,20 @@ def generate_paper():
                     # 生成二维码
                     base_url = request.host_url.rstrip('/')  # 获取当前主机URL
                     
-                    # 统一本地和服务器环境的URL处理
-                    qr_url = f"{base_url}/audio_player/{paper_uuid}"
-                    
-                    # 添加日志，记录音频文件信息
-                    print(f"生成英语听力试卷，二维码URL: {qr_url}")
-                    print(f"音频文件UUID: {paper_uuid}, 音频文件数量: {len(audio_files)}")
-                    for audio in audio_files:
-                        print(f"音频文件: ID={audio['id']}, 文件名={audio['filename']}, 标题={audio['title']}")
+                    # 修复服务器环境下二维码URL生成问题
+                    if 'localhost' in base_url or '127.0.0.1' in base_url:
+                        # 本地开发环境
+                        qr_url = f"{base_url}/audio_player/{paper_uuid}"
+                    else:
+                        # 服务器生产环境 - 使用当前网址
+                        qr_url = f"{base_url}/audio_player/{paper_uuid}"
+                        # 记录二维码URL
+                        print(f"创建二维码链接: {qr_url}")
                     
                     # 创建二维码图像
                     qr = qrcode.QRCode(
                         version=1,
-                        error_correction=qrcode.constants.ERROR_CORRECT_M,  # 提高纠错级别
+                        error_correction=qrcode.constants.ERROR_CORRECT_L,
                         box_size=10,
                         border=4,
                     )
@@ -3332,129 +3267,123 @@ def get_lessons():
 # 添加存储音频列表的字典
 paper_audio_files = {}
 
-@app.route('/audio_player/<uuid>')
-def audio_player(uuid):
-    """音频播放器页面"""
+@app.route('/audio_player/<paper_id>')
+def audio_player(paper_id):
+    """音频播放页面，通过二维码扫描访问"""
     try:
-        if uuid not in paper_audio_files:
-            print(f"错误: 未找到音频播放列表 UUID: {uuid}")
-            return render_template('error.html', 
-                                message=f"没有找到对应的音频文件。请确认URL是否正确，或重新生成试卷。", 
-                                title="音频文件未找到")
+        # 添加详细的日志输出
+        print(f"----------- 访问音频播放器，试卷ID: {paper_id} -----------")
+        print(f"当前存储的音频文件记录: {list(paper_audio_files.keys())}")
+        print(f"服务器地址: {request.host_url}")
         
-        audio_info = paper_audio_files[uuid]
-        print(f"获取到音频播放列表: UUID={uuid}, 标题={audio_info['title']}, 文件数量={len(audio_info['files'])}")
+        # 从存储中获取该试卷ID对应的音频文件列表
+        if paper_id not in paper_audio_files:
+            print(f"错误：未找到ID为 {paper_id} 的音频记录")
+            return render_template('audio_player.html', 
+                                  error="未找到相关音频文件或链接已过期", 
+                                  paper_id=paper_id,
+                                  audio_files=[])
+        
+        audio_list = paper_audio_files[paper_id]
+        paper_title = audio_list.get('title', '英语听力')
+        files = audio_list.get('files', [])
+        
+        print(f"成功找到音频记录，标题: {paper_title}, 文件数量: {len(files)}")
+        if files:
+            print(f"第一个文件ID: {files[0].get('id')}, 文件名: {files[0].get('filename')}")
         
         return render_template('audio_player.html', 
-                              audio_info=audio_info,
-                              title=audio_info['title'],
-                              uuid=uuid)
+                              paper_id=paper_id,
+                              paper_title=paper_title,
+                              audio_files=files,
+                              error=None)
     except Exception as e:
-        print(f"访问音频播放器时出错: {str(e)}")
-        return render_template('error.html', 
-                              message=f"加载音频播放器时出错: {str(e)}", 
-                              title="系统错误")
+        print(f"音频播放页面加载错误: {str(e)}")
+        traceback.print_exc()
+        return render_template('audio_player.html', 
+                              error="加载音频文件时出错: " + str(e), 
+                              paper_id=paper_id,
+                              audio_files=[])
 
-@app.route('/get_audio/<int:question_id>')
-def get_question_audio(question_id):
-    """获取指定题目ID的音频文件"""
+@app.route('/get_audio_by_paper/<paper_id>/<int:audio_index>')
+def get_audio_by_paper(paper_id, audio_index):
+    """根据试卷ID和音频索引获取音频文件"""
     try:
-        # 获取指定ID的题目
-        question = SU.query.get(question_id)
-        if not question or not question.audio_content:
-            print(f"未找到题目ID={question_id}的音频内容")
-            return "音频文件不存在", 404
+        print(f"----------- 获取音频文件，试卷ID: {paper_id}, 索引: {audio_index} -----------")
+        # 检查试卷ID是否存在
+        if paper_id not in paper_audio_files:
+            print(f"错误：未找到ID为 {paper_id} 的音频记录")
+            return "试卷音频不存在或已过期", 404
+            
+        audio_list = paper_audio_files[paper_id]
+        files = audio_list.get('files', [])
+        print(f"音频文件列表长度: {len(files)}")
         
-        # 确定文件类型
-        content_type = 'audio/mpeg'  # 默认MP3格式
-        if question.audio_filename:
-            if question.audio_filename.lower().endswith('.wav'):
-                content_type = 'audio/wav'
-            elif question.audio_filename.lower().endswith('.ogg'):
-                content_type = 'audio/ogg'
+        # 检查音频索引是否有效
+        if audio_index < 0 or audio_index >= len(files):
+            print(f"错误：音频索引 {audio_index} 超出范围 [0, {len(files)-1}]")
+            return "音频文件索引无效", 404
+            
+        # 获取音频文件信息
+        audio_file = files[audio_index]
+        file_id = audio_file.get('id')
+        print(f"要获取的音频ID: {file_id}, 文件名: {audio_file.get('filename')}")
+        
+        # 通过ID获取音频内容
+        record = SU.query.get_or_404(file_id)
+        
+        # 检查和记录音频字段状态
+        has_audio_content = hasattr(record, 'audio_content') and record.audio_content is not None and len(record.audio_content or b'') > 0
+        has_audio_path = hasattr(record, 'audio_file_path') and record.audio_file_path is not None and len(record.audio_file_path or '') > 0
+        
+        print(f"音频记录状态: ID={file_id}, 有内容={has_audio_content}, 有路径={has_audio_path}")
+        if has_audio_path:
+            print(f"音频文件路径: {record.audio_file_path}")
+            
+        # 尝试从内容发送
+        if has_audio_content:
+            print(f"返回音频内容数据，大小: {len(record.audio_content)} 字节")
+            return send_file(
+                io.BytesIO(record.audio_content),
+                mimetype='audio/mpeg',
+                as_attachment=False,
+                download_name=record.audio_filename or f'audio_{audio_index}.mp3'
+            )
+        
+        # 尝试从文件路径发送
+        elif has_audio_path:
+            audio_path = record.audio_file_path
+            # 如果是相对路径，转换为绝对路径
+            if not os.path.isabs(audio_path):
+                audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), audio_path)
+            
+            print(f"尝试从文件读取音频: {audio_path}")
+            print(f"文件是否存在: {os.path.exists(audio_path)}")
                 
-        # 创建响应
-        response = make_response(audio_data)
-        response.headers['Content-Type'] = content_type
-        response.headers['Content-Disposition'] = f'inline; filename="{question.audio_filename}"'
-        return response
+            if os.path.exists(audio_path):
+                print(f"返回音频文件: {audio_path}, 大小: {os.path.getsize(audio_path)} 字节")
+                return send_file(
+                    audio_path,
+                    mimetype='audio/mpeg',
+                    as_attachment=False,
+                    download_name=os.path.basename(audio_path)
+                )
+        
+        print("未找到有效的音频内容，返回静默音频")    
+        # 无音频情况下返回一个静态MP3作为替代
+        silence_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
+        print(f"静默音频路径: {silence_path}, 文件存在: {os.path.exists(silence_path)}")
+        return send_file(
+            silence_path,
+            mimetype='audio/mpeg',
+            as_attachment=False,
+            download_name='silence.mp3'
+        )
+        
     except Exception as e:
-        print(f"获取音频文件时出错: {str(e)}")
-        return "获取音频失败", 500
-
-@app.route('/api/subjects_only', methods=['GET'])
-def api_subjects_only():
-    """只返回不同的科目列表，不加载所有题目数据"""
-    # 使用distinct优化查询，只获取不同的科目
-    try:
-        subjects = db.session.query(SU.subject, SU.education_stage).distinct().filter(SU.subject != None).all()
-        
-        # 按学段分组科目
-        result = {}
-        for subject, stage in subjects:
-            if subject and stage:
-                if stage not in result:
-                    result[stage] = []
-                if subject not in result[stage]:
-                    result[stage].append(subject)
-        
-        # 结果格式化为前端需要的格式
-        formatted_result = []
-        for stage in result:
-            for subject in sorted(result[stage]):
-                formatted_result.append({
-                    "subject": subject,
-                    "educationStage": stage
-                })
-        
-        return jsonify(formatted_result)
-    except Exception as e:
-        print(f"获取科目列表时出错: {str(e)}")
-        traceback.print_exc()  # 添加详细的错误堆栈信息
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/question/<int:question_id>')
-def api_question_detail(question_id):
-    """获取单个题目的详细信息，用于诊断显示问题"""
-    try:
-        # 获取指定ID的题目
-        question = SU.query.get_or_404(question_id)
-        
-        # 处理可能的None值
-        question_text = question.question or ""
-        answer_text = question.answer or ""
-        
-        # 构建完整的题目信息
-        result = {
-            "id": question.id,
-            "subject": question.subject or "",
-            "textbook": question.textbook or "",
-            "chapter": question.chapter or "",
-            "unit": question.unit or "",
-            "lesson": question.lesson or "",
-            "question": question_text,
-            "answer": answer_text,
-            "questionType": question.question_type or "",
-            "educationStage": getattr(question, 'education_stage', '高中'),
-            "additional_info": {
-                "question_length": len(question_text),
-                "answer_length": len(answer_text),
-                "has_audio": bool(question.audio_filename),
-                "has_question_image": bool(question.question_image and len(question.question_image) > 0),
-                "has_answer_image": bool(question.answer_image and len(question.answer_image) > 0),
-            }
-        }
-        
-        # 记录长内容的提示
-        if len(question_text) > 1000:
-            print(f"警告: 题目ID={question.id} 的文本异常长 ({len(question_text)}字符)")
-            # 查看前100个字符，帮助诊断
-            print(f"题目前100字符: {question_text[:100]}")
-        
-        return jsonify(result)
-    except Exception as e:
-        print(f"获取题目详情出错: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        print(f"获取试卷音频出错: {str(e)}")
+        traceback.print_exc()
+        return "获取音频失败: " + str(e), 500
 
 if __name__ == '__main__':
     try:
