@@ -187,12 +187,11 @@ html {
     .header {
         flex-direction: column !important;
         height: auto !important;
-        padding: 10px 12px !important;
+        padding: 16px 16px !important;
         margin-bottom: 2px !important;
         width: 100%;
         max-width: 100%;
         box-sizing: border-box;
-        gap: 5px;
     }
     
     .header-left {
@@ -220,35 +219,33 @@ html {
     
     .header-nav {
         width: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        padding: 5px 0;
-        gap: 4px;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(2, auto);
+        gap: 8px;
         margin-right: 0;
         margin-bottom: 0;
-        -webkit-overflow-scrolling: touch;
-        white-space: nowrap;
-        /* 隐藏滚动条但允许滚动 */
-        scrollbar-width: none; /* Firefox */
-        -ms-overflow-style: none; /* IE and Edge */
-    }
-    
-    /* 针对WebKit浏览器隐藏滚动条 */
-    .header-nav::-webkit-scrollbar {
-        display: none;
+        padding: 5px 0;
     }
     
     .header-link {
-        margin: 0 3px;
-        font-size: 14px;
-        padding: 8px 12px;
+        margin: 4px;
+        font-size: 15px;
+        padding: 10px 5px;
         text-align: center;
         white-space: nowrap;
-        flex-shrink: 0;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        border-radius: 10px;
+        border: 1px solid var(--border-color);
+        background-color: #f8f9fa;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+    }
+    
+    .header-link:hover, .header-link.active {
+        background-color: var(--primary-color);
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.15);
     }
     
     .container {
@@ -281,58 +278,38 @@ html {
     }
     
     .header-logo {
-        height: 60px;
+        height: 80px;
     }
     
     .header-title {
-        font-size: 20px;
+        font-size: 22px;
         text-align: center;
     }
     
     .search-input {
         font-size: 14px;
         padding: 8px 12px;
-        height: 36px;
     }
     
     .search-button {
         height: 36px;
         font-size: 14px;
-        padding: 0 15px;
-        min-width: 60px;
-    }
-    
-    /* 头部导航更小屏幕上的样式 */
-    .header-nav {
-        padding: 3px 0;
-        gap: 3px;
+        padding: 0 20px;
+        min-width: 70px;
     }
     
     .header-link {
-        font-size: 13px;
-        padding: 6px 8px;
-        margin: 0 2px;
-        border-radius: 3px;
-        box-shadow: 0 1px 1px rgba(0,0,0,0.1);
-    }
-    
-    /* 智能组卷按钮小屏幕样式 */
-    .smart-paper-btn {
-        padding: 6px 10px;
-        font-size: 13px;
-        margin-right: 6px;
-    }
-    
-    .smart-paper-icon {
-        width: 22px;
-        height: 22px;
-        margin-right: 5px;
+        font-size: 14px;
+        padding: 8px 5px;
+        margin: 3px;
+        text-align: center;
+        border-radius: 8px;
     }
     
     /* 进一步减少小屏幕上的空隙 */
     .header {
         margin-bottom: 1px;
-        padding: 8px 10px !important;
+        padding: 12px 12px;
     }
     
     .content-container, main, .main-content {

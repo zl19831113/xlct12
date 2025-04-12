@@ -286,6 +286,96 @@
             color: #52c41a;
         }
         
+        /* 移动端优化 */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                margin: 10px auto;
+                padding: 0 10px;
+            }
+            
+            .filter-sidebar {
+                position: static;
+                width: 100%;
+                max-width: 100%;
+                max-height: none;
+                margin-bottom: 20px;
+            }
+            
+            .filter-box {
+                margin-bottom: 10px;
+            }
+            
+            .content-area {
+                width: 100%;
+                margin-left: 0;
+            }
+            
+            .question-types-container {
+                padding: 12px;
+            }
+            
+            .question-type-item {
+                padding: 10px;
+            }
+            
+            .generate-button {
+                padding: 12px 20px;
+                font-size: 16px;
+                margin-top: 15px;
+            }
+            
+            /* 让移动端上筛选栏有更好的滚动体验 */
+            .filter-box-content {
+                padding: 12px;
+                max-height: none;
+            }
+            
+            /* 移动端上表单元素优化 */
+            select, .question-count-input, .paper-title-input {
+                padding: 10px;
+                font-size: 16px; /* 更大的触摸目标 */
+            }
+        }
+        
+        /* 更小的移动设备 */
+        @media (max-width: 480px) {
+            .main-container {
+                margin: 5px auto;
+                padding: 0 8px;
+            }
+            
+            .filter-box-content {
+                padding: 10px;
+            }
+            
+            .filter-item {
+                padding: 8px 0;
+            }
+            
+            .question-types-container {
+                padding: 10px;
+            }
+            
+            .question-type-item {
+                padding: 8px;
+            }
+            
+            .question-type-name {
+                font-size: 14px;
+            }
+            
+            .question-count-input {
+                width: 60px;
+                padding: 5px 8px;
+            }
+            
+            .generate-button {
+                padding: 10px 16px;
+                font-size: 15px;
+            }
+        }
+        
         /* CSS变量 */
         :root {
             --primary-color: #1976d2;
@@ -345,166 +435,6 @@
         .listening-subtype-input {
             width: 60px;
             text-align: center;
-        }
-        
-        /* 移动端布局优化 - 侧边栏和内容区域 */
-        @media (max-width: 991px) {
-            .main-container {
-                flex-direction: column;
-                gap: 10px;
-                margin: 15px auto;
-            }
-            
-            .filter-sidebar {
-                width: 100%;
-                max-width: 100%;
-                position: static;
-                max-height: none;
-                margin-bottom: 15px;
-            }
-            
-            .content-area {
-                width: 100%;
-                margin-left: 0;
-            }
-            
-            /* 减小移动端筛选项的高度 */
-            .filter-item {
-                padding: 8px 0;
-            }
-            
-            /* 减少移动端的表单元素间距 */
-            .filter-item label {
-                margin-bottom: 4px;
-                font-size: 13px;
-            }
-            
-            select {
-                padding: 6px 10px;
-                font-size: 13px;
-                border-radius: 8px;
-            }
-            
-            /* 调整题型选择区域 */
-            .section-title {
-                font-size: 16px;
-                margin-bottom: 15px;
-                padding-bottom: 8px;
-            }
-            
-            .question-type-item {
-                padding: 10px 8px;
-            }
-            
-            .question-type-name {
-                font-size: 14px;
-            }
-            
-            .question-count-input {
-                width: 60px;
-                padding: 4px 8px;
-                font-size: 13px;
-            }
-            
-            .drag-handle {
-                margin-right: 6px;
-            }
-            
-            /* 调整试卷标题输入框 */
-            .paper-title-input-container {
-                margin-bottom: 15px;
-                padding: 10px;
-            }
-            
-            .paper-title-input-container label {
-                margin-bottom: 6px;
-                font-size: 13px;
-            }
-            
-            .paper-title-input {
-                padding: 8px;
-                font-size: 14px;
-            }
-            
-            /* 调整听力题型区域 */
-            .listening-type-container {
-                margin-bottom: 12px;
-            }
-            
-            .listening-header {
-                padding: 8px;
-            }
-            
-            .listening-subtypes {
-                padding: 8px;
-            }
-            
-            .listening-subtype-item {
-                padding: 6px 8px;
-                margin-bottom: 6px;
-            }
-            
-            .subtype-name {
-                font-size: 13px;
-            }
-            
-            .listening-subtype-input {
-                width: 50px;
-            }
-            
-            /* 调整生成按钮 */
-            .generate-button {
-                padding: 10px 18px;
-                font-size: 15px;
-                margin-top: 15px;
-            }
-        }
-        
-        /* 小屏幕设备的更多优化 */
-        @media (max-width: 480px) {
-            .main-container {
-                margin: 10px auto;
-                padding: 0 8px;
-            }
-            
-            .filter-sidebar {
-                margin-bottom: 10px;
-            }
-            
-            /* 更小的筛选项 */
-            .filter-item {
-                padding: 6px 0;
-            }
-            
-            /* 更小的表单元素 */
-            select {
-                padding: 5px 8px;
-                font-size: 12px;
-                border-radius: 6px;
-            }
-            
-            /* 更紧凑的题型选择区 */
-            .question-types-container {
-                padding: 10px;
-            }
-            
-            .section-title {
-                font-size: 15px;
-                margin-bottom: 12px;
-                padding-bottom: 6px;
-            }
-            
-            /* 最小化边距以利用空间 */
-            .question-type-item {
-                padding: 8px 6px;
-            }
-            
-            .question-count-input,
-            .listening-subtype-input {
-                width: 50px;
-                padding: 3px 6px;
-                font-size: 12px;
-            }
         }
     </style>
 </head>
@@ -952,8 +882,21 @@
                 filteredQuestions = filteredQuestions.filter(q => q.chapter === chapter);
             }
             
+            // 特殊处理：如果是政治且选择了"选择性必修1"，过滤显示"第三单元 经济全球化"
+            const isPoliticsElective1 = (subject === '政治' && chapter === '选择性必修1');
+            
             // 获取并排序单元
-            const units = [...new Set(filteredQuestions.map(q => q.unit))].filter(Boolean);
+            let units = [...new Set(filteredQuestions.map(q => q.unit))].filter(Boolean);
+            
+            // 如果是政治选择性必修1，确保只有第三单元 经济全球化
+            if (isPoliticsElective1) {
+                units = units.filter(unit => unit.includes('第三单元') && unit.includes('经济全球化'));
+            } 
+            // 如果是政治其他章节，确保不显示第三单元 经济全球化
+            else if (subject === '政治') {
+                units = units.filter(unit => !(unit.includes('第三单元') && unit.includes('经济全球化')));
+            }
+            
             const sortedUnits = naturalSort(units);
             
             // 填充单元选择器
@@ -1018,9 +961,11 @@
         
         // 自然排序函数（处理"第一单元"、"第二单元"等序号排序）
         function naturalSort(array) {
-            // 检测是否包含"第X单元"的模式
+            // 检测是否包含特定模式
             const unitPattern = /第([一二三四五六七八九十\d]+)单元/;
             const gradePattern = /高([一二三四五六七八九十\d]+)(上|下)/;
+            const lessonPattern = /第([一二三四五六七八九十\d]+)课/;
+            const modulePattern = /(必修|选择性必修)([一二三四五六七八九十\d]+)/;
             
             // 中文数字映射到阿拉伯数字
             const chineseNumMap = {
@@ -1032,12 +977,48 @@
             const isUnitPattern = array.some(item => unitPattern.test(item));
             // 判断是否为年级模式
             const isGradePattern = array.some(item => gradePattern.test(item));
+            // 判断是否为课程模式
+            const isLessonPattern = array.some(item => lessonPattern.test(item));
+            // 判断是否为必修/选修模式
+            const isModulePattern = array.some(item => modulePattern.test(item));
             
-            if (isUnitPattern) {
+            if (isModulePattern) {
+                // 对必修和选修进行排序，必修排在选修前面
+                return array.sort((a, b) => {
+                    const matchA = a.match(modulePattern);
+                    const matchB = b.match(modulePattern);
+                    
+                    if (!matchA) return 1;
+                    if (!matchB) return -1;
+                    
+                    // 首先按类型排序：必修排在选择性必修前面
+                    if (matchA[1] !== matchB[1]) {
+                        return matchA[1] === '必修' ? -1 : 1;
+                    }
+                    
+                    // 然后按数字排序
+                    const numA = matchA[2] ? (chineseNumMap[matchA[2]] || parseInt(matchA[2])) : 999;
+                    const numB = matchB[2] ? (chineseNumMap[matchB[2]] || parseInt(matchB[2])) : 999;
+                    
+                    return numA - numB;
+                });
+            } else if (isUnitPattern) {
                 // 为单元排序
                 return array.sort((a, b) => {
                     const matchA = a.match(unitPattern);
                     const matchB = b.match(unitPattern);
+                    
+                    // 提取数字部分
+                    const numA = matchA ? (chineseNumMap[matchA[1]] || parseInt(matchA[1])) : 999;
+                    const numB = matchB ? (chineseNumMap[matchB[1]] || parseInt(matchB[1])) : 999;
+                    
+                    return numA - numB;
+                });
+            } else if (isLessonPattern) {
+                // 为课程排序
+                return array.sort((a, b) => {
+                    const matchA = a.match(lessonPattern);
+                    const matchB = b.match(lessonPattern);
                     
                     // 提取数字部分
                     const numA = matchA ? (chineseNumMap[matchA[1]] || parseInt(matchA[1])) : 999;
