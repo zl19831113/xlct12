@@ -3356,21 +3356,17 @@ def audio_player(uuid):
                               title="系统错误")
 
 @app.route('/get_audio/<int:question_id>')
-def get_audio(question_id):
-    """获取音频文件"""
+def get_question_audio(question_id):
+    """获取指定题目ID的音频文件"""
     try:
+        # 获取指定ID的题目
         question = SU.query.get(question_id)
         if not question or not question.audio_content:
-            print(f"错误: 未找到音频文件, 题目ID: {question_id}")
+            print(f"未找到题目ID={question_id}的音频内容")
             return "音频文件不存在", 404
-            
-        print(f"获取音频文件: 题目ID={question_id}, 文件名={question.audio_filename}")
         
-        # 从数据库获取音频内容
-        audio_data = question.audio_content
-        
-        # 确定正确的内容类型
-        content_type = 'audio/mpeg'  # 默认为MP3
+        # 确定文件类型
+        content_type = 'audio/mpeg'  # 默认MP3格式
         if question.audio_filename:
             if question.audio_filename.lower().endswith('.wav'):
                 content_type = 'audio/wav'
