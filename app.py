@@ -1967,12 +1967,11 @@ def generate_paper():
             # 添加日志：文件生成完成，准备发送
             print(f"Word document generated successfully for title: {paper_title}. Preparing to send.")
 
-            # 发送文件
-            safe_title = paper_title + '.docx'
+            # 发送文件，确保试卷文件名与试卷标题完全一致
             return send_file(
                 file_stream,
                 as_attachment=True,
-                download_name=safe_title,
+                download_name=f'{paper_title}.docx',
                 mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             )
 
