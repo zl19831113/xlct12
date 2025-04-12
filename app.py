@@ -947,49 +947,121 @@ def client():
 
 @app.route('/api/questions')
 def api_questions():
-    # 从SU表中获取所有题目
-    questions = SU.query.all()
-    result = []
-    
-    for q in questions:
-        # 添加ID到每个问题
-        question_dict = {
-            "id": q.id,
-            "subject": q.subject,
-            "textbook": q.textbook,
-            "chapter": q.chapter,
-            "unit": q.unit,
-            "lesson": q.lesson,
-            "question": q.question,
-            "answer": q.answer,
-            "questionType": q.question_type,
-            "educationStage": getattr(q, 'education_stage', '高中')  # 默认为高中
-        }
+    """获取题目数据，支持按科目筛选"""
+    try:
+        # 获取查询参数
+        subject = request.args.get('subject')
         
-        # 检查是否有问题图片和答案图片
-        if q.question_image is not None and len(q.question_image) > 0:
-            question_dict["has_question_image"] = True
-            question_dict["question_image_url"] = f"/get_image/{q.id}/question"
-        else:
-            question_dict["has_question_image"] = False
+        # 构建查询
+        query = SU.query
+        
+        # 应用筛选条件
+        if subject:
+            query = query.filter(SU.subject == subject)
             
-        if q.answer_image is not None and len(q.answer_image) > 0:
-            question_dict["has_answer_image"] = True
-            question_dict["answer_image_url"] = f"/get_image/{q.id}/answer"
-        else:
-            question_dict["has_answer_image"] = False
+        # 从SU表中获取题目
+        questions = query.all()
+        result = []
         
-        # 检查是否有音频文件
-        if q.audio_file_path and q.audio_filename:
-            question_dict["has_audio"] = True
-            question_dict["audio_url"] = f"/get_audio/{q.id}"
-            question_dict["question_number"] = q.question_number
-        else:
-            question_dict["has_audio"] = False
+        for q in questions:
+            try:
+                # 添加ID到每个问题，确保处理长文本
+                question_text = q.question
+                answer_text = q.answer
+                
+                # 处理可能的None值
+                if question_text is None:
+                    question_text = ""
+                if answer_text is None:
+                    answer_text = ""
+                
+                # 记录异常长的题目，可能包含特殊字符
+                if len(question_text) > 1000:
+                    print(f"警告: 题目ID={q.id} 的文本异常长 ({len(question_text)}字符)")
+                
+                question_dict = {
+                    "id": q.id,
+                    "subject": q.subject or "",
+                    "textbook": q.textbook or "",
+                    "chapter": q.chapter or "",
+                    "unit": q.unit or "",
+                    "lesson": q.lesson or "",
+                    "question": question_text,
+                    "answer": answer_text,
+                    "questionType": q.question_type or "",
+                    "educationStage": getattr(q, 'education_stage', '高中')  # 默认为高中
+                }
+                
+                # 检查是否有问题图片和答案图片
+                if q.question_image is not None and len(q.question_image) > 0:
+                    question_dict["has_question_image"] = True
+                    question_dict["question_image_url"] = f"/get_image/{q.id}/question"
+                else:
+                    question_dict["has_question_image"] = False
+                    
+                if q.answer_image is not None and len(q.answer_image) > 0:
+                    question_dict["has_answer_image"] = True
+                    question_dict["answer_image_url"] = f"/get_image/{q.id}/answer"
+                else:
+                    question_dict["has_answer_image"] = False
+                
+                # 检查是否有音频文件
+                if q.audio_file_path and q.audio_filename:
+                    question_dict["has_audio"] = True
+                    question_dict["audio_url"] = f"/get_audio/{q.id}"
+                    question_dict["question_number"] = q.question_number
+                else:
+                    question_dict["has_audio"] = False
+                
+                result.append(question_dict)
+            except Exception as item_err:
+                print(f"处理题目ID={q.id}时出错: {str(item_err)}")
+                # 继续处理下一个题目，不中断整个过程
+                continue
         
-        result.append(question_dict)
+        # 使用默认JSON编码器可能失败，使用自定义JSON序列化
+        def custom_json_serializer(obj):
+            try:
+                import json
+                return json.dumps(obj, ensure_ascii=False)
+            except:
+                # 如果常规序列化失败，尝试单独处理每个字段
+                import json
+                sanitized_obj = []
+                for item in obj:
+                    try:
+                        json.dumps(item, ensure_ascii=False)
+                        sanitized_obj.append(item)
+                    except:
+                        # 如果单个对象序列化失败，尝试清理其字段
+                        sanitized_item = {}
+                        for key, value in item.items():
+                            try:
+                                json.dumps({key: value}, ensure_ascii=False)
+                                sanitized_item[key] = value
+                            except:
+                                # 如果字段值序列化失败，使用字符串表示
+                                try:
+                                    sanitized_item[key] = str(value)
+                                except:
+                                    sanitized_item[key] = "无法显示的内容"
+                        sanitized_obj.append(sanitized_item)
+                return json.dumps(sanitized_obj, ensure_ascii=False)
         
-    return jsonify(result)
+        try:
+            # 尝试使用Flask的jsonify
+            return jsonify(result)
+        except Exception as jsonify_err:
+            print(f"jsonify序列化失败，尝试自定义JSON序列化: {str(jsonify_err)}")
+            
+            # 使用自定义JSON序列化
+            response = make_response(custom_json_serializer(result))
+            response.headers['Content-Type'] = 'application/json; charset=utf-8'
+            return response
+            
+    except Exception as e:
+        print(f"获取题目时出错: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/clear_database', methods=['POST'])
 @csrf.exempt
@@ -1105,41 +1177,8 @@ def generate_paper():
                     'files': audio_files,
                     'created_at': datetime.now().isoformat()
                 }
-                
-                # 将音频信息保存到数据库
-                try:
-                    # 将音频文件列表转换为JSON字符串存储
-                    audio_data_json = json.dumps({
-                        'title': paper_title,
-                        'files': audio_files,
-                        'created_at': datetime.now().isoformat()
-                    })
-                    
-                    # 检查是否已存在记录
-                    existing_record = PaperAudio.query.filter_by(paper_uuid=paper_uuid).first()
-                    if existing_record:
-                        # 更新现有记录
-                        existing_record.paper_title = paper_title
-                        existing_record.audio_data = audio_data_json
-                        existing_record.created_at = datetime.now()
-                    else:
-                        # 创建新记录
-                        new_record = PaperAudio(
-                            paper_uuid=paper_uuid,
-                            paper_title=paper_title,
-                            audio_data=audio_data_json
-                        )
-                        db.session.add(new_record)
-                    
-                    db.session.commit()
-                    print(f"已将音频信息保存到数据库，试卷ID: {paper_uuid}")
-                except Exception as db_err:
-                    print(f"保存音频信息到数据库时出错: {str(db_err)}")
-                    db.session.rollback()
-                    # 错误不阻止后续处理
-                
                 print(f"Created audio playlist for paper ID: {paper_uuid} with {len(audio_files)} files")
-            
+                
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             traceback.print_exc() # Ensure traceback is printed
@@ -1249,19 +1288,19 @@ def generate_paper():
                     # 生成二维码
                     base_url = request.host_url.rstrip('/')  # 获取当前主机URL
                     
-                    # 修复服务器环境下二维码URL生成问题
-                    if 'localhost' in base_url or '127.0.0.1' in base_url:
-                        # 本地开发环境
-                        qr_url = f"{base_url}/audio_player/{paper_uuid}"
-                    else:
-                        # 服务器生产环境 - 使用完整的外部URL
-                        server_url = "http://120.26.12.100"  # 固定服务器地址
-                        qr_url = f"{server_url}/audio_player/{paper_uuid}"
+                    # 统一本地和服务器环境的URL处理
+                    qr_url = f"{base_url}/audio_player/{paper_uuid}"
+                    
+                    # 添加日志，记录音频文件信息
+                    print(f"生成英语听力试卷，二维码URL: {qr_url}")
+                    print(f"音频文件UUID: {paper_uuid}, 音频文件数量: {len(audio_files)}")
+                    for audio in audio_files:
+                        print(f"音频文件: ID={audio['id']}, 文件名={audio['filename']}, 标题={audio['title']}")
                     
                     # 创建二维码图像
                     qr = qrcode.QRCode(
                         version=1,
-                        error_correction=qrcode.constants.ERROR_CORRECT_L,
+                        error_correction=qrcode.constants.ERROR_CORRECT_M,  # 提高纠错级别
                         box_size=10,
                         border=4,
                     )
@@ -3293,408 +3332,132 @@ def get_lessons():
 # 添加存储音频列表的字典
 paper_audio_files = {}
 
-@app.route('/audio_player/<paper_id>')
-def audio_player(paper_id):
-    """音频播放页面，通过二维码扫描访问"""
+@app.route('/audio_player/<uuid>')
+def audio_player(uuid):
+    """音频播放器页面"""
     try:
-        # 首先检查内存缓存
-        if paper_id in paper_audio_files:
-            audio_list = paper_audio_files[paper_id]
-            paper_title = audio_list.get('title', '英语听力')
-            
-            print(f"从内存缓存中找到试卷音频信息: {paper_id}")
-            return render_template('audio_player.html', 
-                                  paper_id=paper_id,
-                                  paper_title=paper_title,
-                                  audio_files=audio_list.get('files', []),
-                                  error=None)
-                                  
-        # 如果内存中没有，尝试从数据库加载
-        paper_audio = PaperAudio.query.filter_by(paper_uuid=paper_id).first()
-        if paper_audio:
-            # 解析存储的JSON数据
-            try:
-                audio_data = json.loads(paper_audio.audio_data)
-                
-                # 将数据加载到内存缓存
-                paper_audio_files[paper_id] = audio_data
-                
-                print(f"从数据库加载试卷音频信息: {paper_id}")
-                return render_template('audio_player.html', 
-                                      paper_id=paper_id,
-                                      paper_title=audio_data.get('title', '英语听力'),
-                                      audio_files=audio_data.get('files', []),
-                                      error=None)
-            except json.JSONDecodeError:
-                print(f"解析音频数据JSON出错: {paper_id}")
+        if uuid not in paper_audio_files:
+            print(f"错误: 未找到音频播放列表 UUID: {uuid}")
+            return render_template('error.html', 
+                                message=f"没有找到对应的音频文件。请确认URL是否正确，或重新生成试卷。", 
+                                title="音频文件未找到")
         
-        # 既不在内存也不在数据库中
-        print(f"找不到试卷音频信息: {paper_id}")
+        audio_info = paper_audio_files[uuid]
+        print(f"获取到音频播放列表: UUID={uuid}, 标题={audio_info['title']}, 文件数量={len(audio_info['files'])}")
+        
         return render_template('audio_player.html', 
-                              error="未找到相关音频文件或链接已过期", 
-                              paper_id=paper_id,
-                              audio_files=[])
-        
+                              audio_info=audio_info,
+                              title=audio_info['title'],
+                              uuid=uuid)
     except Exception as e:
-        print(f"音频播放页面加载错误: {str(e)}")
-        traceback.print_exc()
-        return render_template('audio_player.html', 
-                              error="加载音频文件时出错", 
-                              paper_id=paper_id,
-                              audio_files=[])
+        print(f"访问音频播放器时出错: {str(e)}")
+        return render_template('error.html', 
+                              message=f"加载音频播放器时出错: {str(e)}", 
+                              title="系统错误")
 
-@app.route('/get_audio_by_paper/<paper_id>/<int:audio_index>')
-def get_audio_by_paper(paper_id, audio_index):
-    """根据试卷ID和音频索引获取音频文件"""
+@app.route('/get_audio/<int:question_id>')
+def get_audio(question_id):
+    """获取音频文件"""
     try:
-        audio_list = None
-        
-        # 首先尝试从内存缓存获取
-        if paper_id in paper_audio_files:
-            audio_list = paper_audio_files[paper_id]
-        else:
-            # 如果内存中没有，尝试从数据库加载
-            paper_audio = PaperAudio.query.filter_by(paper_uuid=paper_id).first()
-            if paper_audio:
-                try:
-                    audio_data = json.loads(paper_audio.audio_data)
-                    paper_audio_files[paper_id] = audio_data  # 加载到内存
-                    audio_list = audio_data
-                    print(f"从数据库加载音频文件信息: {paper_id}")
-                except json.JSONDecodeError:
-                    print(f"解析音频数据JSON出错: {paper_id}")
-        
-        # 如果既不在内存也不在数据库中
-        if not audio_list:
-            print(f"找不到试卷音频信息: {paper_id}")
-            return "试卷音频不存在或已过期", 404
+        question = SU.query.get(question_id)
+        if not question or not question.audio_content:
+            print(f"错误: 未找到音频文件, 题目ID: {question_id}")
+            return "音频文件不存在", 404
             
-        files = audio_list.get('files', [])
+        print(f"获取音频文件: 题目ID={question_id}, 文件名={question.audio_filename}")
         
-        # 检查音频索引是否有效
-        if audio_index < 0 or audio_index >= len(files):
-            return "音频文件索引无效", 404
-            
-        # 获取音频文件信息
-        audio_file = files[audio_index]
-        file_id = audio_file.get('id')
+        # 从数据库获取音频内容
+        audio_data = question.audio_content
         
-        # 通过ID获取音频内容
-        record = SU.query.get_or_404(file_id)
-        
-        # 检查和记录音频字段状态
-        has_audio_content = hasattr(record, 'audio_content') and record.audio_content is not None and len(record.audio_content or b'') > 0
-        has_audio_path = hasattr(record, 'audio_file_path') and record.audio_file_path is not None and len(record.audio_file_path or '') > 0
-        
-        # 尝试从内容发送
-        if has_audio_content:
-            return send_file(
-                io.BytesIO(record.audio_content),
-                mimetype='audio/mpeg',
-                as_attachment=False,
-                download_name=record.audio_filename or f'audio_{audio_index}.mp3'
-            )
-        
-        # 尝试从文件路径发送
-        elif has_audio_path:
-            audio_path = record.audio_file_path
-            # 如果是相对路径，转换为绝对路径
-            if not os.path.isabs(audio_path):
-                audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), audio_path)
+        # 确定正确的内容类型
+        content_type = 'audio/mpeg'  # 默认为MP3
+        if question.audio_filename:
+            if question.audio_filename.lower().endswith('.wav'):
+                content_type = 'audio/wav'
+            elif question.audio_filename.lower().endswith('.ogg'):
+                content_type = 'audio/ogg'
                 
-            if os.path.exists(audio_path):
-                return send_file(
-                    audio_path,
-                    mimetype='audio/mpeg',
-                    as_attachment=False,
-                    download_name=os.path.basename(audio_path)
-                )
-                
-        # 无音频情况下返回一个静态MP3作为替代
-        return send_file(
-            os.path.join(app.static_folder, 'audio', 'silence.mp3'),
-            mimetype='audio/mpeg',
-            as_attachment=False,
-            download_name='silence.mp3'
-        )
-        
+        # 创建响应
+        response = make_response(audio_data)
+        response.headers['Content-Type'] = content_type
+        response.headers['Content-Disposition'] = f'inline; filename="{question.audio_filename}"'
+        return response
     except Exception as e:
-        print(f"获取试卷音频出错: {str(e)}")
-        traceback.print_exc()
+        print(f"获取音频文件时出错: {str(e)}")
         return "获取音频失败", 500
 
-@app.route('/api/subjects', methods=['GET'])
-def get_subjects():
-    # 获取学段参数，如果没有则默认为高中
-    education_stage = request.args.get('educationStage', '高中')
-    
-    # 直接查询去重的科目列表，而不是所有题目
-    query = "SELECT DISTINCT subject FROM su WHERE education_stage=? AND subject IS NOT NULL"
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute(query, (education_stage,))
-    subjects = [row[0] for row in cursor.fetchall() if row[0]]
-    conn.close()
-    
-    # 按字母顺序排序
-    subjects.sort()
-    
-    return jsonify(subjects)
-
-# 创建一个存储试卷音频关联的模型
-class PaperAudio(db.Model):
-    __tablename__ = 'paper_audio'
-    id = db.Column(db.Integer, primary_key=True)
-    paper_uuid = db.Column(db.String(50), unique=True, nullable=False)
-    paper_title = db.Column(db.String(200))
-    audio_data = db.Column(db.Text)  # 存储JSON格式的音频文件列表
-    created_at = db.Column(db.DateTime, default=datetime.now)
-
-# 全局音频文件集合 - 仅作为内存缓存使用，实际数据存储在数据库
-paper_audio_files = {}
-
-@app.route('/api/debug_question/<int:question_id>')
-def debug_question(question_id):
-    """调试特定题目内容，查看完整数据"""
+@app.route('/api/subjects_only', methods=['GET'])
+def api_subjects_only():
+    """只返回不同的科目列表，不加载所有题目数据"""
+    # 使用distinct优化查询，只获取不同的科目
     try:
+        subjects = db.session.query(SU.subject, SU.educationStage).distinct().filter(SU.subject != None).all()
+        
+        # 按学段分组科目
+        result = {}
+        for subject, stage in subjects:
+            if subject and stage:
+                if stage not in result:
+                    result[stage] = []
+                if subject not in result[stage]:
+                    result[stage].append(subject)
+        
+        # 结果格式化为前端需要的格式
+        formatted_result = []
+        for stage in result:
+            for subject in sorted(result[stage]):
+                formatted_result.append({
+                    "subject": subject,
+                    "educationStage": stage
+                })
+        
+        return jsonify(formatted_result)
+    except Exception as e:
+        print(f"获取科目列表时出错: {str(e)}")
+        return jsonify([]), 500
+
+@app.route('/api/question/<int:question_id>')
+def api_question_detail(question_id):
+    """获取单个题目的详细信息，用于诊断显示问题"""
+    try:
+        # 获取指定ID的题目
         question = SU.query.get_or_404(question_id)
+        
+        # 处理可能的None值
+        question_text = question.question or ""
+        answer_text = question.answer or ""
         
         # 构建完整的题目信息
         result = {
             "id": question.id,
-            "subject": question.subject,
-            "education_stage": getattr(question, 'education_stage', '高中'),
-            "chapter": question.chapter,
-            "unit": question.unit,
-            "lesson": question.lesson,
-            "question_type": question.question_type,
-            "full_question": question.question,  # 完整题目内容
-            "full_answer": question.answer,      # 完整答案内容
-            "has_question_image": hasattr(question, 'question_image') and question.question_image is not None,
-            "has_answer_image": hasattr(question, 'answer_image') and question.answer_image is not None,
-            "has_audio": hasattr(question, 'audio_content') and question.audio_content is not None
-        }
-        
-        # 添加调试信息 - 题目长度统计
-        if question.question:
-            result["question_length"] = len(question.question)
-            result["question_first_200"] = question.question[:200]  # 前200个字符
-            result["question_last_200"] = question.question[-200:] if len(question.question) > 200 else ""  # 后200个字符
-        
-        # 添加调试信息 - 特殊字符和换行符检查
-        if question.question:
-            result["contains_newlines"] = "\n" in question.question
-            result["contains_html"] = "<" in question.question and ">" in question.question
-            result["newline_count"] = question.question.count("\n")
-            result["special_chars"] = re.findall(r'[^\x00-\x7F]+', question.question)
-        
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
-
-@app.route('/api/find_questions', methods=['GET'])
-def find_questions():
-    """根据关键词查找题目"""
-    keyword = request.args.get('keyword', '')
-    if not keyword:
-        return jsonify({"error": "请提供关键词"}), 400
-    
-    try:
-        # 在SU表中搜索包含关键词的题目
-        questions = SU.query.filter(SU.question.like(f'%{keyword}%')).all()
-        
-        result = []
-        for q in questions:
-            question_info = {
-                "id": q.id,
-                "subject": q.subject,
-                "education_stage": getattr(q, 'education_stage', '高中'),
-                "question_type": q.question_type,
-                # 提取前后100个字符包含关键词的片段
-                "excerpt": extract_context(q.question, keyword, 100) if q.question else ""
-            }
-            result.append(question_info)
-        
-        return jsonify({
-            "count": len(result),
-            "questions": result
-        })
-    except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
-
-def extract_context(text, keyword, context_size=100):
-    """提取关键词周围的上下文"""
-    if not text or not keyword:
-        return ""
-    
-    # 找到关键词在文本中的位置
-    pos = text.lower().find(keyword.lower())
-    if pos == -1:
-        return text[:200] + "..." if len(text) > 200 else text
-    
-    # 计算上下文的起始和结束位置
-    start = max(0, pos - context_size)
-    end = min(len(text), pos + len(keyword) + context_size)
-    
-    # 提取上下文
-    context = text[start:end]
-    
-    # 如果上下文不是从文本开头开始的，添加省略号
-    if start > 0:
-        context = "..." + context
-    
-    # 如果上下文不是到文本结尾结束的，添加省略号
-    if end < len(text):
-        context = context + "..."
-    
-    return context
-
-@app.route('/api/fix_questions', methods=['GET'])
-def fix_questions():
-    """修复不完整或格式有问题的题目"""
-    try:
-        # 查找可能存在问题的题目
-        # 1. 查找包含半个中文引号的题目(只有一个引号)
-        # 2. 查找包含不完整选项的题目(只有A没有B或只有前一部分)
-        
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # 查找包含英语选择题关键词但可能不完整的题目
-        cursor.execute("SELECT id, question FROM su WHERE subject = '英语' AND question LIKE '%（  ）%A．%' AND question NOT LIKE '%B．%'")
-        incomplete_english_questions = cursor.fetchall()
-        
-        # 查找包含政治选择题关键词但可能不完整的题目
-        cursor.execute("SELECT id, question FROM su WHERE subject = '政治' AND question LIKE '%．（%）%A．%' AND question NOT LIKE '%B．%'")
-        incomplete_politics_questions = cursor.fetchall()
-        
-        # 合并可能存在问题的题目ID
-        problem_ids = [q[0] for q in incomplete_english_questions + incomplete_politics_questions]
-        
-        result = {
-            "total_problem_questions": len(problem_ids),
-            "problem_ids": problem_ids,
-            "english_questions": [{"id": q[0], "preview": q[1][:100] + "..."} for q in incomplete_english_questions],
-            "politics_questions": [{"id": q[0], "preview": q[1][:100] + "..."} for q in incomplete_politics_questions]
-        }
-        
-        conn.close()
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
-
-@app.route('/api/repair_question/<int:question_id>', methods=['GET'])
-def repair_question(question_id):
-    """尝试修复指定ID的不完整题目"""
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # 获取原始题目
-        cursor.execute("SELECT id, question, answer, subject, edu_stage FROM su WHERE id = ?", (question_id,))
-        question_data = cursor.fetchone()
-        
-        if not question_data:
-            conn.close()
-            return jsonify({"error": f"题目ID {question_id} 不存在"}), 404
-        
-        id, question_text, answer, subject, edu_stage = question_data
-        
-        # 原始状态
-        original = {
-            "id": id,
+            "subject": question.subject or "",
+            "textbook": question.textbook or "",
+            "chapter": question.chapter or "",
+            "unit": question.unit or "",
+            "lesson": question.lesson or "",
             "question": question_text,
-            "answer": answer,
-            "subject": subject,
-            "edu_stage": edu_stage,
-            "question_length": len(question_text) if question_text else 0
+            "answer": answer_text,
+            "questionType": question.question_type or "",
+            "educationStage": getattr(question, 'education_stage', '高中'),
+            "additional_info": {
+                "question_length": len(question_text),
+                "answer_length": len(answer_text),
+                "has_audio": bool(question.audio_filename),
+                "has_question_image": bool(question.question_image and len(question.question_image) > 0),
+                "has_answer_image": bool(question.answer_image and len(question.answer_image) > 0),
+            }
         }
         
-        # 修复状态（默认与原始状态相同）
-        fixed = dict(original)
-        fixed["was_fixed"] = False
-        fixed["fix_method"] = None
+        # 记录长内容的提示
+        if len(question_text) > 1000:
+            print(f"警告: 题目ID={question.id} 的文本异常长 ({len(question_text)}字符)")
+            # 查看前100个字符，帮助诊断
+            print(f"题目前100字符: {question_text[:100]}")
         
-        # 根据不同类型的题目进行修复尝试
-        if subject == '英语' and '（  ）' in question_text and 'A．' in question_text and 'B．' not in question_text:
-            # 尝试查找同类题目进行补全
-            similar_query = question_text.split('A．')[0] + '%'
-            cursor.execute("SELECT question FROM su WHERE subject = ? AND id != ? AND question LIKE ? AND question LIKE '%B．%' LIMIT 1", 
-                          (subject, id, similar_query))
-            similar = cursor.fetchone()
-            
-            if similar:
-                similar_text = similar[0]
-                # 提取选项部分
-                if 'A．' in similar_text:
-                    options_part = similar_text.split('A．')[1]
-                    if 'B．' in options_part and 'C．' in options_part:
-                        # 只保留原题的A选项，然后添加B、C、D选项
-                        original_a_option = question_text.split('A．')[1].strip() if len(question_text.split('A．')) > 1 else ""
-                        options_format = options_part.split('B．')[1]
-                        
-                        # 重构题目
-                        fixed_question = question_text.split('A．')[0] + 'A．' + original_a_option
-                        if not fixed_question.endswith(' '):
-                            fixed_question += ' '
-                        fixed_question += 'B．' + options_format
-                        
-                        fixed["question"] = fixed_question
-                        fixed["was_fixed"] = True
-                        fixed["fix_method"] = "similar_question_options"
-                        fixed["question_length"] = len(fixed_question)
-        
-        elif subject == '政治' and 'A．' in question_text and 'B．' not in question_text:
-            # 尝试查找同类题目进行补全
-            cursor.execute("SELECT question FROM su WHERE subject = ? AND id != ? AND question LIKE '%A．%B．%C．%D．%' LIMIT 1", 
-                          (subject, id))
-            similar = cursor.fetchone()
-            
-            if similar:
-                similar_text = similar[0]
-                # 提取选项格式
-                if 'A．' in similar_text:
-                    options_part = similar_text.split('A．')[1]
-                    if 'B．' in options_part:
-                        # 获取原题A选项
-                        original_a_option = question_text.split('A．')[1].strip() if len(question_text.split('A．')) > 1 else ""
-                        
-                        # 从相似题目中提取B、C、D选项格式
-                        b_format = options_part.split('B．')[1].split('C．')[0].strip()
-                        c_format = options_part.split('C．')[1].split('D．')[0].strip()
-                        d_format = options_part.split('D．')[1].strip()
-                        
-                        # 根据题目类型生成缺失的选项
-                        if "社会主义" in question_text or "马克思" in question_text:
-                            b_option = "与社会实践相结合"
-                            c_option = "与时俱进"
-                            d_option = "实事求是" 
-                        else:
-                            b_option = "具体问题具体分析"
-                            c_option = "求真务实"
-                            d_option = "与时俱进"
-                        
-                        # 重构题目
-                        question_stem = question_text.split('A．')[0]
-                        fixed_question = question_stem + 'A．' + original_a_option + ' B．' + b_option + ' C．' + c_option + ' D．' + d_option
-                        
-                        fixed["question"] = fixed_question
-                        fixed["was_fixed"] = True
-                        fixed["fix_method"] = "template_options"
-                        fixed["question_length"] = len(fixed_question)
-        
-        # 如果进行了修复，保存修复后的题目
-        if fixed["was_fixed"]:
-            cursor.execute("UPDATE su SET question = ? WHERE id = ?", (fixed["question"], id))
-            conn.commit()
-        
-        conn.close()
-        return jsonify({
-            "original": original,
-            "fixed": fixed
-        })
+        return jsonify(result)
     except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+        print(f"获取题目详情出错: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     try:
