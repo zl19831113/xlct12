@@ -156,7 +156,24 @@ def clean_and_split_question(question_text):
     # 移除多余空格和换行
     question_text = re.sub(r'\n\s*\n+', '\n', question_text)  # 多个空行替换为单个换行
     question_text = re.sub(r'[ \t]+', ' ', question_text)     # 多个空格替换为单个空格
+    
+    # 检测问题是否包含阅读材料或特殊题型
+    contains_material = re.search(r'阅读材料|材料\d|[Rr]ead the (text|passage|article|material)', question_text) is not None
+    contains_mp3 = re.search(r'听录音|[Ll]isten to the (recording|MP3)', question_text) is not None
 
+    # 对于含有材料或MP3的题目，避免拆分
+    if contains_material or contains_mp3:
+        # 尝试提取（）中的空缺，但保持题目结构不变
+        blanks = re.findall(r'（\s*）|\(\s*\)', question_text)
+        bullet_list = []
+        
+        # 尝试寻找ABCD选项格式，但不从原文移除
+        options_pattern = r'([A-D][．.、]\s*[^A-D]+)(?=[A-D][．.、]|$)'
+        options = re.findall(options_pattern, question_text)
+        choices = " ".join(options) if options else ""
+        
+        return question_text, bullet_list, choices
+    
     # 先尝试提取带①②③④的部分
     bullet_pattern = r'([①②③④⑤⑥⑦⑧⑨])([^①②③④⑤⑥⑦⑧⑨A-D]+)(?=[①②③④⑤⑥⑦⑧⑨A-D]|$)'
     bullet_matches = re.finditer(bullet_pattern, question_text)
@@ -220,9 +237,14 @@ def clean_and_split_question(question_text):
     # 移除题干开始的题号（如果有）
     question_text = re.sub(r'^\d+[．.、]\s*', '', question_text).strip()
     
-    # 确保题干末尾有括号（如果没有）
-    if not question_text.endswith("）") and "（" not in question_text[-5:]:
-        question_text = question_text + "（  ）"
+    # 检查题干是否已经含有括号
+    has_brackets = re.search(r'（\s*）|\(\s*\)', question_text) is not None
+    # 确保题干末尾有括号（如果没有且需要添加）
+    if not has_brackets and not question_text.endswith("）") and "（" not in question_text[-5:]:
+        # 检查此题是否需要括号（选择题通常需要）
+        needs_brackets = (choice_part and not contains_material and not contains_mp3)
+        if needs_brackets:
+            question_text = question_text + "（  ）"
     
     return question_text, bullet_list, choice_part
 
@@ -238,6 +260,47 @@ csrf = CSRFProtect(app)
 instance_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
 if not os.path.exists(instance_path):
     os.makedirs(instance_path)
+
+# 确保静态音频目录存在
+static_audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'audio')
+if not os.path.exists(static_audio_path):
+    os.makedirs(static_audio_path)
+    print(f"创建静态音频目录: {static_audio_path}")
+
+# 确保silence.mp3文件存在
+silence_mp3_path = os.path.join(static_audio_path, 'silence.mp3')
+if not os.path.exists(silence_mp3_path):
+    # 创建一个1秒静音MP3文件
+    try:
+        import wave
+        import struct
+        import array
+        
+        # 尝试创建一个静音WAV文件，然后转换为MP3
+        temp_wav_path = os.path.join(static_audio_path, 'silence.wav')
+        with wave.open(temp_wav_path, 'w') as wav_file:
+            wav_file.setparams((1, 2, 44100, 44100, 'NONE', 'not compressed'))
+            values = array.array('h', [0] * 44100)  # 1秒44.1kHz静音
+            wav_file.writeframes(values.tobytes())
+            
+        # 如果系统有ffmpeg，转换为MP3
+        import subprocess
+        try:
+            subprocess.run(['ffmpeg', '-i', temp_wav_path, '-codec:a', 'libmp3lame', '-qscale:a', '2', silence_mp3_path], 
+                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            os.remove(temp_wav_path)  # 删除临时WAV文件
+            print(f"已创建静音MP3文件: {silence_mp3_path}")
+        except (subprocess.SubprocessError, FileNotFoundError):
+            # 如果ffmpeg不可用，直接复制一个空白文件作为MP3
+            with open(silence_mp3_path, 'wb') as f:
+                # 写入一个最小的有效MP3头部
+                f.write(bytes.fromhex('FFFB9064000280000000'))
+            print(f"已创建最小静音MP3文件: {silence_mp3_path}")
+    except Exception as e:
+        print(f"无法创建静音MP3文件: {str(e)}")
+        # 创建一个空文件作为备用
+        with open(silence_mp3_path, 'wb') as f:
+            f.write(b'')
 
 # 使用本地数据库文件
 db_path = os.path.join(instance_path, 'xlct12.db')
@@ -1221,8 +1284,8 @@ def generate_paper():
                         # 本地开发环境
                         qr_url = f"{base_url}/audio_player/{paper_uuid}"
                     else:
-                        # 服务器生产环境 - 使用完整的外部URL
-                        server_url = "http://120.26.12.100"  # 固定服务器地址
+                        # 服务器生产环境 - 使用请求的原始域名而不是硬编码IP
+                        server_url = request.host_url.rstrip('/')  # 获取当前请求的完整URL（包含域名）
                         qr_url = f"{server_url}/audio_player/{paper_uuid}"
                     
                     # 创建二维码图像
@@ -3265,7 +3328,12 @@ def audio_player(paper_id):
     """音频播放页面，通过二维码扫描访问"""
     try:
         # 从存储中获取该试卷ID对应的音频文件列表
+        # 添加日志记录
+        print(f"请求音频播放页面，试卷ID: {paper_id}")
+        print(f"当前存储的音频文件记录: {list(paper_audio_files.keys())}")
+        
         if paper_id not in paper_audio_files:
+            print(f"未找到试卷ID为 {paper_id} 的音频文件记录")
             return render_template('audio_player.html', 
                                   error="未找到相关音频文件或链接已过期", 
                                   paper_id=paper_id,
@@ -3274,10 +3342,16 @@ def audio_player(paper_id):
         audio_list = paper_audio_files[paper_id]
         paper_title = audio_list.get('title', '英语听力')
         
+        # 记录找到的文件信息
+        files = audio_list.get('files', [])
+        print(f"找到 {len(files)} 个音频文件，试卷标题: {paper_title}")
+        for i, audio in enumerate(files):
+            print(f"  音频 {i+1}: ID={audio.get('id')}, 标题={audio.get('title')}")
+        
         return render_template('audio_player.html', 
                               paper_id=paper_id,
                               paper_title=paper_title,
-                              audio_files=audio_list.get('files', []),
+                              audio_files=files,
                               error=None)
     except Exception as e:
         print(f"音频播放页面加载错误: {str(e)}")
@@ -3291,8 +3365,11 @@ def audio_player(paper_id):
 def get_audio_by_paper(paper_id, audio_index):
     """根据试卷ID和音频索引获取音频文件"""
     try:
+        print(f"请求音频文件：试卷ID={paper_id}, 索引={audio_index}")
+        
         # 检查试卷ID是否存在
         if paper_id not in paper_audio_files:
+            print(f"错误：试卷ID {paper_id} 不存在于音频记录中")
             return "试卷音频不存在或已过期", 404
             
         audio_list = paper_audio_files[paper_id]
@@ -3300,21 +3377,32 @@ def get_audio_by_paper(paper_id, audio_index):
         
         # 检查音频索引是否有效
         if audio_index < 0 or audio_index >= len(files):
+            print(f"错误：音频索引 {audio_index} 超出范围 (0-{len(files)-1})")
             return "音频文件索引无效", 404
             
         # 获取音频文件信息
         audio_file = files[audio_index]
         file_id = audio_file.get('id')
         
+        print(f"查找ID为 {file_id} 的音频记录")
+        
         # 通过ID获取音频内容
-        record = SU.query.get_or_404(file_id)
+        record = SU.query.get(file_id)
+        if not record:
+            print(f"错误：数据库中未找到ID为 {file_id} 的记录")
+            return "未找到对应的音频记录", 404
         
         # 检查和记录音频字段状态
         has_audio_content = hasattr(record, 'audio_content') and record.audio_content is not None and len(record.audio_content or b'') > 0
         has_audio_path = hasattr(record, 'audio_file_path') and record.audio_file_path is not None and len(record.audio_file_path or '') > 0
         
+        print(f"音频记录状态：has_content={has_audio_content}, has_path={has_audio_path}")
+        if has_audio_path:
+            print(f"音频文件路径: {record.audio_file_path}")
+        
         # 尝试从内容发送
         if has_audio_content:
+            print(f"从二进制内容返回音频，大小: {len(record.audio_content)} 字节")
             return send_file(
                 io.BytesIO(record.audio_content),
                 mimetype='audio/mpeg',
@@ -3327,19 +3415,42 @@ def get_audio_by_paper(paper_id, audio_index):
             audio_path = record.audio_file_path
             # 如果是相对路径，转换为绝对路径
             if not os.path.isabs(audio_path):
-                audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), audio_path)
+                base_path = os.path.dirname(os.path.abspath(__file__))
+                audio_path = os.path.join(base_path, audio_path)
                 
+            print(f"尝试从文件路径加载音频: {audio_path}")
             if os.path.exists(audio_path):
+                print(f"文件存在，返回音频文件")
                 return send_file(
                     audio_path,
                     mimetype='audio/mpeg',
                     as_attachment=False,
                     download_name=os.path.basename(audio_path)
                 )
+            else:
+                print(f"错误：文件路径 {audio_path} 不存在")
+                
+        # 尝试从音频文件名搜索静态目录
+        if hasattr(record, 'audio_filename') and record.audio_filename:
+            static_audio_path = os.path.join(app.static_folder, 'audio', record.audio_filename)
+            if os.path.exists(static_audio_path):
+                print(f"在静态目录找到音频文件: {static_audio_path}")
+                return send_file(
+                    static_audio_path,
+                    mimetype='audio/mpeg',
+                    as_attachment=False,
+                    download_name=record.audio_filename
+                )
                 
         # 无音频情况下返回一个静态MP3作为替代
+        silence_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
+        if not os.path.exists(silence_path):
+            print(f"警告：替代音频文件 {silence_path} 不存在")
+            return "未找到音频文件", 404
+            
+        print(f"未找到有效音频，返回静音文件")
         return send_file(
-            os.path.join(app.static_folder, 'audio', 'silence.mp3'),
+            silence_path,
             mimetype='audio/mpeg',
             as_attachment=False,
             download_name='silence.mp3'
