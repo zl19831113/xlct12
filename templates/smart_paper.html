@@ -1359,43 +1359,10 @@
                 a.click();
                 window.URL.revokeObjectURL(url);
                 
-                // 如果有音频文件，提供音频下载链接
-                if (audioFiles && audioFiles.length > 0) {
-                    // 创建音频打包下载链接
-                    fetch('/api/package_audio_files', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            audio_files: audioFiles,
-                            paper_title: paperTitle
-                        })
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('音频打包失败');
-                        }
-                        return response.blob();
-                    })
-                    .then(blob => {
-                        const audioUrl = window.URL.createObjectURL(blob);
-                        const audioLink = document.createElement('a');
-                        audioLink.href = audioUrl;
-                        audioLink.download = `${paperTitle}_听力音频.zip`;
-                        document.body.appendChild(audioLink);
-                        audioLink.click();
-                        window.URL.revokeObjectURL(audioUrl);
-                        
-                        showMessage('试卷和听力音频生成成功！', 'success');
-                    })
-                    .catch(error => {
-                        showMessage('试卷生成成功，但听力音频下载失败：' + error.message, 'warning');
-                    });
-                } else {
-                    showMessage('试卷生成成功！', 'success');
-                }
+                // 显示成功消息
+                showMessage('试卷生成成功！', 'success');
                 
+                // 启用生成按钮
                 document.getElementById('generateButton').disabled = false;
             })
             .catch(error => {
