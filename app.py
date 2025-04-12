@@ -1387,6 +1387,14 @@ def generate_paper():
                     if not text:
                         return ""
                         
+                    # 保留"【原文】"部分，确保听力题的原文能被正确识别
+                    original_text = ""
+                    original_match = re.search(r'【原文】(.*?)($|(?=【))', text, re.DOTALL)
+                    if original_match:
+                        original_text = original_match.group(1).strip()
+                        # 暂时从文本中删除原文部分，后续再处理
+                        text = text.replace(original_match.group(0), "【ORIGINAL_TEXT_PLACEHOLDER】")
+                        
                     # 保留表格的内容，但移除表格标签
                     # 替换HTML标签为临时标记
                     for tag, replacement in html_tag_replacements.items():
@@ -1394,17 +1402,15 @@ def generate_paper():
                     
                     # 替换HTML实体，移除箭头和多余的符号
                     for entity, replacement in html_entity_replacements.items():
-                        # 移除箭头符号
-                        if entity == "&rarr;":
-                            text = text.replace(entity, "")
-                        # 移除引号符号
-                        elif entity in ["&ldquo;", "&rdquo;", "&quot;"]:
-                            text = text.replace(entity, "")
-                        else:
-                            text = text.replace(entity, replacement)
+                        # 对所有HTML实体进行更全面的替换
+                        text = text.replace(entity, replacement)
+                        if original_text:
+                            original_text = original_text.replace(entity, replacement)
                     
                     # 移除所有剩余HTML标签
                     text = re.sub(r'<[^>]+>', '', text)
+                    if original_text:
+                        original_text = re.sub(r'<[^>]+>', '', original_text)
                     
                     # 移除特定符号 →
                     text = text.replace("→", "")
@@ -1426,12 +1432,19 @@ def generate_paper():
                     # 移除样式块
                     text = re.sub(r'\[STYLE_START\].*?\[STYLE_END\]', '', text, flags=re.DOTALL)
                     
-                    # 移除所有剩余的HTML实体
+                    # 移除所有剩余的HTML实体 - 更全面的处理，包括 &rsquo; 等
                     text = re.sub(r'&[a-zA-Z0-9#]+;', '', text)
+                    if original_text:
+                        original_text = re.sub(r'&[a-zA-Z0-9#]+;', '', original_text)
                     
                     # 处理连续的空行和空格
                     text = re.sub(r'\n\s*\n+', '\n\n', text)
                     text = re.sub(r' {2,}', ' ', text)
+                    
+                    # 如果有原文，恢复到最终文本中
+                    if original_text:
+                        # 恢复原文到文本中，加上清晰的分隔和格式
+                        text = text.replace("【ORIGINAL_TEXT_PLACEHOLDER】", f"\n【原文】\n{original_text}")
                     
                     return text
                 
@@ -1577,6 +1590,31 @@ def generate_paper():
                             # 使用正则表达式移除所有剩余的HTML实体
                             questionPart = re.sub(r'&[a-zA-Z0-9#]+;', '', questionPart)
                             choicePart = re.sub(r'&[a-zA-Z0-9#]+;', '', choicePart)
+                            
+                            # 特殊处理英语听力题
+                            if q.subject == '英语' and q.question_type == '听力理解':
+                                # 检查是否有原文部分
+                                original_match = re.search(r'【原文】(.*?)($|(?=【))', question_text, re.DOTALL)
+                                
+                                # 从问题中移除原文部分（将在答案部分显示）
+                                if original_match:
+                                    # 原文仅用于答案部分，此处先移除
+                                    questionPart = questionPart.replace(original_match.group(0), "")
+                                    
+                                # 确保英语题选项显示完整
+                                if not re.search(r'[A-D][．.、]', choicePart):
+                                    # 如果选项没有被正确提取，尝试重新识别
+                                    option_pattern = r'([A-D])\s*[．.、]?\s*([^A-D\n]{2,})'
+                                    option_matches = re.finditer(option_pattern, question_text)
+                                    
+                                    new_choice_part = ""
+                                    for match in option_matches:
+                                        letter = match.group(1)
+                                        content = match.group(2).strip()
+                                        new_choice_part += f"{letter}．{content} "
+                                    
+                                    if new_choice_part:
+                                        choicePart = new_choice_part
                             
                             # Add main paragraph: Question Number + Stem
                             p = doc.add_paragraph(style='Normal')
@@ -1830,27 +1868,31 @@ def generate_paper():
                         
                         # 特殊处理英语听力理解题型的答案，显示全部答案选项
                         if q.subject == '英语' and q.question_type == '听力理解':
-                            try:
-                                # 查找所有的字母答案（可能有多个A、B、C、D）
-                                all_answers = re.findall(r'\b([A-D])\b', detailed_explanation)
-                                if all_answers:
-                                    # 显示所有找到的答案，用逗号分隔
-                                    full_answer = ', '.join(all_answers)
-                                    p.add_run(full_answer).font.size = Pt(10.5)
-                                else:
-                                    # 如果没找到，检查是否有答案标记
-                                    answer_section = re.search(r'答案[:：]\s*(.+)', detailed_explanation)
-                                    if answer_section:
-                                        # 从答案部分提取答案
-                                        answer_text = answer_section.group(1).strip()
-                                        p.add_run(answer_text).font.size = Pt(10.5)
-                                    else:
-                                        # 如果都没找到，至少显示已提取的单个答案
-                                        p.add_run(letter_answer).font.size = Pt(10.5)
-                            except Exception as e:
-                                print(f"处理听力题答案出错: {str(e)}")
-                                # 出错时显示原始答案
-                                p.add_run(letter_answer).font.size = Pt(10.5)
+                            # 提取原文部分
+                            original_text = ""
+                            original_match = re.search(r'【原文】(.*?)($|(?=【))', q.question, re.DOTALL)
+                            if original_match:
+                                original_text = original_match.group(1).strip()
+                                
+                                # 清理HTML实体
+                                for entity, replacement in html_entity_replacements.items():
+                                    original_text = original_text.replace(entity, replacement)
+                                    
+                                # 移除剩余HTML实体和标签
+                                original_text = re.sub(r'&[a-zA-Z0-9#]+;', '', original_text)
+                                original_text = re.sub(r'<[^>]+>', '', original_text)
+                            
+                            # 显示完整的问题和原文
+                            listening_answer = f"{overall_question_num}. 答案：{q.answer}\n"
+                            if original_text:
+                                listening_answer += f"【原文】\n{original_text}"
+                            
+                            p_answer = doc.add_paragraph(listening_answer)
+                            p_answer.style = doc.styles['Answer Style']
+                            p_answer.paragraph_format.space_after = Pt(12)
+                            
+                            overall_question_num += 1
+                            continue
                         else:
                             # 其他类型题目保持原样，显示单个答案
                             p.add_run(letter_answer).font.size = Pt(10.5)
