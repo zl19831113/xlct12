@@ -1,0 +1,259 @@
+<!-- 现代化头部组件 -->
+<style>
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column !important;
+        height: auto !important;
+        padding: 16px 16px !important;
+        margin-bottom: 2px !important;
+    }
+    
+    .header-left {
+        margin-bottom: 6px !important;
+        justify-content: center !important;
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+    
+    .header-title {
+        font-size: 24px !important;
+    }
+    
+    .header-nav {
+        width: 100% !important;
+        justify-content: center !important;
+        flex-wrap: wrap !important; /* 允许换行 */
+        margin-right: 0 !important;
+        margin-bottom: 0 !important;
+        display: grid !important; /* 使用网格布局 */
+        grid-template-columns: repeat(3, 1fr) !important; /* 三列 */
+        grid-template-rows: repeat(2, auto) !important; /* 两行 */
+        gap: 8px !important;
+        padding: 5px 0 !important;
+    }
+    
+    .header-link {
+        margin: 4px !important;
+        font-size: 15px !important;
+        padding: 10px 5px !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        border-radius: 10px !important;
+        border: 1px solid var(--border-color) !important;
+        background-color: #f8f9fa !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+        transition: all 0.2s ease !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    .header-link:hover, .header-link.active {
+        background-color: var(--primary-color) !important;
+        color: white !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.15) !important;
+    }
+    
+    /* 隐藏PC端智能组卷按钮样式，在移动端用普通按钮样式替代 */
+    .smart-paper-btn {
+        display: none !important; /* 隐藏原智能组卷按钮 */
+    }
+    
+    /* 移动端专用的智能组卷链接 */
+    .mobile-smart-paper-link {
+        display: flex !important;
+    }
+    
+    /* 资料下载按钮只在移动端显示 */
+    .mobile-resources-link {
+        display: flex !important;
+    }
+    
+    /* 修复头部和内容之间的空隙 */
+    body {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .content-container {
+        margin-top: 2px !important;
+        padding-top: 2px !important;
+    }
+    
+    main, .main-content {
+        margin-top: 2px !important;
+        padding-top: 2px !important;
+    }
+    
+    /* 搜索框移动端样式 */
+    .header-search {
+        width: 100% !important;
+        margin: 8px 0 !important;
+        order: 3 !important;
+    }
+    
+    .search-form {
+        width: 100% !important;
+        max-width: 300px !important;
+        margin: 0 auto !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-logo {
+        height: 80px !important;
+    }
+    
+    .header-title {
+        font-size: 22px !important;
+        text-align: center !important;
+    }
+    
+    .header-link {
+        font-size: 14px !important;
+        padding: 8px 5px !important;
+        margin: 3px !important;
+        text-align: center !important;
+        border-radius: 8px !important;
+    }
+    
+    /* 进一步减少小屏幕上的空隙 */
+    .header {
+        margin-bottom: 1px !important;
+        padding: 12px 12px !important;
+    }
+    
+    .content-container, main, .main-content {
+        margin-top: 1px !important;
+        padding-top: 1px !important;
+    }
+    
+    /* 小屏幕搜索框样式 */
+    .search-input {
+        font-size: 14px !important;
+        padding: 6px 12px !important;
+    }
+    
+    .search-button {
+        padding: 6px 12px !important;
+    }
+}
+
+/* 智能组卷按钮样式 */
+.smart-paper-btn {
+    display: flex;
+    align-items: center;
+    background-color: transparent;
+    color: #1e88e5;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 15px;
+    margin-right: 15px;
+    font-weight: 400;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: none;
+    text-decoration: none;
+    position: relative;
+    overflow: hidden;
+}
+
+/* 移动端链接默认隐藏 */
+.mobile-smart-paper-link, .mobile-resources-link {
+    display: none;
+}
+
+.smart-paper-btn:hover {
+    background-color: rgba(30, 136, 229, 0.1);
+    color: #1e88e5;
+    transform: translateY(-3px);
+    box-shadow: none;
+}
+
+.smart-paper-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.smart-paper-icon {
+    width: 32px;
+    height: 32px;
+    margin-right: 10px;
+    transition: transform 0.5s ease;
+}
+
+.smart-paper-btn:hover .smart-paper-icon {
+    transform: rotate(10deg) scale(1.1);
+}
+
+/* 动态波纹效果 */
+.smart-paper-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.5);
+    opacity: 0;
+    border-radius: 100%;
+    transform: scale(1, 1) translate(-50%);
+    transform-origin: 50% 50%;
+}
+
+.smart-paper-btn:hover::after {
+    animation: ripple 1s ease-out;
+}
+
+@keyframes ripple {
+    0% {
+        opacity: 1;
+        transform: scale(0, 0);
+    }
+    20% {
+        transform: scale(25, 25);
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 0;
+        transform: scale(40, 40);
+    }
+}
+</style>
+<header class="header">
+    <div class="header-left">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="小鹿题库系统" class="header-logo">
+        <a href="{{ url_for('index') }}" class="header-title">小鹿题库系统</a>
+    </div>
+    
+    <!-- 搜索框 - 仅在非试卷下载和试卷上传页面显示 -->
+    {% if active_page != 'papers' and active_page != 'upload_paper' %}
+    <div class="header-search">
+        <form action="{{ url_for('search') }}" method="GET" class="search-form">
+            <input type="text" name="q" placeholder="搜索题目、知识点..." class="search-input" required>
+            <button type="submit" class="search-button">搜&emsp;索</button>
+        </form>
+    </div>
+    {% endif %}
+    
+    <div class="header-nav">
+        <!-- PC端的智能组卷按钮 -->
+        <a href="{{ url_for('smart_paper') }}" class="smart-paper-btn">
+            <img src="{{ url_for('static', filename='images/试卷图标2.jpg') }}" alt="智能组卷" class="smart-paper-icon">
+            <span>智能组卷</span>
+        </a>
+        
+        <!-- 移动端的智能组卷链接，使用普通按钮样式 -->
+        <a href="{{ url_for('smart_paper') }}" class="header-link mobile-smart-paper-link {% if active_page == 'smart_paper' %}active{% endif %}">智能组卷</a>
+        
+        <a href="{{ url_for('upload_page') }}" class="header-link {% if active_page == 'upload' %}active{% endif %}">上传试题</a>
+        <a href="{{ url_for('upload_paper') }}" class="header-link {% if active_page == 'upload_paper' %}active{% endif %}">上传试卷</a>
+        <a href="{{ url_for('papers_list') }}" class="header-link {% if active_page == 'papers' %}active{% endif %}">名校试卷</a>
+        <a href="{{ url_for('client') }}" class="header-link {% if active_page == 'client' %}active{% endif %}">小鹿出题</a>
+        
+        <!-- 仅在移动端显示的资料下载按钮 -->
+        <a href="#" class="header-link mobile-resources-link">资料下载</a>
+    </div>
+</header>

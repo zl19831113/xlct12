@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>题目详情 - 小鹿题库系统</title>
+    <link rel="stylesheet" href="/static/css/header.css">
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7fa;
+            color: #333;
+            overflow-x: hidden;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 20px;
+            width: 100%;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+        
+        .question-detail-container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        
+        .question-header {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        
+        .question-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .question-tags {
+            margin-bottom: 15px;
+        }
+        
+        .tag {
+            display: inline-block;
+            background-color: #f0f0f0;
+            color: #777;
+            font-size: 13px;
+            padding: 2px 8px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .tag:hover {
+            background-color: #fff;
+            color: #2F80ED;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .question-type {
+            background-color: #e6f0ff;
+            color: #2F80ED;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .question-content {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            white-space: pre-wrap;
+        }
+        
+        .question-answer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px dashed #ddd;
+        }
+        
+        .answer-title {
+            font-size: 18px;
+            color: #2F80ED;
+            margin-bottom: 15px;
+        }
+        
+        .back-btn {
+            display: inline-block;
+            background-color: #f0f0f0;
+            color: #555;
+            padding: 8px 16px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: background-color 0.3s;
+            margin-top: 20px;
+        }
+        
+        .back-btn:hover {
+            background-color: #e0e0e0;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+                margin: 15px auto;
+            }
+            
+            .question-detail-container {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 引入公共头部组件 -->
+    {% include 'header.html' %}
+
+    <div class="container">
+        <div class="question-detail-container">
+            <div class="question-header">
+                <h1>题目详情</h1>
+            </div>
+            
+            <div class="question-meta">
+                <span class="question-type">{{ question.question_type }}</span>
+                <span class="question-subject">学科: {{ question.subject }}</span>
+                {% if question.educationStage %}
+                <span class="question-stage">阶段: {{ question.educationStage }}</span>
+                {% endif %}
+            </div>
+            
+            <div class="question-tags">
+                {% if question.chapter %}
+                <span class="tag">{{ question.chapter }}</span>
+                {% endif %}
+                {% if question.unit %}
+                <span class="tag">{{ question.unit }}</span>
+                {% endif %}
+                {% if question.lesson %}
+                <span class="tag">{{ question.lesson }}</span>
+                {% endif %}
+            </div>
+            
+            <div class="question-content">
+                {{ question.question|safe }}
+            </div>
+            
+            <div class="question-answer">
+                <h3 class="answer-title">答案与解析</h3>
+                <div class="answer-content">
+                    {{ question.answer|safe }}
+                </div>
+            </div>
+            
+            <a href="javascript:history.back()" class="back-btn">返回上一页</a>
+        </div>
+    </div>
+</body>
+</html>

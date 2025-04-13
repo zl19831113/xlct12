@@ -1,0 +1,3013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小鹿题库系统 - 小鹿出题</title>
+    <link rel="stylesheet" href="/static/css/header.css">
+    <style>
+        :root {
+            --primary-color: #2F80ED;
+            --secondary-color: #E6F0FF;
+            --background-main: #FFFFFF;
+            --background-subtle: #F9FAFB;
+            --text-main: #333333;
+            --text-heading: #000000;
+            --text-subheading: #444444;
+            --border-color: #E0E0E0;
+            --box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            --border-radius: 6px;
+            --padding: 16px;
+        }
+        
+        body {
+            font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+
+        .main-container {
+            display: flex;
+            gap: 16px;
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 16px 16px 16px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* 默认样式（移动端） */
+        .content-area {
+            width: 100%;
+        }
+        
+        /* 只在标准或大屏幕设备上有内边距 */
+        @media (min-width: 992px) {
+            .content-area {
+                margin-left: 300px; /* 留出筛选栏的空间 */
+                width: calc(100% - 300px);
+            }
+        }
+        
+        /* 对话框样式 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .modal-content h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .title-input {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        
+        .cancel-btn, .confirm-btn, .clear-btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .cancel-btn {
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .confirm-btn {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .clear-btn {
+            background-color: #2F80ED;
+            color: white;
+            margin-right: auto;
+        }
+
+        /* 左侧筛选侧边栏样式 */
+        .filter-sidebar {
+            width: 280px;
+            flex-shrink: 0;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+        
+        /* 只在标准或大屏幕设备上有固定底部定位 */
+        @media (min-width: 992px) {
+            .filter-sidebar {
+                position: fixed;
+                left: max(calc((100% - 1200px) / 2 + 16px), 16px);
+                bottom: 30px;
+                max-height: calc(100vh - 150px);
+                z-index: 100;
+            }
+        }
+
+        .filter-box {
+            background-color: var(--background-main);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin-bottom: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        
+        /* 添加筛选按钮图片样式 */
+        .filter-button-img {
+            display: inline-block;
+            border-radius: 16px;
+            background-color: #f0f5ff;
+            border: 1px solid #d6e4ff;
+            padding: 8px 16px;
+            margin: 5px;
+            font-size: 14px;
+            color: var(--primary-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .filter-button-img:hover {
+            background-color: #e6f0ff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .filter-box-content {
+            padding: var(--padding);
+        }
+
+        .filter-item {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .filter-item:last-child {
+            border-bottom: none;
+        }
+
+        .filter-item label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-subheading);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 14px;
+            background-color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--text-main);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            background-image: linear-gradient(to bottom, #ffffff, #f8f9fa);
+        }
+
+        select:hover {
+            border-color: var(--primary-color);
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.2);
+        }
+
+        select:disabled {
+            background-color: var(--background-subtle);
+            cursor: not-allowed;
+            color: rgba(0, 0, 0, 0.25);
+        }
+
+        /* 右侧内容区域样式 */
+        .content-area {
+            flex: 1;
+            min-width: 0;
+            position: relative;
+            width: 100%;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        .content-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-heading);
+            margin-top: 0;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .question-list {
+            background-color: var(--background-main);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: var(--padding);
+        }
+
+        #noQuestions {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--text-subheading);
+            display: none;
+        }
+
+        #loading {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--text-subheading);
+        }
+
+        /* 题目卡片样式 */
+        .question-item {
+            background-color: var(--background-main);
+            padding: 20px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s;
+        }
+
+        .question-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .question-type {
+            color: var(--primary-color);
+            font-size: 15px;
+            padding: 2px 0;
+            display: inline-block;
+            margin-bottom: 12px;
+        }
+
+        .question-stem {
+            margin-bottom: 16px;
+            line-height: 1.8;
+            font-size: 17px;
+            color: #333;
+            font-weight: 400;
+        }
+
+        .question-options {
+            padding-left: 0px;
+            margin-bottom: 10px;
+        }
+
+        .option {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: flex-start;
+            line-height: 1.8;
+        }
+
+        .option-label {
+            font-weight: 400;
+            margin-right: 8px;
+            color: #333;
+            font-size: 17px;
+        }
+        
+        .numbered-option {
+            display: block;
+            margin-bottom: 12px;
+            line-height: 1.8;
+            font-size: 17px;
+            color: #333;
+            font-weight: 400;
+            padding-left: 0;
+        }
+        
+        .combined-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            margin-top: 12px;
+            font-size: 17px;
+            font-weight: 400;
+            line-height: 1.8;
+        }
+        
+        .combined-option {
+            white-space: nowrap;
+            font-size: 17px;
+            color: #333;
+        }
+        
+        /* 移动端样式优化 - 按规范全面更新 */
+        /* 微调按钮文本大小一致性 */
+        .mobile-btn .btn-text {
+            font-size: 15px !important;
+            line-height: 1.5 !important;
+            font-weight: 400 !important;
+            display: inline-block !important;
+            white-space: nowrap !important;
+        }
+        
+        @media (max-width: 576px) {
+            /* 题目容器样式 */
+            .question-item {
+                padding: 16px !important;
+                margin-bottom: 32px !important;
+                border-radius: 0 !important;
+                font-family: PingFang SC, Microsoft YaHei, sans-serif !important;
+            }
+            
+            /* 题干样式 */
+            .question-stem {
+                margin-bottom: 20px !important;
+                line-height: 1.6 !important;
+                font-size: 17px !important;
+                color: #333333 !important;
+                font-weight: 500 !important;
+                letter-spacing: 0.2px !important;
+                text-align: justify !important;
+                padding: 0 !important;
+            }
+            
+            /* 段落间距 */
+            .question-stem p {
+                margin-bottom: 16px !important;
+            }
+            
+            /* 序号选项样式 */
+            .question-options {
+                margin-bottom: 18px !important;
+                padding-left: 0 !important;
+            }
+            
+            .numbered-option {
+                display: block !important;
+                margin-bottom: 12px !important;
+                line-height: 1.5 !important;
+                font-size: 16px !important;
+                color: #333333 !important;
+                font-weight: 400 !important;
+                padding-left: 0 !important;
+                letter-spacing: 0.2px !important;
+                text-align: left !important;
+            }
+            
+            /* 序号加粗 */
+            .numbered-option > strong,
+            .numbered-option > b {
+                font-weight: 600 !important;
+                color: #000000 !important;
+                margin-right: 8px !important;
+            }
+            
+            /* 组合选项样式 */
+            .combined-options {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                gap: 0 !important;
+                margin-top: 18px !important;
+                margin-bottom: 0 !important;
+                font-size: 15px !important;
+                line-height: 1.5 !important;
+                width: 100% !important;
+                overflow-x: visible !important;
+                white-space: nowrap !important;
+                justify-content: space-between !important;
+                padding: 0 !important;
+                text-align: left !important;
+            }
+            
+            .combined-option {
+                white-space: nowrap !important;
+                font-size: 15px !important;
+                color: #555555 !important;
+                font-weight: 400 !important;
+                letter-spacing: 0.2px !important;
+                padding-right: 0 !important;
+                flex-shrink: 0 !important;
+                margin: 0 !important;
+            }
+            
+            /* 更细的选项标签字体 */
+            .combined-option strong {
+                font-weight: 400 !important;
+            }
+            
+            /* 普通选项样式 */
+            .option {
+                margin-bottom: 12px !important;
+                display: flex !important;
+                align-items: flex-start !important;
+                line-height: 1.5 !important;
+            }
+            
+            .option-label {
+                font-weight: 400 !important;
+                margin-right: 8px !important;
+                color: #555555 !important;
+                font-size: 15px !important;
+                letter-spacing: 0.2px !important;
+            }
+            
+            /* 确保标签内的强调标签也是细体 */
+            .option-label strong {
+                font-weight: 400 !important;
+            }
+            
+            .option-text {
+                color: #333333 !important;
+                flex: 1 !important;
+                font-size: 16px !important;
+                line-height: 1.5 !important;
+                font-weight: 400 !important;
+                letter-spacing: 0.2px !important;
+                text-align: left !important;
+            }
+            
+            /* 问题类型样式 */
+            .question-type {
+                font-size: 15px !important;
+                margin-bottom: 16px !important;
+                color: var(--primary-color) !important;
+                font-weight: 500 !important;
+            }
+            
+            /* 按钮区域样式 */
+            .question-actions {
+                margin-top: 24px !important;
+                display: flex !important;
+                justify-content: space-between !important;
+                width: 100% !important;
+                align-items: center !important;
+                gap: 0 !important;
+            }
+            
+            /* 解析按钮样式 */
+            .answer-btn {
+                font-size: 15px !important;
+                padding: 6px 12px !important;
+                color: #2F80ED !important;
+                background: transparent !important;
+                font-weight: 400 !important;
+                border: none !important;
+                line-height: 1.4 !important;
+                box-shadow: none !important;
+                text-align: left !important;
+                text-decoration: none !important;
+                margin: 0 !important;
+            }
+            
+            /* 组卷按钮样式 */
+            .select-btn {
+                font-size: 15px !important;
+                font-weight: 400 !important;
+                padding: 6px 12px !important;
+                line-height: 1.4 !important;
+                text-align: right !important;
+                margin: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                text-decoration: none !important;
+            }
+            
+            /* 整体分页容器样式 */
+            #questionCards {
+                padding: 0 16px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: hidden !important;
+                box-sizing: border-box !important;
+            }
+            
+            /* 确保问题项不会溢出 */
+            .question-item {
+                width: 100% !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+                word-wrap: break-word !important;
+                overflow-wrap: break-word !important;
+            }
+            
+            /* 确保所有文本内容不会溢出 */
+            p, div, span, h1, h2, h3, h4, h5, h6 {
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+                word-wrap: break-word !important;
+                overflow-wrap: break-word !important;
+            }
+        }
+
+        .option-text {
+            color: #333;
+            flex: 1;
+            font-size: 17px;
+            line-height: 1.8;
+            font-weight: 400;
+        }
+
+        .question-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            align-items: center;
+        }
+
+        .answer-btn {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: none;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: color 0.3s;
+            text-decoration: none;
+        }
+
+        .answer-btn:hover {
+            color: #1C66B3;
+            text-decoration: none;
+        }
+
+        .select-btn {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: none;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: color 0.3s;
+        }
+
+        .select-btn:hover {
+            color: #1C66B3;
+            text-decoration: none;
+        }
+
+        .select-btn.selected {
+            color: var(--primary-color);
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .answer-content {
+            display: none;
+            margin-top: 16px;
+            padding: 12px 0;
+            color: var(--primary-color);
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            gap: 16px;
+        }
+
+        .pagination-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+
+        .pagination-button:hover {
+            background-color: #1C66B3;
+        }
+
+        .pagination-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            font-size: 14px;
+            color: var(--text-subheading);
+        }
+
+        .download-panel {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background-color: transparent !important;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 100;
+            box-shadow: none !important;
+        }
+
+        .download-panel:hover {
+            transform: scale(1.1);
+        }
+
+        .cart-icon {
+            width: 24px;
+            height: 24px;
+            color: var(--primary-color);
+            position: relative;
+            background: transparent !important;
+            box-shadow: none !important;
+            background-color: transparent !important;
+            border: none !important;
+        }
+
+        .selected-count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #ff4d4f;
+            color: white;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* 移动端适配 */
+        @media screen and (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                padding: 10px;
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+                align-items: center;
+            }
+            
+            .content-container {
+                width: 100%;
+                margin-left: 0;
+                align-items: center;
+            }
+
+            .filter-sidebar {
+                width: 100%;
+                position: relative;
+                top: 0;
+                margin-top: 8px;
+                max-height: none;
+            }
+
+            .content-area {
+                width: 100%;
+                overflow-x: hidden;
+                box-sizing: border-box;
+            }
+
+            .filter-box {
+                margin-bottom: 12px;
+            }
+
+            select {
+                max-width: none;
+                width: 100%;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            html, body {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden !important;
+                padding: 0;
+                margin: 0;
+            }
+            body {
+                padding: 0;
+            }
+            .content-container {
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: hidden !important;
+                padding: 0 !important;
+                box-sizing: border-box !important;
+            }
+            
+            .main-container {
+                gap: 5px;
+                padding: 0;
+                width: 100%;
+                max-width: 100%;
+                margin: 0 auto;
+                position: relative;
+                overflow-x: hidden;
+            }
+            
+            .filter-sidebar {
+                padding-top: 3px;
+                max-width: 100%;
+                margin: 0 auto;
+                width: calc(100% - 30px);
+                position: relative;
+            }
+            
+            .content-area {
+                padding: 0;
+                margin: 5px auto;
+                max-width: 100%;
+                width: calc(100% - 30px);
+                box-sizing: border-box;
+                position: relative;
+            }
+            
+            .filter-box {
+                padding: 8px;
+                overflow: visible;
+                border-radius: var(--border-radius);
+                margin-bottom: 8px;
+            }
+            
+            .filter-box-content {
+                padding: 8px 0;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-between;
+            }
+            
+            /* 第一行的三个筛选项 */
+            .filter-item:nth-child(-n+3) {
+                width: calc(33.33% - 3px);
+                margin-bottom: 6px;
+            }
+            
+            /* 第二行的三个筛选项 */
+            .filter-item:nth-child(n+4) {
+                width: calc(33.33% - 3px);
+            }
+            
+            .filter-item {
+                padding: 2px;
+                margin-bottom: 0;
+                box-sizing: border-box;
+            }
+            
+            /* 隐藏移动端筛选按钮上方的标签 */
+            .filter-item label {
+                display: none;
+            }
+            
+            select {
+                font-size: 12px;
+                padding: 6px 8px;
+                width: 100%;
+            }
+            
+            .question-actions {
+                flex-wrap: wrap;
+            }
+            
+            .question-item {
+                width: 100%;
+                padding: 12px;
+                box-sizing: border-box;
+            }
+            
+            .content-title {
+                font-size: 16px;
+                margin-bottom: 12px;
+                text-align: center;
+            }
+            
+            #questionCards {
+                padding: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: hidden !important;
+                box-sizing: border-box !important;
+            }
+            
+            .question-list {
+                padding: 0;
+                box-shadow: none;
+                background-color: transparent;
+            }
+            
+            .download-panel {
+                width: 45px;
+                height: 45px;
+                bottom: 80px;
+                right: 15px;
+                position: fixed;
+                z-index: 100;
+                background-color: transparent;
+            }
+            
+            .cart-icon {
+                width: 18px;
+                height: 18px;
+            }
+            
+            .selected-count {
+                width: 10px;
+                height: 10px;
+                font-size: 7px;
+                top: -8px;
+                right: -8px;
+            }
+            
+            .question-options {
+                padding-right: 8px;
+            }
+
+            .option {
+                margin-bottom: 6px;
+                padding-right: 4px;
+            }
+
+            .question-stem {
+                font-size: 13px;
+            }
+        }
+        
+        /* 答案内容样式 */
+        .answer-content-lines {
+            line-height: 1.8;
+        }
+
+        .answer-line {
+            margin: 0;
+            padding: 3px 0;
+            color: var(--text-main);
+            font-size: 14px;
+        }
+
+        .answer-line:first-child {
+            color: var(--text-subheading);
+            font-weight: 500;
+        }
+
+        .answer-line:nth-child(2) {
+            color: var(--primary-color);
+            font-weight: 500;
+            font-size: 16px;
+        }
+
+        /* 题目标签样式 */
+        .question-tags {
+            margin-bottom: 8px;
+        }
+
+        .tag {
+            display: inline-block;
+            background-color: #f0f0f0;
+            color: #777;
+            font-size: 13px;
+            padding: 2px 8px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .tag:hover {
+            background-color: #fff;
+            color: #2F80ED;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        @media screen and (max-width: 768px) {
+    .answer-btn {
+        position: relative;
+        display: inline-block;
+        background-color: transparent;
+        color: var(--primary-color) !important;
+        padding: 5px 12px;
+        font-size: 14px !important;
+        line-height: 1.4 !important;
+        text-align: center;
+        text-decoration: none !important;
+        font-weight: normal;
+    }
+    
+    .answer-btn:hover, .answer-btn:active, .answer-btn:focus {
+        color: #1C66B3 !important;
+        text-decoration: none !important;
+    }
+    
+    .select-btn {
+        margin-right: 5px;
+        font-weight: bold;
+    }
+    
+    .select-btn:hover, .select-btn:active, .select-btn:focus {
+        text-decoration: none !important;
+    }
+}
+    .answer-btn {
+            position: relative;
+            display: inline-block;
+            background-color: transparent;
+            color: var(--primary-color) !important;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: all 0.2s ease;
+        }
+        
+        /* 音频播放器样式 */
+        .audio-player {
+            margin-bottom: 12px;
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+        }
+        
+        .audio-player audio {
+            width: 100%;
+            outline: none;
+}
+
+        /* 自定义音频播放器样式 */
+        .custom-audio-player {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        
+        .audio-play-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+        
+        .audio-play-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .audio-play-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .audio-progress {
+            flex: 1;
+            height: 4px;
+            background-color: #e0e0e0;
+            border-radius: 2px;
+            margin: 0 10px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .audio-progress-bar {
+            position: absolute;
+            height: 100%;
+            background-color: var(--primary-color);
+            width: 0;
+            transition: width 0.1s linear;
+        }
+        
+        .audio-time {
+            font-size: 12px;
+            color: #666;
+            min-width: 45px;
+        }
+        
+        /* 优化移动端分页按钮避免换行和加载速度 */
+        @media screen and (max-width: 768px) {
+            .pagination-controls {
+                flex-wrap: nowrap; /* 防止按钮换行 */
+                gap: 8px; /* 减小间距 */
+            }
+            
+            .pagination-button {
+                padding: 8px 10px; /* 减小内边距 */
+                font-size: 13px; /* 稍微减小字体 */
+                min-width: 60px; /* 设置最小宽度 */
+                white-space: nowrap; /* 禁止文字换行 */
+            }
+            
+            .pagination-info {
+                white-space: nowrap; /* 防止页码信息换行 */
+    }
+}
+        .sub-question {
+            margin: 10px 0;
+            padding: 8px;
+            border-left: 3px solid var(--primary-color);
+            background-color: rgba(47, 128, 237, 0.05);
+        }
+        
+        .sub-question strong {
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+        
+        /* 听力题目专用样式 */
+        .listening-question {
+            margin-bottom: 20px;
+        }
+        
+        .listening-title {
+            font-weight: 500;
+            font-size: 17px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .listening-subquestion {
+            margin-bottom: 15px;
+        }
+        
+        .question-text {
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        
+        .listening-options {
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        /* 听力题垂直样式 */
+        .listening-options-vertical {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        
+        .option-line {
+            margin-bottom: 10px;
+        }
+        
+        .pagination-dropdown select {
+            font-size: 14px;
+            padding: 3px 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f5f7fa;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        /* 优化移动端分页按钮避免换行和加载速度 */
+        @media (max-width: 768px) {
+            .pagination-controls {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 引入公共头部组件 -->
+    {% include 'header.html' %}
+
+    <div class="main-container">
+        <div class="filter-sidebar">
+            <div class="filter-box">
+                <div class="filter-box-content">
+                    <div class="filter-item">
+                        <label for="educationStage">学段</label>
+                        <select id="educationStage" onchange="handleFilterChange(event)">
+                            <option value="">学段</option>
+                            <option value="小学">小学</option>
+                            <option value="初中">初中</option>
+                            <option value="高中" selected>高中</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="subject">科目</label>
+                        <select id="subject" onchange="updateQuestionTypes()">
+                            <option value="">科目</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="questionType">题型</label>
+                        <select id="questionType">
+                            <option value="">题型</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="chapter">章节</label>
+                        <select id="chapter" disabled>
+                            <option value="">章节</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="unit">单元</label>
+                        <select id="unit" disabled>
+                            <option value="">单元</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="lesson">课程</label>
+                        <select id="lesson" disabled>
+                            <option value="">课程</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="content-area">
+            
+            <div id="loading" style="padding: 20px; text-align: center;">
+                正在加载题目数据...
+            </div>
+
+            <div class="no-questions" id="noQuestions">
+                请选择筛选条件查看题目
+            </div>
+
+            <div id="questionCards">
+                <!-- 卡片由JS填充 -->
+            </div>
+
+            <!-- 添加分页控制 -->
+            <div class="pagination-controls" id="paginationControls">
+                <button class="pagination-button" id="prevPage" onclick="changePage(-1)">上一页</button>
+                <span class="pagination-info" id="pageInfo">第 1 页 / 共 1 页</span>
+                <button class="pagination-button" id="nextPage" onclick="changePage(1)">下一页</button>
+            </div>
+
+            <div class="download-panel" id="downloadPanel" onclick="showPaperTitleDialog()">
+                <div class="cart-icon">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none">
+                        <path d="M9 20a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"></path>
+                        <path d="M20 20a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"></path>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                    </svg>
+                    <span class="selected-count" id="selectedCount">0</span>
+                </div>
+            </div>
+            
+            <!-- 试卷标题输入对话框 -->
+            <div id="paperTitleModal" class="modal-overlay">
+                <div class="modal-content">
+                    <h3>请输入试卷标题</h3>
+                    <input type="text" id="paperTitleInput" placeholder="请输入试卷标题" class="title-input">
+                    <div class="modal-buttons">
+                        <button onclick="clearSelectedQuestions()" class="clear-btn">清空试卷</button>
+                        <div>
+                            <button onclick="closeTitleDialog()" class="cancel-btn">取消</button>
+                            <button onclick="confirmTitle()" class="confirm-btn">生成试卷</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <script>
+        // 分页相关变量
+        let currentPage = 1;
+        let itemsPerPage = 20; // 每页显示20题，提高性能
+        let filteredQuestions = [];
+
+        // 初始化数据
+        let allQuestions = [];
+        let selectedQuestions = new Set();
+        // 从localStorage恢复已选题目
+        function restoreSelectedQuestions() {
+            try {
+                const savedQuestions = localStorage.getItem("selectedQuestions");
+                if (savedQuestions) {
+                    const questionIds = JSON.parse(savedQuestions);
+                    questionIds.forEach(id => selectedQuestions.add(parseInt(id)));
+                    console.log("从localStorage恢复已选题目:", selectedQuestions.size);
+                }
+            } catch (error) {
+                console.error("恢复已选题目出错:", error);
+            }
+        }
+        
+        // 保存已选题目到localStorage
+        function saveSelectedQuestions() {
+            try {
+                const questionIds = Array.from(selectedQuestions);
+                localStorage.setItem("selectedQuestions", JSON.stringify(questionIds));
+                console.log("保存题目到localStorage:", questionIds.length);
+            } catch (error) {
+                console.error("保存已选题目出错:", error);
+            }
+        }
+
+        // 使用 DOMContentLoaded 确保在 DOM 加载完成后绑定事件
+        document.addEventListener('DOMContentLoaded', function() {
+            // 从localStorage恢复已选题目
+            restoreSelectedQuestions();
+            const container = document.getElementById('questionCards');
+            container.addEventListener('click', function(e) {
+                const target = e.target;
+                
+                // 处理选择按钮点击
+                if (target.classList.contains('select-btn')) {
+                    // 直接从按钮的父元素获取题目ID
+                    const questionCard = target.closest('.question-card');
+                    const questionId = parseInt(questionCard.dataset.questionId);
+                    
+                    // 切换选择状态
+                    if (selectedQuestions.has(questionId)) {
+                        selectedQuestions.delete(questionId);
+                    } else {
+                        selectedQuestions.add(questionId);
+                    }
+                    updateDownloadPanel();
+                    // 保存到localStorage
+                    saveSelectedQuestions();
+                    return false; // 阻止事件冒泡和默认行为
+                }
+
+                // 处理答案按钮点击
+                if (target.classList.contains('answer-btn')) {
+                    const index = parseInt(target.getAttribute('data-index'));
+                    toggleAnswer(index);
+                }
+            });
+            
+            // 加载题目数据
+            loadQuestions();
+        });
+
+        // 调试函数
+        function logDebug(message, data) {
+            console.log(`[Debug] ${message}`, data);
+        }
+
+        // 优化科目加载逻辑
+        function updateFilters() {
+            // 获取所有可能的筛选值
+            const subjects = [...new Set(window.allQuestions.map(q => q.subject))].filter(Boolean);
+            
+            // 统计每个科目的题目数量
+            const subjectCount = {};
+            window.allQuestions.forEach(q => {
+                if (q.subject) {
+                    subjectCount[q.subject] = (subjectCount[q.subject] || 0) + 1;
+                }
+            });
+            
+            // 按题目数量从多到少排序科目
+            subjects.sort((a, b) => (subjectCount[b] || 0) - (subjectCount[a] || 0));
+            
+            // 清空并填充科目选项
+            populateSelect('subject', subjects);
+            
+            // 重置其他选择器
+            resetDependentSelectors('subject');
+
+            // 添加筛选事件监听
+            document.querySelectorAll('.filter-box select').forEach(select => {
+                select.addEventListener('change', handleFilterChange);
+            });
+        }
+        
+        // 优化页面加载速度
+        async function loadQuestions() {
+            try {
+                // 添加网络连接检查
+                if (!navigator.onLine) {
+                    document.getElementById('loading').innerHTML = '<p style="color: red;">网络连接已断开，请检查您的网络连接后刷新页面</p>';
+                    return;
+                }
+                
+                // 显示更明确的加载状态
+                document.getElementById('loading').innerHTML = '<p>正在加载题目数据，请稍候...</p>';
+                
+                // 添加超时控制 - 减少移动端等待时间
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 20000); // 减少到20秒超时
+                
+                try {
+                    const response = await fetch('/api/questions', {
+                        signal: controller.signal,
+                        cache: 'no-cache',
+                        headers: {
+                            'pragma': 'no-cache',
+                            'cache-control': 'no-cache',
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    // 清除超时定时器
+                    clearTimeout(timeoutId);
+                    
+                if (!response.ok) throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                
+                const data = await response.json();
+                // 确保所有字段都有值，避免 undefined
+                    window.allQuestions = data.map(q => ({
+                    ...q,
+                    educationStage: q.educationStage || '高中', // 默认设置为高中
+                    subject: q.subject || '',
+                    questionType: q.questionType || '',
+                    chapter: q.chapter || '',
+                    unit: q.unit || '',
+                    lesson: q.lesson || ''
+                }));
+                
+                    console.log('成功加载题目数量:', window.allQuestions.length);
+                    console.log('数据示例:', window.allQuestions[0]);
+                
+                document.getElementById('loading').style.display = 'none';
+                updateFilters();
+                
+                // 保存原始类别名称
+                const chapterSelect = document.getElementById('chapter');
+                const unitSelect = document.getElementById('unit');
+                const lessonSelect = document.getElementById('lesson');
+                
+                // 重置选择器显示类别名称
+                chapterSelect.innerHTML = '<option value="">章节</option>';
+                unitSelect.innerHTML = '<option value="">单元</option>';
+                lessonSelect.innerHTML = '<option value="">课程</option>';
+                
+                // 确保选择器被禁用
+                chapterSelect.disabled = true;
+                unitSelect.disabled = true;
+                lessonSelect.disabled = true;
+                
+                    if(window.allQuestions.length > 0) {
+                        renderQuestions(window.allQuestions);
+                    document.getElementById('noQuestions').style.display = 'none';
+                } else {
+                    document.getElementById('noQuestions').style.display = 'block';
+                    }
+                } catch (fetchError) {
+                    // 清除超时计时器
+                    clearTimeout(timeoutId);
+                    throw fetchError;
+                }
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                
+                let errorMessage = '无法加载数据，请检查网络连接后刷新页面';
+                
+                // 处理特定类型的错误
+                if (error.name === 'AbortError') {
+                    errorMessage = '请求超时，请检查网络连接并尝试刷新页面';
+                } else if (error.message?.includes('Failed to fetch')) {
+                    errorMessage = '网络连接错误，请检查您的网络连接并尝试刷新页面';
+                } else if (error.message?.includes('receiver does not exist')) {
+                    errorMessage = '浏览器扩展可能导致连接问题，请尝试禁用扩展或使用无痕模式';
+                }
+                
+                document.getElementById('loading').innerHTML = `<p style="color: red;">${errorMessage}</p>`;
+                
+                // 添加自动重连逻辑
+                window.addEventListener('online', function onlineHandler() {
+                    alert('网络连接已恢复，正在尝试重新加载数据');
+                    window.removeEventListener('online', onlineHandler);
+                    location.reload();
+                });
+            }
+        }
+
+        // 处理筛选器变化
+        function handleFilterChange(event) {
+            const selectId = event.target.id;
+            const selectedValue = event.target.value;
+
+            // 如果是科目变化，更新题型选择器
+            if (selectId === 'subject') {
+                updateQuestionTypes();
+            }
+            
+            // 重置依赖的选择器
+            resetDependentSelectors(selectId);
+            
+            // 更新依赖的选择器
+            updateDependentSelector(selectId, selectedValue);
+            
+            // 确保历史科目的课程选择器始终可用
+            const currentSubject = document.getElementById('subject').value;
+            const currentChapter = document.getElementById('chapter').value;
+            const currentUnit = document.getElementById('unit').value;
+            if (currentSubject === '历史' && currentChapter && currentUnit) {
+                const lessonSelect = document.getElementById('lesson');
+                lessonSelect.disabled = false;
+            }
+            
+            // 筛选题目
+            filterQuestions();
+        }
+
+        // 重置依赖的选择器
+        function resetDependentSelectors(selectId) {
+            const hierarchy = ['subject', 'chapter', 'unit', 'lesson'];
+            const startIndex = hierarchy.indexOf(selectId);
+            
+            if (startIndex === -1) return;
+            
+            // 重置后续所有选择器
+            for (let i = startIndex + 1; i < hierarchy.length; i++) {
+                const select = document.getElementById(hierarchy[i]);
+                const categoryName = select.options[0].text; // 获取类别名称（如"章节"、"单元"、"课程"）
+                select.innerHTML = `<option value="">${categoryName}</option>`;
+                select.disabled = true;
+            }
+        }
+
+        // 更新依赖的选择器
+        function updateDependentSelector(currentSelectId, selectedValue) {
+            if (!selectedValue) return;
+
+            const hierarchy = ['subject', 'chapter', 'unit', 'lesson'];
+            const currentIndex = hierarchy.indexOf(currentSelectId);
+            
+            if (currentIndex === -1 || currentIndex === hierarchy.length - 1) return;
+
+            const nextSelectId = hierarchy[currentIndex + 1];
+            const nextSelect = document.getElementById(nextSelectId);
+            
+            // 获取当前选择的科目和章节
+            const currentSubject = document.getElementById('subject').value;
+            const currentChapter = document.getElementById('chapter').value;
+            const currentUnit = document.getElementById('unit').value;
+            
+            // 保持变量名称一致性，避免错误
+            let actualSelectedValue = selectedValue;
+            
+            // 获取符合当前筛选条件的所有题目
+            const filteredQuestions = filterQuestionsBasedOnCurrentSelections();
+            
+            // 获取下一级的值，并确保它们是唯一的
+            const nextOptions = [];
+            
+            // 特殊处理历史科目的单元与课程对应关系
+            if (currentSubject === '历史' && currentSelectId === 'unit' && currentChapter.includes('必修一')) {
+                console.log('处理历史必修一的单元-课程关系');
+                
+                // 历史必修一的单元与课程映射关系
+                const historyUnitLessonMap = {
+                    '第一单元': ['第一课 古代中国的政治制度', '第二课 古代希腊罗马的政治制度', '第三课 近代西方资本主义政治制度的确立与发展'],
+                    '第二单元': ['第四课 近代中国反侵略、求民主的潮流', '第五课 马克思主义与中国人民的民主革命', '第六课 新民主主义革命与中国人民政治制度的新选择'],
+                    '第三单元': ['第七课 现代中国的政治建设与祖国统一', '第八课 当今世界政治格局的多极化趋势'],
+                    '第四单元': ['第九课 古代中国的经济', '第十课 古代希腊罗马的经济', '第十一课 中世纪欧洲的经济', '第十二课 工业革命与资本主义世界市场的形成和发展']
+                };
+                
+                // 根据当前选择的单元，获取对应的课程
+                if (currentUnit && historyUnitLessonMap[currentUnit]) {
+                    historyUnitLessonMap[currentUnit].forEach(lesson => {
+                        if (!nextOptions.includes(lesson)) {
+                            nextOptions.push(lesson);
+                        }
+                    });
+                }
+            } else {
+                // 常规处理逻辑
+                filteredQuestions.forEach(q => {
+                    // 确保科目匹配，避免历史科目显示政治科目的章节
+                    if (currentSubject && q.subject !== currentSubject) return;
+                    
+                    // 历史科目的特殊处理：章节过滤
+                    if (currentSubject === '历史' && nextSelectId === 'chapter') {
+                        const value = q[nextSelectId];
+                        
+                        // 只显示指定的章节
+                        if (value && (
+                            value === '必修一 中外历史纲要上' || 
+                            value === '必修二 中外历史纲要下' || 
+                            value === '选择性必修一 国家制度与社会治理'
+                        )) {
+                            if (!nextOptions.includes(value)) {
+                                nextOptions.push(value);
+                            }
+                        }
+                    }
+                    
+                    // 特殊处理：第三单元 经济全球化 只显示在选择性必修1 当代国际经济与政治章节下
+                    if (currentSubject === '政治' && nextSelectId === 'unit') {
+                        const value = q[nextSelectId];
+                        if (value && value.includes('第三单元 经济全球化')) {
+                            // 只有当前章节是选择性必修1时才显示
+                            if (currentChapter && (currentChapter.includes('选择性必修1') || currentChapter.includes('当代国际经济与政治'))) {
+                                if (!nextOptions.includes(value)) {
+                                    nextOptions.push(value);
+                                }
+                            }
+                            return; // 跳过后续处理
+                        }
+                    }
+                    
+                    // 确保英语科目也能选择章节和单元
+                    if (currentSubject === '英语') {
+                        const value = q[nextSelectId];
+                        if (value && !nextOptions.includes(value)) {
+                            nextOptions.push(value);
+                        }
+                    } else {
+                        const value = q[nextSelectId];
+                        if (value && !nextOptions.includes(value)) {
+                            nextOptions.push(value);
+                        }
+                    }
+                });
+            }
+            
+            // 如果有选项，填充下一级选择器并启用它
+            if (nextOptions.length > 0) {
+                populateSelect(nextSelectId, nextOptions);
+                nextSelect.disabled = false;
+            } else {
+                // 如果没有选项，保持禁用状态并显示类别名称
+                const categoryName = nextSelect.options[0].text;
+                nextSelect.innerHTML = `<option value="">${categoryName}</option>`;
+                nextSelect.disabled = true;
+            }
+            
+            // 确保历史科目的课程选择器始终可用
+            if (currentSubject === '历史' && currentChapter.includes('必修一') && currentUnit && nextSelectId === 'lesson') {
+                console.log('确保历史必修一的课程选择器可用');
+                nextSelect.disabled = false;
+            }
+        }
+
+        // 基于当前选择获取过滤后的题目列表
+        function filterQuestionsBasedOnCurrentSelections() {
+            const filters = {
+                educationStage: document.getElementById('educationStage').value,
+                subject: document.getElementById('subject').value,
+                chapter: document.getElementById('chapter').value,
+                unit: document.getElementById('unit').value,
+                lesson: document.getElementById('lesson').value
+            };
+
+            return window.allQuestions.filter(q => 
+                (!filters.educationStage || q.educationStage === filters.educationStage) &&
+                (!filters.subject || q.subject === filters.subject) &&
+                (!filters.chapter || q.chapter === filters.chapter) &&
+                (!filters.unit || q.unit === filters.unit) &&
+                (!filters.lesson || q.lesson === filters.lesson)
+            );
+        }
+
+        // 清理文本
+        function cleanText(text) {
+            if (!text) return '';
+
+            // 1. 替换常见HTML实体
+            text = text.replace(/&ldquo;/g, '"')
+                     .replace(/&rdquo;/g, '"')
+                     .replace(/&hellip;/g, '...')
+                     .replace(/&nbsp;/g, ' ')
+                     .replace(/&mdash;/g, '—')
+                     .replace(/&#?\w+;/g, ' ');
+
+            // 2. 去除行首数字编号
+            text = text.replace(/^\s*[\d一二三四五六七八九十]+[\.。．、\s]+/, '');
+            text = text.replace(/^\s*[\(（][\d一二三四五六七八九十]+[\)）]\s*/, '');
+
+            // 3. 合并多余的空格
+            text = text.replace(/\s+/g, ' ');
+
+            return text.trim();
+        }
+
+        // 格式化答案文本
+        function formatAnswer(text, idx) {
+            if (!text) return '';
+            
+            // 1. 清理基础文本
+            text = cleanText(text);
+            
+            // 2. 转换答案格式
+            let lines = [];
+            
+            // 提取答案字母
+            let answer = '';
+            let remainder = text;
+            
+            // 尝试匹配开头的数字编号和答案字母
+            const numMatch = text.match(/^(\d+[.．]\s*)([A-Z])(.*)/);
+            if (numMatch) {
+                answer = numMatch[2];
+                remainder = numMatch[3].trim();
+            } else {
+                // 尝试直接匹配答案字母
+                const letterMatch = text.match(/^([A-Z])(\s*)(.*)/);
+                if (letterMatch) {
+                    answer = letterMatch[1];
+                    remainder = letterMatch[3].trim();
+                }
+            }
+            
+            // 3. 添加答案行
+            if (answer) {
+                lines.push(answer);
+            }
+            
+            // 4. 处理解析部分
+            if (remainder) {
+                // 确保有【详解】标记
+                if (!remainder.includes('【详解】')) {
+                    remainder = '【详解】 ' + remainder;
+                }
+                
+                // 分离【详解】和具体解析内容
+                lines.push('【详解】');
+                lines.push(''); // 空行
+                
+                // 处理剩余解析文本
+                const explanation = remainder.replace(/【详解】/, '').trim();
+                if (explanation) {
+                    lines.push(explanation);
+                }
+            }
+            
+            return `
+                <div class="answer-content-lines">
+                    ${lines.map(line => `<p class="answer-line">${line}</p>`).join('')}
+                </div>
+            `;
+        }
+
+        // 将文本分行处理
+        function splitIntoLines(text) {
+            // 1. 清理文本
+            text = cleanText(text);
+            
+            // 2. 处理带数字序号的选项
+            // 将①②③④的选项分别放在不同行
+            text = text.replace(/(①.*?)(②.*?)(③.*?)(④.*?)(?=[A-D]．|$)/g, 
+                '$1<br>$2<br>$3<br>$4'
+            );
+
+            // 3. 处理带字母的选项
+            // 对于引用带序号的字母选项，将其保持在同一行
+            if (text.includes('①') || text.includes('②') || text.includes('③') || text.includes('④')) {
+                // 检测是否有引用序号的特殊格式 A．①③ 这种
+                const hasReferenceOptions = /[A-D]．[①②③④]/.test(text);
+                
+                if (hasReferenceOptions) {
+                    // 如果有引用序号的选项，则将ABCD的选项放在同一行
+                    text = text.replace(
+                        /(A．.*?)(B．.*?)(C．.*?)(D．.*?)$/g,
+                        '$1 $2 $3 $4'
+                    );
+                } else {
+                    // 如果没有引用序号的选项，则将ABCD的选项各自占一行
+                    text = text.replace(
+                        /(A．.*?)(B．.*?)(C．.*?)(D．.*?)$/g,
+                        '$1<br>$2<br>$3<br>$4'
+                    );
+                }
+            } else {
+                // 如果没有序号选项的问题，则将ABCD的选项各自占一行
+                text = text.replace(
+                    /(A．.*?)(B．.*?)(C．.*?)(D．.*?)$/g,
+                    '$1<br>$2<br>$3<br>$4'
+                );
+            }
+            
+            // 4. 处理括号的换行
+            text = text.replace(/（\s*）/g, '（ ）<br>');  // 空括号后换行
+
+            // 如果字符串开头出现 <br>，去掉
+            text = text.replace(/^<br>/, '');
+
+            // 去除多余空格
+            text = text.replace(/\s+/g, ' ');
+
+            return text;
+        }
+
+        function parseQuestion(questionText) {
+            if (!questionText) return { stem: '', options: [], hasNumberedOptions: false, combinedOptions: false };
+            
+            // 检查是否是听力题中的多小题格式
+            const isMultiListeningQuestion = (questionText.includes('听下面一段较长对话') || questionText.includes('听录音')) && 
+                                            questionText.includes('小题') && 
+                                            (questionText.includes('What') || questionText.includes('Why') || 
+                                             questionText.includes('When') || questionText.includes('How') || 
+                                             questionText.includes('Who'));
+            
+            // 如果是听力多小题，保留原始格式
+            if (isMultiListeningQuestion) {
+                // 将问题本身作为题干，不提取选项
+                return { 
+                    stem: questionText, 
+                    options: [], 
+                    hasNumberedOptions: false, 
+                    combinedOptions: false,
+                    isMultiListeningQuestion: true
+                };
+            }
+            
+            // 检查是否包含带序号的选项 (①, ②, ③, ④)
+            const hasNumberedOptions = /[①②③④]/.test(questionText);
+            
+            // 首先尝试找到所有选项标记 (A．, B．, C．, D．)
+            const optionMarkers = [...questionText.matchAll(/([A-D])．/g)];
+            
+            if (optionMarkers.length === 0) {
+                // 没有找到选项，整个文本作为题干
+                return { stem: questionText, options: [], hasNumberedOptions: false, combinedOptions: false };
+            }
+            
+            // 查找是否包含 A．①③ 类型的组合选项
+            const combinedOptionsMatch = /[A-D]．[①②③④]/.test(questionText);
+            
+            // 找到第一个选项的位置，之前的内容作为题干
+            const firstOptionIndex = optionMarkers[0].index;
+            const stem = questionText.substring(0, firstOptionIndex).trim();
+            
+            // 提取所有选项
+            const options = [];
+            const optionLetters = new Set(); // 用于跟踪已处理的选项字母
+            
+            // 如果存在带序号选项，尝试提取序号选项
+            let numberedOptions = [];
+            if (hasNumberedOptions) {
+                // 找出所有序号选项的文本和位置
+                const numberedMatches = [...stem.matchAll(/([①②③④])([^①②③④]+)/g)];
+                numberedMatches.forEach(match => {
+                    numberedOptions.push(match[0]);
+                });
+            }
+            
+            // 遍历所有选项标记
+            for (let i = 0; i < optionMarkers.length; i++) {
+                const currentMarker = optionMarkers[i];
+                const letter = currentMarker[1]; // 选项字母 (A, B, C, D)
+                
+                // 如果已经处理过这个字母，跳过
+                if (optionLetters.has(letter)) continue;
+                optionLetters.add(letter);
+                
+                // 计算选项内容的结束位置
+                let endIndex;
+                if (i < optionMarkers.length - 1) {
+                    // 如果不是最后一个选项，结束位置是下一个选项的开始
+                    endIndex = optionMarkers[i + 1].index;
+                } else {
+                    // 如果是最后一个选项，结束位置是文本结尾
+                    endIndex = questionText.length;
+                }
+                
+                // 提取选项文本
+                const optionText = questionText.substring(currentMarker.index, endIndex).trim();
+                
+                // 检查是否包含其他选项标记
+                const otherMarkerMatch = optionText.match(/^([A-D])．.*?([A-D]．)/);
+                if (otherMarkerMatch) {
+                    // 如果包含其他选项标记，只取到该标记之前的内容
+                    const cutIndex = optionText.indexOf(otherMarkerMatch[1]);
+                    options.push(optionText.substring(0, cutIndex).trim());
+                } else {
+                    options.push(optionText);
+                }
+            }
+            
+            // 确保选项按A、B、C、D顺序排列
+            const sortedOptions = [];
+            ['A', 'B', 'C', 'D'].forEach(letter => {
+                const option = options.find(opt => opt.startsWith(letter + '．'));
+                if (option) {
+                    sortedOptions.push(option);
+                }
+            });
+            
+            return { 
+                stem, 
+                options: sortedOptions.length > 0 ? sortedOptions : options,
+                hasNumberedOptions,
+                combinedOptions: combinedOptionsMatch,
+                numberedOptions
+            };
+        }
+
+        // 处理听力理解题目
+        function processListeningQuestion(stem) {
+            // 如果题干包含数字序号（如"3．"），去除序号
+            stem = stem.replace(/^\d+．\s*/, '');
+            
+            // 检查是否包含"听下面一段较长对话"、"听下面一段独白"或类似文本，这表明是完整的听力大题
+            if (stem.includes('听下面一段较长对话') || 
+                stem.includes('听下面一段独白') || 
+                stem.includes('听下列独白') || 
+                stem.includes('听录音')) {
+                // 这是一个包含多个小题的大题，保留整个内容并美化格式
+                return formatMultiListeningQuestion(stem);
+            }
+            
+            // 原有逻辑：提取What/Why/When/How等开头的单个问题
+            const questionPattern = /(What|Why|When|How|Who|Where).*?\?/;
+            const match = stem.match(questionPattern);
+            
+            // 如果找到匹配的问题，则只返回问题部分
+            if (match) {
+                return match[0];
+            }
+            
+            // 如果没有找到标准问题模式，则去除常见的指令前缀
+            return stem.replace(/Listen to the recording.*?\./i, '').trim();
+        }
+        
+        // 格式化包含多个小题的听力题
+        function formatMultiListeningQuestion(text) {
+            if (!text) return '';
+            
+            // 分离标题和小题部分
+            let title = '';
+            let subQuestions = [];
+            
+            // 提取标题
+            const titleMatch = text.match(/(听下面一段较长对话.*?)[，|。]/);
+            if (titleMatch) {
+                // 移除英语题目中的数字序号（如"3．"），但保留其他格式
+                const cleanTitle = titleMatch[1].replace(/^\d+．\s*/, '');
+                title = cleanTitle + '，回答以下小题。';
+            }
+            
+            // 提取英文问题和选项
+            const englishQuestions = text.match(/(What|Why|When|How|Who|Where).*?\?/g) || [];
+            const optionSets = text.match(/A\．.*?C\．.*?\./g) || [];
+            
+            // 构建格式化后的HTML
+            let formattedHTML = `<div class="listening-question">
+                <div class="listening-title">${title}</div>`;
+            
+            // 添加所有小题
+            for (let i = 0; i < englishQuestions.length; i++) {
+                const questionText = englishQuestions[i];
+                
+                // 从选项文本中分离A、B、C选项
+                let optionsHTML = '';
+                if (optionSets[i]) {
+                    // 将选项放在同一行，用tab分隔
+                    const optionsText = optionSets[i];
+                    const options = [
+                        optionsText.match(/A\．.*?(?=B\．)/) ? optionsText.match(/A\．.*?(?=B\．)/)[0].trim() : '',
+                        optionsText.match(/B\．.*?(?=C\．)/) ? optionsText.match(/B\．.*?(?=C\．)/)[0].trim() : '',
+                        optionsText.match(/C\．.*?(?=\.|$)/) ? optionsText.match(/C\．.*?(?=\.|$)/)[0].trim() : ''
+                    ];
+                    
+                    optionsHTML = `<div class="listening-options-vertical">
+                        ${options.map(opt => `<div class="option-line">${opt}</div>`).join('')}
+                    </div>`;
+                }
+                
+                formattedHTML += `
+                    <div class="listening-subquestion">
+                        <div class="question-text">${questionText}</div>
+                        ${optionsHTML}
+                    </div>
+                `;
+            }
+            
+            formattedHTML += '</div>';
+            return formattedHTML;
+        }
+        
+        // 填充选择器的选项
+        function populateSelect(selectId, options) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            
+            // 保留第一个选项（通常是提示文本）
+            const firstOption = select.options[0];
+            select.innerHTML = '';
+            select.appendChild(firstOption);
+            
+            // 获取当前科目
+            const currentSubject = document.getElementById('subject').value;
+            
+            // 如果是科目是政治或历史且当前是章节选择器，使用自定义排序
+            if ((currentSubject === '政治' || currentSubject === '历史') && selectId === 'chapter') {
+                // 自定义排序顺序
+                const chapterOrder = {
+                    '必修一': 1,
+                    '必修二': 2,
+                    '必修三': 3, 
+                    '必修四': 4,
+                    '选择性必修一': 5,
+                    '选择性必修二': 6,
+                    '选择性必修三': 7
+                };
+                
+                // 排序函数，按指定顺序排列章节
+                options.sort((a, b) => {
+                    // 提取章节关键词 (必修一, 必修二, etc.)
+                    const getChapterKey = (str) => {
+                        for (const key in chapterOrder) {
+                            if (str.includes(key)) {
+                                return key;
+                            }
+                        }
+                        return str; // 如果不匹配任何关键词，返回原字符串
+                    };
+                    
+                    const keyA = getChapterKey(a);
+                    const keyB = getChapterKey(b);
+                    
+                    // 如果都能找到对应的排序值，按顺序排
+                    if (chapterOrder[keyA] && chapterOrder[keyB]) {
+                        return chapterOrder[keyA] - chapterOrder[keyB];
+                    }
+                    // 如果只有一个能找到排序值，有排序值的排在前面
+                    else if (chapterOrder[keyA]) {
+                        return -1;
+                    }
+                    else if (chapterOrder[keyB]) {
+                        return 1;
+                    }
+                    // 否则按字母顺序排
+                    else {
+                        return a.localeCompare(b);
+                    }
+                });
+            } else {
+                // 其他情况使用默认排序
+                options.sort();
+            }
+            
+            // 添加新选项
+            options.forEach(option => {
+                if (option) { // 确保选项不为空
+                    const optElement = document.createElement('option');
+                    optElement.value = option;
+                    optElement.textContent = option;
+                    select.appendChild(optElement);
+                }
+            });
+        }
+        
+        // 根据当前筛选条件获取过滤后的题目列表
+        function filterQuestionsBasedOnCurrentSelections() {
+            const subject = document.getElementById('subject').value;
+            const questionType = document.getElementById('questionType').value;
+            const educationStage = document.getElementById('educationStage').value;
+            const chapter = document.getElementById('chapter').value;
+            const unit = document.getElementById('unit').value;
+            
+            return window.allQuestions.filter(q => {
+                if (subject && q.subject !== subject) return false;
+                if (questionType && q.questionType !== questionType) return false;
+                if (educationStage && q.educationStage !== educationStage) return false;
+                if (chapter && q.chapter !== chapter) return false;
+                if (unit && q.unit !== unit) return false;
+                return true;
+            });
+        }
+
+        // 将文本分行处理
+        function splitIntoLines(text) {
+            // 1. 清理文本
+            text = cleanText(text);
+            
+            // 2. 处理带数字序号的选项
+            // 将①②③④的选项分别放在不同行
+            text = text.replace(/(①.*?)(②.*?)(③.*?)(④.*?)(?=[A-D]．|$)/g, 
+                '$1<br>$2<br>$3<br>$4'
+            );
+
+            // 3. 处理带字母的选项
+            // 对于引用带序号的字母选项，将其保持在同一行
+            if (text.includes('①') || text.includes('②') || text.includes('③') || text.includes('④')) {
+                // 检测是否有引用序号的特殊格式 A．①③ 这种
+                const hasReferenceOptions = /[A-D]．[①②③④]/.test(text);
+                
+                if (hasReferenceOptions) {
+                    // 如果有引用序号的选项，则将ABCD的选项放在同一行
+                    text = text.replace(
+                        /(A．.*?)(B．.*?)(C．.*?)(D．.*?)$/g,
+                        '$1 $2 $3 $4'
+                    );
+                } else {
+                    // 如果没有引用序号的选项，则将ABCD的选项各自占一行
+                    text = text.replace(
+                        /(A．.*?)(B．.*?)(C．.*?)(D．.*?)$/g,
+                        '$1<br>$2<br>$3<br>$4'
+                    );
+                }
+            } else {
+                // 如果没有序号选项的问题，则将ABCD的选项各自占一行
+                text = text.replace(
+                    /(A．.*?)(B．.*?)(C．.*?)(D．.*?)$/g,
+                    '$1<br>$2<br>$3<br>$4'
+                );
+            }
+            
+            // 4. 处理括号的换行
+            text = text.replace(/（\s*）/g, '（ ）<br>');  // 空括号后换行
+
+            // 如果字符串开头出现 <br>，去掉
+            text = text.replace(/^<br>/, '');
+
+            // 去除多余空格
+            text = text.replace(/\s+/g, ' ');
+
+            return text;
+        }
+
+        function renderQuestions(questions) {
+            // 更新过滤后的问题列表
+            filteredQuestions = questions;
+            
+            // 计算当前页的问题
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageQuestions = questions.slice(startIndex, endIndex);
+
+            const container = document.getElementById('questionCards');
+            container.innerHTML = pageQuestions.map((q, idx) => {
+                // 计算实际索引（用于答案显示）
+                const globalIdx = startIndex + idx;
+                
+                // 解析题目文本，分离题干和选项
+                const { stem, options, hasNumberedOptions, combinedOptions, numberedOptions } = parseQuestion(q.question);
+                
+                // 检查题干中是否包含带序号的选项
+                let numberedOptionsHtml = '';
+                let combinedOptionsHtml = '';
+                
+                // 如果题干中包含序号选项 (①, ②, ③, ④)
+                if (hasNumberedOptions) {
+                    // 提取序号选项
+                    numberedOptionsHtml = numberedOptions.map(option => {
+                        return `<div class="numbered-option">${option}</div>`;
+                    }).join('');
+                    
+                    // 如果选项是 A．①③ 这种格式，则将它们放在一行
+                    if (options.some(opt => /^[A-D]．[①②③④]/.test(opt))) {
+                        combinedOptionsHtml = `
+                            <div class="combined-options">
+                                ${options.map(opt => {
+                                    const optMatch = opt.match(/^([A-D])．/);
+                                    const label = optMatch ? optMatch[0] : '';
+                                    const optText = optMatch ? opt.substring(optMatch[0].length).trim() : opt;
+                                    return `<span class="combined-option">${label}${optText}</span>`;
+                                }).join('')}
+                            </div>
+                        `;
+                    }
+                }
+                
+                // 构造常规选项HTML
+                let optionsHtml = '';
+                
+                // 如果是组合选项模式，已在上面处理，返回空
+                if (combinedOptionsHtml) {
+                    optionsHtml = '';
+                } 
+                // 如果没有匹配到序号选项或者没有组合选项，则使用常规方式渲染
+                else {
+                    optionsHtml = options.map((opt, i) => {
+                        const optMatch = opt.match(/^([A-D])．/);
+                        const label = optMatch ? optMatch[0] : String.fromCharCode(65 + i) + '．';
+                        const optText = optMatch ? opt.substring(optMatch[0].length).trim() : opt;
+                        
+                        return `
+                            <div class="option">
+                                <span class="option-label">${label}</span>
+                                <span class="option-text">${optText}</span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // 添加章节和单元标签
+                const tags = [];
+                if (q.chapter) tags.push(q.chapter);
+                if (q.unit) tags.push(q.unit);
+                if (q.lesson) tags.push(q.lesson);
+                
+                // 不生成标签HTML，直接返回空字符串
+                const tagsHtml = '';
+
+                // 生成自定义音频播放器
+                let audioPlayerHtml = '';
+                if ((q.subject === '英语' && q.questionType === '听力理解') || q.has_audio) {
+                    const audioUrl = determineAudioUrl(q);
+                    audioPlayerHtml = `
+                        <div class="custom-audio-player" id="audio-container-${q.id}">
+                            <button class="audio-play-btn" id="audio-play-${q.id}" onclick="toggleAudioPlay(${q.id}, '${audioUrl}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                            </button>
+                            <div class="audio-progress" id="audio-progress-container-${q.id}" onclick="seekAudio(event, ${q.id})">
+                                <div class="audio-progress-bar" id="audio-progress-${q.id}"></div>
+                            </div>
+                            <div class="audio-time" id="audio-time-${q.id}">0:00 / 0:00</div>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="question-item" data-question-id="${q.id}">
+                        ${audioPlayerHtml}
+                        <div class="question-header">
+                            <span class="question-type">[${q.questionType || '单选题'}]</span>
+                        </div>
+                        ${tagsHtml}
+                        <div class="question-stem">
+                            ${(q.subject === '英语' && q.questionType === '听力理解') ? 
+                              processListeningQuestion(stem) : numberedOptionsHtml ? stem.replace(/[①②③④][^①②③④]+/g, '').replace(/^\d+[\.．]\s*/gm, '') : stem.replace(/^\d+[\.．]\s*/gm, '')}
+                        </div>
+                        ${numberedOptionsHtml ? `<div class="question-options">${numberedOptionsHtml.replace(/([①②③④])([^①②③④]+)/g, '<strong>$1</strong>$2')}</div>` : ''}
+                        <div class="question-options">
+                            ${combinedOptionsHtml || optionsHtml}
+                        </div>
+                        <div class="question-actions">
+                            <button class="answer-btn mobile-btn" onclick="toggleAnswer(${globalIdx})">
+                                <span class="btn-text">解析</span>
+                            </button>
+                          
+                            <button class="select-btn mobile-btn ${selectedQuestions.has(q.id) ? 'selected' : ''}" 
+                                    onclick="toggleSelect(${q.id})">
+                                <span class="btn-text">${selectedQuestions.has(q.id) ? '已选择' : '组卷'}</span>
+                            </button>
+                        </div>
+                        <div class="answer-content" id="answer-${globalIdx}">
+                            <h4>答案与解析：</h4>
+                            <div>${formatAnswer(q.answer, globalIdx)}</div>
+                            ${(q.has_answer_image) ? `
+                                <div class="answer-image">
+                                    <img src="${q.answer_image_url}" alt="答案图片" />
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 更新分页控制
+            updatePaginationControls();
+            
+            // 显示或隐藏"无题目"提示
+            if (pageQuestions.length === 0) {
+                document.getElementById('noQuestions').style.display = 'block';
+            } else {
+                document.getElementById('noQuestions').style.display = 'none';
+            }
+            
+            // 更新下载面板
+            updateDownloadPanel();
+            
+                    // 保存到localStorage
+                    saveSelectedQuestions();
+        }
+
+        // 切换答案显示和隐藏
+        window.toggleAnswer = function(index) {
+            const answerDiv = document.getElementById(`answer-${index}`);
+            if (answerDiv) {
+                // 切换显示状态
+                if (answerDiv.style.display === 'block') {
+                    answerDiv.style.display = 'none';
+                } else {
+                    answerDiv.style.display = 'block';
+                }
+            }
+        }
+
+        // 切换选择
+        window.toggleSelect = function(questionId) {
+            if (selectedQuestions.has(questionId)) {
+                selectedQuestions.delete(questionId);
+            } else {
+                selectedQuestions.add(questionId);
+            }
+            
+            // 更新选择状态
+            const buttons = document.querySelectorAll(`.question-item[data-question-id="${questionId}"] .select-btn`);
+            buttons.forEach(button => {
+                if (selectedQuestions.has(questionId)) {
+                    button.classList.add('selected');
+                    button.textContent = '已选择';
+                } else {
+                    button.classList.remove('selected');
+                    button.textContent = '组卷';
+                }
+            });
+            
+            // 更新下载面板
+            updateDownloadPanel();
+            
+            // 保存到localStorage
+            saveSelectedQuestions();
+        }
+
+        // 更新下载面板
+        function updateDownloadPanel() {
+            const countElement = document.getElementById('selectedCount');
+            const count = selectedQuestions.size;
+            
+            if (countElement) {
+                countElement.textContent = count;
+            }
+        }
+
+        // 更新分页信息和控制按钮状态
+        function updatePaginationControls() {
+            const totalPages = Math.ceil(filteredQuestions.length / itemsPerPage);
+            const pageInfoEl = document.getElementById('pageInfo');
+            const prevPageEl = document.getElementById('prevPage');
+            const nextPageEl = document.getElementById('nextPage');
+            
+            if (pageInfoEl) pageInfoEl.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
+            if (prevPageEl) prevPageEl.disabled = currentPage === 1;
+            if (nextPageEl) nextPageEl.disabled = currentPage >= totalPages;
+        }
+
+        // 切换页面
+        window.changePage = function(delta) {
+            const totalPages = Math.ceil(filteredQuestions.length / itemsPerPage);
+            const newPage = currentPage + delta;
+            
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                renderQuestions(filteredQuestions);
+                updatePaginationControls();
+            }
+        }
+
+        // 生成试卷
+        // 显示试卷标题输入对话框
+        window.showPaperTitleDialog = function() {
+            if (selectedQuestions.size === 0) {
+                alert('请至少选择一道题目');
+                return;
+            }
+            
+            document.getElementById('paperTitleModal').style.display = 'flex';
+            document.getElementById('paperTitleInput').focus();
+        }
+        
+        // 关闭标题对话框
+        window.closeTitleDialog = function() {
+            document.getElementById('paperTitleModal').style.display = 'none';
+            
+            // 从localStorage中也清除
+            localStorage.removeItem("selectedQuestions");
+        }
+            
+        // 确认标题并生成试卷
+        window.confirmTitle = function() {
+            // 获取试卷标题输入
+            const paperTitleInput = document.getElementById('paperTitleInput');
+            if (paperTitleInput) {
+                // 将paperTitleInput的值赋给一个全局变量，以便generatePaper函数使用
+                window.paperTitle = paperTitleInput.value.trim();
+                if (!window.paperTitle) {
+                    alert('请输入试卷标题');
+                    return;
+                }
+            } else {
+                alert('标题输入框不存在');
+                return;
+            }
+            
+            // 调用生成试卷函数
+            generatePaper();
+        }
+
+        // 生成试卷
+        window.generatePaper = function() {
+            // 首先检查网络连接
+            if (!navigator.onLine) {
+                alert('您的网络连接似乎已断开。请检查网络连接后重试。');
+                return;
+            }
+            
+            const selectedQuestionIds = getSelectedQuestionIds();
+            if (selectedQuestionIds.length === 0) {
+                alert('请先选择至少一道题目');
+                return;
+            }
+            
+            const paperTitle = window.paperTitle;
+            if (!paperTitle) {
+                alert('请输入试卷标题');
+                return;
+            }
+            
+            // 关闭对话框
+            closeTitleDialog();
+
+            // 显示加载提示
+            const loadingEl = document.createElement('div');
+            loadingEl.id = 'paperGeneratingLoading';
+            loadingEl.style.position = 'fixed';
+            loadingEl.style.top = '50%';
+            loadingEl.style.left = '50%';
+            loadingEl.style.transform = 'translate(-50%, -50%)';
+            loadingEl.style.padding = '20px';
+            loadingEl.style.background = 'rgba(255, 255, 255, 0.9)';
+            loadingEl.style.border = '1px solid #ddd';
+            loadingEl.style.borderRadius = '5px';
+            loadingEl.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+            loadingEl.style.zIndex = '9999';
+            loadingEl.innerHTML = '<p style="text-align: center; margin: 0;"><b>正在生成试卷，请稍候...</b></p>';
+            document.body.appendChild(loadingEl);
+            
+            console.log(`准备生成试卷: "${paperTitle}"，包含 ${selectedQuestionIds.length} 道题目`);
+            
+            // 添加请求超时处理
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
+            
+            // 发送请求生成试卷
+            fetch('/generate_paper', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    question_ids: selectedQuestionIds,
+                    paper_title: paperTitle
+                }),
+                signal: controller.signal,
+                // 添加更强的缓存控制
+                cache: 'no-cache',
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                // 清除超时计时器
+                clearTimeout(timeoutId);
+                
+                // 移除加载提示
+                const loadingElement = document.getElementById('paperGeneratingLoading');
+                if (loadingElement) {
+                    document.body.removeChild(loadingElement);
+                }
+                
+                if (!response.ok) {
+                    // 如果响应不是 200 OK，先尝试解析错误信息
+                    return response.json().then(errorData => {
+                        console.error('生成试卷服务器错误:', errorData);
+                        throw new Error(`生成试卷失败: ${errorData.error || 'HTTP ' + response.status}`);
+                    }).catch(jsonError => {
+                        // 如果 JSON 解析失败，使用通用错误信息
+                        if (jsonError.message && jsonError.message.includes('生成试卷失败')) {
+                            throw jsonError; // 传递已经格式化的错误
+                        } else {
+                            console.error('无法解析错误响应:', jsonError);
+                            throw new Error(`生成试卷失败: HTTP ${response.status}`);
+                        }
+                    });
+                }
+                
+                // 获取文件名
+                const contentDisposition = response.headers.get('content-disposition');
+                let filename = paperTitle;
+                
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                    if (filenameMatch && filenameMatch[1]) {
+                        filename = filenameMatch[1].replace(/['"]/g, '');
+                    }
+                }
+                
+                // 获取响应类型
+                const contentType = response.headers.get('content-type');
+                
+                // 根据内容类型判断如何处理
+                if (contentType === 'application/zip') {
+                    console.log('收到ZIP压缩包（包含音频文件）');
+                    filename = filename.endsWith('.zip') ? filename : `${filename}.zip`;
+                } else {
+                    console.log('收到Word文档');
+                    filename = filename.endsWith('.docx') ? filename : `${filename}.docx`;
+                }
+                
+                console.log(`下载文件: ${filename}`);
+                
+                return response.blob().then(blob => {
+                    try {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                        a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                        setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                
+                        // 下载成功后清空购物车
+                        setTimeout(() => {
+                            // 清空选中题目集合
+                selectedQuestions.clear();
+                            
+                            // 更新购物车显示
+                updateDownloadPanel();
+                
+                // 更新题目渲染状态，清除选中标记
+                const selectedButtons = document.querySelectorAll('.select-btn.selected');
+                selectedButtons.forEach(btn => {
+                    btn.classList.remove('selected');
+                    // 添加恢复按钮文本
+                    btn.innerHTML = '<span class="btn-text">组卷</span>';
+                            });
+                            
+                            // 从localStorage中也清除
+                            localStorage.removeItem("selectedQuestions");
+                            
+                            console.log('试卷下载成功，已清空购物车');
+                        }, 1000);
+                    } catch (blobError) {
+                        console.error('处理文件下载时出错:', blobError);
+                        alert('文件下载失败，请重试');
+                    }
+                });
+            })
+            .catch(error => {
+                // 清除超时计时器
+                clearTimeout(timeoutId);
+                
+                console.error('生成试卷时出错:', error);
+                
+                // 检查网络异常
+                let isNetworkError = 
+                    error.name === 'AbortError' || 
+                    error.message?.includes('Failed to fetch') || 
+                    error.message?.includes('NetworkError') ||
+                    error.message?.includes('net::') ||
+                    !navigator.onLine;
+                
+                // 显示更友好的错误消息
+                let errorMessage = '生成试卷时出错，请重试';
+                
+                if (isNetworkError) {
+                    errorMessage = '网络连接错误，请检查您的网络连接并重试';
+                    // 添加自动重连逻辑 - 检查网络恢复
+                    window.addEventListener('online', function onlineHandler() {
+                        alert('网络连接已恢复，请重新尝试生成试卷');
+                        window.removeEventListener('online', onlineHandler);
+                    });
+                } else if (error.name === 'AbortError') {
+                    errorMessage = '请求超时，请检查网络连接并重试';
+                } else if (error.message) {
+                    // 处理其他已知错误
+                    if (error.message.includes('HTTP 500')) {
+                        errorMessage = '服务器处理错误，请检查是否选择了有效题目（有音频的题目可能需要额外处理时间）';
+                    } else if (error.message.includes('生成试卷失败')) {
+                        errorMessage = error.message;
+                    }
+                }
+                
+                alert(errorMessage);
+                
+                // 移除加载提示（以防在出错前没有移除）
+                const loadingElement = document.getElementById('paperGeneratingLoading');
+                if (loadingElement) {
+                    document.body.removeChild(loadingElement);
+                }
+            });
+            
+            // 注册网络状态变化监听
+            window.addEventListener('offline', function() {
+                // 如果网络断开，提示用户
+                const loadingElement = document.getElementById('paperGeneratingLoading');
+                if (loadingElement) {
+                    loadingElement.innerHTML = '<p style="text-align: center; margin: 0; color: red;"><b>网络连接已断开，请恢复连接后重试...</b></p>';
+                }
+            }, { once: true });
+        };
+        
+        // 清空已选题目
+        window.clearSelectedQuestions = function() {
+            // 清空选中题目集合
+            selectedQuestions.clear();
+            
+            // 更新购物车显示
+            updateDownloadPanel();
+            
+            // 更新题目渲染状态，清除选中标记
+            const selectedButtons = document.querySelectorAll('.select-btn.selected');
+            selectedButtons.forEach(btn => {
+                btn.classList.remove('selected');
+                // 添加恢复按钮文本
+                btn.innerHTML = '<span class="btn-text">组卷</span>';
+            });
+            
+            // 关闭弹窗
+            document.getElementById('paperTitleModal').style.display = 'none';
+            
+            // 从localStorage中也清除
+            localStorage.removeItem("selectedQuestions");
+            
+            // 提示用户
+            alert('已清空所有已选题目');
+        }
+        
+        // 获取被选择的题目ID列表
+        function getSelectedQuestionIds() {
+            return Array.from(selectedQuestions);
+        }
+
+        // 添加面板拖动功能
+        const downloadPanel = document.getElementById('downloadPanel');
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        downloadPanel.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', dragEnd);
+        downloadPanel.addEventListener('click', function(e) {
+            if (!isDragging) {
+                showPaperTitleDialog();
+            }
+        });
+
+        function dragStart(e) {
+            initialX = e.clientX - xOffset;
+            initialY = e.clientY - yOffset;
+
+            if (e.target === downloadPanel) {
+                isDragging = true;
+            }
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                const rect = downloadPanel.getBoundingClientRect();
+                const maxX = window.innerWidth - rect.width;
+                const maxY = window.innerHeight - rect.height;
+
+                // 限制在窗口范围内
+                currentX = Math.min(Math.max(currentX, 0), maxX);
+                currentY = Math.min(Math.max(currentY, 0), maxY);
+
+                setTranslate(currentX, currentY, downloadPanel);
+            }
+        }
+
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        }
+
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+
+        // 添加触摸设备支持
+        downloadPanel.addEventListener('touchstart', dragStart);
+        document.addEventListener('touchmove', drag);
+        document.addEventListener('touchend', dragEnd);
+
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+
+            if (e.target === downloadPanel) {
+                isDragging = true;
+            }
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                const rect = downloadPanel.getBoundingClientRect();
+                const maxX = window.innerWidth - rect.width;
+                const maxY = window.innerHeight - rect.height;
+
+                currentX = Math.min(Math.max(currentX, 0), maxX);
+                currentY = Math.min(Math.max(currentY, 0), maxY);
+
+                setTranslate(currentX, currentY, downloadPanel);
+            }
+        }
+
+        // 添加处理英语听力题目的函数
+        function processListeningQuestion(stem) {
+            // 如果题干包含数字序号（如"3．"），去除序号
+            stem = stem.replace(/^\d+．\s*/, '');
+            
+            // 检查是否包含"听下面一段较长对话"、"听下面一段独白"或类似文本，这表明是完整的听力大题
+            if (stem.includes('听下面一段较长对话') || 
+                stem.includes('听下面一段独白') || 
+                stem.includes('听下列独白') || 
+                stem.includes('听录音')) {
+                // 这是一个包含多个小题的大题，保留整个内容并美化格式
+                return formatMultiListeningQuestion(stem);
+            }
+            
+            // 原有逻辑：提取What/Why/When/How等开头的单个问题
+            const questionPattern = /(What|Why|When|How|Who|Where).*?\?/;
+            const match = stem.match(questionPattern);
+            
+            // 如果找到匹配的问题，则只返回问题部分
+            if (match) {
+                return match[0];
+            }
+            
+            // 如果没有找到标准问题模式，则去除常见的指令前缀
+            return stem.replace(/Listen to the recording.*?\./i, '').trim();
+        }
+        
+        // 格式化包含多个小题的听力题
+        function formatMultiListeningQuestion(text) {
+            if (!text) return '';
+            
+            // 分离标题和小题部分
+            let title = '';
+            let subQuestions = [];
+            
+            // 提取标题
+            const titleMatch = text.match(/(听下面一段较长对话.*?)[，|。]/);
+            if (titleMatch) {
+                // 移除英语题目中的数字序号（如"3．"），但保留其他格式
+                const cleanTitle = titleMatch[1].replace(/^\d+．\s*/, '');
+                title = cleanTitle + '，回答以下小题。';
+            }
+            
+            // 提取英文问题和选项
+            const englishQuestions = text.match(/(What|Why|When|How|Who|Where).*?\?/g) || [];
+            const optionSets = text.match(/A\．.*?C\．.*?\./g) || [];
+            
+            // 构建格式化后的HTML
+            let formattedHTML = `<div class="listening-question">
+                <div class="listening-title">${title}</div>`;
+            
+            // 添加所有小题
+            for (let i = 0; i < englishQuestions.length; i++) {
+                const questionText = englishQuestions[i];
+                
+                // 从选项文本中分离A、B、C选项
+                let optionsHTML = '';
+                if (optionSets[i]) {
+                    // 将选项放在同一行，用tab分隔
+                    const optionsText = optionSets[i];
+                    const options = [
+                        optionsText.match(/A\．.*?(?=B\．)/) ? optionsText.match(/A\．.*?(?=B\．)/)[0].trim() : '',
+                        optionsText.match(/B\．.*?(?=C\．)/) ? optionsText.match(/B\．.*?(?=C\．)/)[0].trim() : '',
+                        optionsText.match(/C\．.*?(?=\.|$)/) ? optionsText.match(/C\．.*?(?=\.|$)/)[0].trim() : ''
+                    ];
+                    
+                    optionsHTML = `<div class="listening-options-vertical">
+                        ${options.map(opt => `<div class="option-line">${opt}</div>`).join('')}
+                    </div>`;
+                }
+                
+                formattedHTML += `
+                    <div class="listening-subquestion">
+                        <div class="question-text">${questionText}</div>
+                        ${optionsHTML}
+                    </div>
+                `;
+            }
+            
+            formattedHTML += '</div>';
+            return formattedHTML;
+        }
+        
+        // 填充选择器的选项
+        function populateSelect(selectId, options) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            
+            // 保留第一个选项（通常是提示文本）
+            const firstOption = select.options[0];
+            select.innerHTML = '';
+            select.appendChild(firstOption);
+            
+            // 添加新选项
+            options.sort().forEach(option => {
+                if (option) { // 确保选项不为空
+                    const optElement = document.createElement('option');
+                    optElement.value = option;
+                    optElement.textContent = option;
+                    select.appendChild(optElement);
+                }
+            });
+        }
+        
+        // 根据选择的科目更新题型选择器
+        function updateQuestionTypes() {
+            const subject = document.getElementById('subject').value;
+            if (!subject) return;
+            
+        const questionTypes = {
+            '语文': ['文言文阅读', '现代文阅读', '古诗词鉴赏', '名篇名句默写', '语言文字运用', '作文'],
+            '数学': ['单项选择题', '多项选择题', '填空题', '解答题', '证明题', '应用题'],
+            '英语': ['听力理解', '阅读理解', '完形填空', '语法填空', '短文改错', '书面表达'],
+            '物理': ['选择题', '实验题', '计算题', '作图题', '论述题', '创新设计题'],
+            '化学': ['选择题', '物质推断题', '实验综合题', '工艺流程题', '反应原理题', '结构分析题'],
+            '生物': ['选择题', '实验探究题', '遗传分析题', '生态综合题', '生理调节题', '生物技术题'],
+                '政治': ['选择题', '辨析题', '材料分析题', '论述题', '综合探究题', '时政评析题'],
+                '历史': ['选择题', '材料解析题', '历史小论文', '时空定位题', '史实辨析题', '历史地图题'],
+            '地理': ['选择题', '读图分析题', '区位分析题', '地理计算题', '自然灾害题', '区域发展题']
+        };
+
+            // 获取当前科目对应的题型
+            const types = questionTypes[subject] || [];
+            
+            // 填充题型选择器
+            const typeSelect = document.getElementById('questionType');
+            if (typeSelect) {
+                // 保留第一个选项
+                const firstOption = typeSelect.options[0];
+                typeSelect.innerHTML = '';
+                typeSelect.appendChild(firstOption);
+                
+                // 添加题型选项
+                types.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    typeSelect.appendChild(option);
+                });
+            }
+            
+            // 根据题型筛选题目
+            filterQuestions();
+        }
+        
+        // 使用/api/questions返回的数据中的has_audio和audio_url字段
+        function determineAudioUrl(question) {
+            // 始终优先使用指定的音频路径
+            if (question.audio_file_path) {
+                // 确保路径格式正确
+                if (!question.audio_file_path.startsWith('/') && !question.audio_file_path.startsWith('http')) {
+                    return '/' + question.audio_file_path;
+                }
+                return question.audio_file_path;
+            }
+            
+            // 其次使用/get_audio/端点
+            if (question.id) {
+                return `/get_audio/${question.id}`;
+            }
+            
+            // 如果没有id但有audio_url，尝试使用
+            if (question.audio_url) {
+                // 如果是相对路径但不是以/开头的，添加/
+                if (!question.audio_url.startsWith('/') && !question.audio_url.startsWith('http')) {
+                    return '/' + question.audio_url;
+                }
+                return question.audio_url;
+            }
+            
+            // 默认返回空
+            return '';
+        }
+
+        // 添加自定义音频播放器处理函数
+        const audioPlayers = new Map();
+
+        function createAudioPlayer(audioId, audioUrl) {
+            const audio = new Audio(audioUrl);
+            let isPlaying = false;
+            
+            const player = {
+                audio: audio,
+                isPlaying: false,
+                togglePlay: function(button, progressBar, timeDisplay) {
+                    if (this.isPlaying) {
+                        this.audio.pause();
+                        button.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                        `;
+                    } else {
+                        // 暂停所有其他播放中的音频
+                        audioPlayers.forEach((p, id) => {
+                            if (id !== audioId && p.isPlaying) {
+                                p.audio.pause();
+                                p.isPlaying = false;
+                                const otherButton = document.querySelector(`#audio-play-${id}`);
+                                if (otherButton) {
+                                    otherButton.innerHTML = `
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                        </svg>
+                                    `;
+                                }
+                            }
+                        });
+                        
+                        this.audio.play();
+                        button.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="6" y="4" width="4" height="16"></rect>
+                                <rect x="14" y="4" width="4" height="16"></rect>
+                            </svg>
+                        `;
+                    }
+                    this.isPlaying = !this.isPlaying;
+                },
+                updateProgress: function(progressBar, timeDisplay) {
+                    const percent = (this.audio.currentTime / this.audio.duration) * 100;
+                    progressBar.style.width = `${percent}%`;
+                    
+                    const currentMinutes = Math.floor(this.audio.currentTime / 60);
+                    const currentSeconds = Math.floor(this.audio.currentTime % 60);
+                    const durationMinutes = Math.floor(this.audio.duration / 60) || 0;
+                    const durationSeconds = Math.floor(this.audio.duration % 60) || 0;
+                    
+                    timeDisplay.textContent = `${currentMinutes}:${currentSeconds < 10 ? '0' : ''}${currentSeconds} / ${durationMinutes}:${durationSeconds < 10 ? '0' : ''}${durationSeconds}`;
+                },
+                seekTo: function(e, progressContainer) {
+                    const percent = e.offsetX / progressContainer.offsetWidth;
+                    this.audio.currentTime = percent * this.audio.duration;
+                }
+            };
+            
+            // 设置音频事件监听
+            audio.addEventListener('ended', () => {
+                player.isPlaying = false;
+                const button = document.querySelector(`#audio-play-${audioId}`);
+                if (button) {
+                    button.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                    `;
+                }
+            });
+            
+            audioPlayers.set(audioId, player);
+            return player;
+        }
+
+        // 添加音频控制函数
+        function toggleAudioPlay(id, url) {
+            let player = audioPlayers.get(id);
+            if (!player) {
+                player = createAudioPlayer(id, url);
+                
+                // 添加进度更新
+                player.audio.addEventListener('timeupdate', () => {
+                    const progressBar = document.getElementById(`audio-progress-${id}`);
+                    const timeDisplay = document.getElementById(`audio-time-${id}`);
+                    if (progressBar && timeDisplay) {
+                        player.updateProgress(progressBar, timeDisplay);
+                    }
+                });
+            }
+            
+            const button = document.getElementById(`audio-play-${id}`);
+            const progressBar = document.getElementById(`audio-progress-${id}`);
+            const timeDisplay = document.getElementById(`audio-time-${id}`);
+            
+            if (button && progressBar && timeDisplay) {
+                player.togglePlay(button, progressBar, timeDisplay);
+            }
+        }
+        
+        function seekAudio(event, id) {
+            const player = audioPlayers.get(id);
+            const progressContainer = document.getElementById(`audio-progress-container-${id}`);
+            
+            if (player && progressContainer) {
+                player.seekTo(event, progressContainer);
+            }
+        }
+    </script>
+    <!-- 添加客户端修复脚本 -->
+    <script src="/static/js/fix_client_html.js?v=20250402"></script>
+    <!-- 添加新的修复脚本，解决重复函数定义和其他问题 -->
+    <script src="/static/js/client_fix.js?v=20250406"></script>
+    <!-- 添加英语听力题目格式修复 -->
+    <script src="/static/js/listening_format_fix.js?v=20250408"></script>
+    <!-- 添加听力完整题修复 -->
+    <script src="/static/js/listening_complete_fix.js?v=20250408"></script>
+    <!-- 添加无中断播放修复 -->
+    <script src="/static/js/audio_fix.js?v=20250408"></script>
+    <!-- 添加直接格式修复 -->
+    <script src="/static/js/direct_format_fix.js?v=20250408"></script>
+    <!-- 添加短文听力题显示修复 -->
+    <script src="/static/js/short_passage_listening_fix.js?v=20250408"></script>
+    <!-- 添加听力函数覆盖脚本 - 处理听下面一段独白类型 -->
+    <script src="/static/js/override_listening_functions.js?v=20250409"></script>
+    <!-- 网络状态检测 -->
+    <script>
+        // 创建网络状态通知元素
+        function createNetworkStatusBanner() {
+            const banner = document.createElement('div');
+            banner.id = 'network-status-banner';
+            banner.style.position = 'fixed';
+            banner.style.top = '0';
+            banner.style.left = '0';
+            banner.style.width = '100%';
+            banner.style.padding = '10px';
+            banner.style.backgroundColor = '#ff4d4f';
+            banner.style.color = 'white';
+            banner.style.textAlign = 'center';
+            banner.style.fontWeight = 'bold';
+            banner.style.zIndex = '10000';
+            banner.style.display = 'none';
+            banner.innerHTML = '网络连接已断开，部分功能可能无法正常工作。请检查您的网络连接。';
+            document.body.appendChild(banner);
+            return banner;
+        }
+
+        // 网络状态监测逻辑
+        document.addEventListener('DOMContentLoaded', function() {
+            const banner = createNetworkStatusBanner();
+            
+            // 初始检查
+            if (!navigator.onLine) {
+                banner.style.display = 'block';
+            }
+            
+            // 监听网络状态变化
+            window.addEventListener('online', function() {
+                banner.style.display = 'none';
+                console.log('网络连接已恢复');
+            });
+            
+            window.addEventListener('offline', function() {
+                banner.style.display = 'block';
+                console.log('网络连接已断开');
+            });
+        });
+</script>
+</body>
+</html>

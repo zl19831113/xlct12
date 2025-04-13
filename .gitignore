@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+venv/
+.venv/
+ENV/
+env/
+
+# Instance folder (contains database, secrets)
+/instance/
+
+# SQLite / DB files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# User Uploads (often large, not version controlled)
+/uploads/
+
+# Backups (explicitly excluded)
+/backups/
+/backup_originals/
+*bak*
+
+# Temporary update folders
+temp_update_*
+
+# OS generated files
+.DS_Store
+*~
+Thumbs.db
+
+# IDE / Editor specific
+.vscode/
+.idea/

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>试题列表</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="/static/css/mobile-global.css?v=1.0">
+    <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>试题列表</h1>
+    <table>
+        <tr>
+            <th>来源</th>
+            <th>科目</th>
+            <th>地区</th>
+            <th>章节</th>
+            <th>题目内容</th>
+            <th>答案</th>
+            <th>解析</th>
+        </tr>
+        {% for q in questions %}
+        <tr>
+            <td>{{ q.试题来源 }}</td>
+            <td>{{ q.试题科目 }}</td>
+            <td>{{ q.试题地区 }}</td>
+            <td>{{ q.章节 }}</td>
+            <td>{{ q.question_text }}</td>
+            <td>{{ q.答案 }}</td>
+            <td>{{ q.解析 }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>题目详情</h2>
+    {% for question in questions %}
+    <div class="question">
+        <h3>题目 {{ loop.index }}</h3>
+        <pre>{{ question.question_text }}</pre>
+        <div class="options">
+            {% for option in question.options %}
+            <div class="option {% if option.is_correct %}correct{% endif %}">
+                {{ option.option_text }}
+            </div>
+            {% endfor %}
+        </div>
+        <p>正确答案：{{ question.answer }}</p>
+    </div>
+    {% endfor %}
+</body>
+</html> 

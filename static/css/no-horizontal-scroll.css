@@ -1,0 +1,157 @@
+/* 移动端水平滚动问题彻底解决方案 v1.0 */
+
+/* 强制控制页面不允许水平滚动 */
+html, body {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    position: relative !important;
+    touch-action: pan-y !important; /* 只允许垂直滑动 */
+    overscroll-behavior-x: none !important; /* 防止iOS上滑动边缘反弹 */
+}
+
+/* 确保所有直接子元素不溢出 */
+body > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: clip !important; /* 现代浏览器使用clip替代hidden来防止滚动 */
+    box-sizing: border-box !important;
+}
+
+/* 处理常见容器元素 */
+.content-container,
+.main-container,
+.container,
+.header,
+.filter-sidebar,
+#questionCards,
+.question-item,
+.question-content,
+.question-options,
+.footer,
+div[class*="container"],
+div[class*="wrapper"],
+div[class*="content"],
+div[class*="box"],
+div[class*="panel"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: clip !important;
+    box-sizing: border-box !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* 处理内容元素 */
+p, h1, h2, h3, h4, h5, h6, div, span {
+    max-width: 100% !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+}
+
+/* 处理弹性布局 */
+.flex-container,
+div[class*="flex"],
+div[style*="display: flex"],
+div[style*="display:flex"] {
+    flex-wrap: wrap !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* 处理表格容器 */
+table, tr, td, th {
+    max-width: 100% !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+}
+
+/* 处理长文本内容 */
+pre, code {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    max-width: 100% !important;
+}
+
+/* 处理输入框元素 */
+input, textarea, select, button {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* 处理图片和媒体内容 */
+img, video, iframe, canvas, svg {
+    max-width: 100% !important;
+    height: auto !important;
+}
+
+/* 处理下载面板 */
+#downloadPanel {
+    max-width: 80% !important;
+    left: 10% !important;
+    right: 10% !important;
+    width: 80% !important;
+    box-sizing: border-box !important;
+}
+
+/* 处理选项容器 */
+.option-container,
+.question-option {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    word-break: break-word !important;
+}
+
+/* 修正题目正文溢出 */
+.question-text {
+    max-width: 100% !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+}
+
+/* 修正选项文本溢出 */
+.option-text {
+    flex: 1 !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    word-break: break-word !important;
+}
+
+/* 强制对于特定宽度的设备进行额外控制 */
+@media (max-width: 480px) {
+    #questionCards {
+        padding: 0 8px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    
+    .question-item {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 12px !important;
+        box-sizing: border-box !important;
+        border-radius: 8px !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    
+    .question-content {
+        width: 100% !important;
+        word-break: break-word !important;
+    }
+    
+    .question-text {
+        font-size: 16px !important;
+        padding-right: 0 !important;
+    }
+    
+    /* 处理内滚动溢出问题 */
+    div[style*="overflow"],
+    div[style*="overflow-x"] {
+        overflow: hidden !important;
+        overflow-x: hidden !important;
+    }
+}

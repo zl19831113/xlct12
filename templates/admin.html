@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员控制台</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        
+        .admin-container {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin: 40px auto;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .admin-card {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #1976D2;
+        }
+        
+        .admin-card h2 {
+            margin-top: 0;
+            color: #1976D2;
+            font-size: 18px;
+        }
+        
+        .admin-card p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        
+        .admin-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        
+        .admin-button:hover {
+            background: linear-gradient(135deg, #1976D2, #1565C0);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .admin-button.danger {
+            background: linear-gradient(135deg, #f44336, #d32f2f);
+        }
+        
+        .admin-button.danger:hover {
+            background: linear-gradient(135deg, #d32f2f, #b71c1c);
+        }
+        
+        .result-container {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .result-success {
+            background-color: #e8f5e9;
+            border: 1px solid #a5d6a7;
+            color: #2e7d32;
+        }
+        
+        .result-error {
+            background-color: #ffebee;
+            border: 1px solid #ef9a9a;
+            color: #c62828;
+        }
+        
+        .nav-links {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .nav-links a {
+            color: #1976D2;
+            margin: 0 10px;
+            text-decoration: none;
+        }
+        
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            .admin-container {
+                padding: 20px;
+                margin: 20px auto;
+            }
+            
+            .admin-button {
+                display: block;
+                width: 100%;
+                margin-bottom: 10px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <h1>管理员控制台</h1>
+        
+        <div class="admin-card">
+            <h2>修复文件路径</h2>
+            <p>此功能将扫描所有试卷记录，尝试找到文件的实际位置，并更新数据库中的文件路径。</p>
+            <button id="fixPathsButton" class="admin-button">开始修复</button>
+            <div id="fixPathsResult" class="result-container"></div>
+        </div>
+        
+        <div class="admin-card">
+            <h2>管理缺失文件</h2>
+            <p>此功能允许您查看和修复缺失的试卷文件。</p>
+            <button id="checkMissingButton" class="admin-button">检查缺失文件</button>
+            <div id="missingFilesResult" class="result-container"></div>
+            
+            <div id="missingFilesContainer" style="display: none; margin-top: 20px;">
+                <h3>缺失文件列表</h3>
+                <div id="missingFilesList" style="max-height: 300px; overflow-y: auto; margin-bottom: 20px;"></div>
+                
+                <div id="uploadFormContainer" style="display: none; background: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; border: 1px solid #e0e0e0;">
+                    <h3 id="uploadFormTitle">上传替换文件</h3>
+                    <form id="replaceFileForm" enctype="multipart/form-data">
+                        <input type="hidden" id="paperId" name="paper_id">
+                        <div style="margin-bottom: 15px;">
+                            <p><strong>试卷名称:</strong> <span id="paperName"></span></p>
+                            <p><strong>原文件名:</strong> <span id="originalFileName"></span></p>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label for="replacementFile" style="display: block; margin-bottom: 5px;">选择替换文件:</label>
+                            <input type="file" id="replacementFile" name="replacement_file" accept=".pdf,.doc,.docx,.zip,.rar" required>
+                        </div>
+                        <button type="submit" class="admin-button">上传替换文件</button>
+                    </form>
+                    <div id="uploadResult" class="result-container" style="margin-top: 15px;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="admin-card">
+            <h2>返回主页</h2>
+            <p>返回到网站的主页面。</p>
+            <a href="/" class="admin-button">返回主页</a>
+        </div>
+        
+        <div class="nav-links">
+            <a href="/papers">试卷列表</a> | 
+            <a href="/upload_paper">上传试卷</a>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('fixPathsButton').addEventListener('click', function() {
+            // 禁用按钮，防止重复点击
+            this.disabled = true;
+            this.textContent = '修复中...';
+            
+            // 显示结果容器
+            const resultContainer = document.getElementById('fixPathsResult');
+            resultContainer.style.display = 'block';
+            resultContainer.textContent = '正在修复文件路径，请稍候...';
+            resultContainer.className = 'result-container';
+            
+            // 发送请求
+            fetch('/admin/fix_file_paths')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        resultContainer.textContent = data.message;
+                        resultContainer.classList.add('result-success');
+                    } else {
+                        resultContainer.textContent = '修复失败: ' + data.error;
+                        resultContainer.classList.add('result-error');
+                    }
+                })
+                .catch(error => {
+                    resultContainer.textContent = '请求失败: ' + error.message;
+                    resultContainer.classList.add('result-error');
+                })
+                .finally(() => {
+                    // 恢复按钮状态
+                    this.disabled = false;
+                    this.textContent = '开始修复';
+                });
+        });
+        
+        // 检查缺失文件
+        document.getElementById('checkMissingButton').addEventListener('click', function() {
+            // 禁用按钮，防止重复点击
+            this.disabled = true;
+            this.textContent = '检查中...';
+            
+            // 显示结果容器
+            const resultContainer = document.getElementById('missingFilesResult');
+            resultContainer.style.display = 'block';
+            resultContainer.textContent = '正在检查缺失文件，请稍候...';
+            resultContainer.className = 'result-container';
+            
+            // 发送请求
+            fetch('/admin/check_missing_files')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        resultContainer.textContent = data.message;
+                        resultContainer.classList.add('result-success');
+                        
+                        // 显示缺失文件列表
+                        if (data.missing_files && data.missing_files.length > 0) {
+                            displayMissingFiles(data.missing_files);
+                        } else {
+                            document.getElementById('missingFilesContainer').style.display = 'none';
+                        }
+                    } else {
+                        resultContainer.textContent = '检查失败: ' + data.error;
+                        resultContainer.classList.add('result-error');
+                        document.getElementById('missingFilesContainer').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    resultContainer.textContent = '请求失败: ' + error.message;
+                    resultContainer.classList.add('result-error');
+                    document.getElementById('missingFilesContainer').style.display = 'none';
+                })
+                .finally(() => {
+                    // 恢复按钮状态
+                    this.disabled = false;
+                    this.textContent = '检查缺失文件';
+                });
+        });
+        
+        // 显示缺失文件列表
+        function displayMissingFiles(missingFiles) {
+            const container = document.getElementById('missingFilesContainer');
+            const listContainer = document.getElementById('missingFilesList');
+            
+            container.style.display = 'block';
+            listContainer.innerHTML = '';
+            
+            missingFiles.forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.style.padding = '10px';
+                fileItem.style.borderBottom = '1px solid #eee';
+                fileItem.style.display = 'flex';
+                fileItem.style.justifyContent = 'space-between';
+                fileItem.style.alignItems = 'center';
+                
+                const fileInfo = document.createElement('div');
+                fileInfo.innerHTML = `
+                    <strong>${file.name}</strong><br>
+                    <small>ID: ${file.id} | 科目: ${file.subject} | 年份: ${file.year}</small>
+                `;
+                
+                const actionButton = document.createElement('button');
+                actionButton.className = 'admin-button';
+                actionButton.style.padding = '8px 12px';
+                actionButton.style.fontSize = '14px';
+                actionButton.textContent = '上传替换文件';
+                actionButton.onclick = function() {
+                    showUploadForm(file);
+                };
+                
+                fileItem.appendChild(fileInfo);
+                fileItem.appendChild(actionButton);
+                listContainer.appendChild(fileItem);
+            });
+        }
+        
+        // 显示上传表单
+        function showUploadForm(file) {
+            const container = document.getElementById('uploadFormContainer');
+            container.style.display = 'block';
+            
+            // 填充表单数据
+            document.getElementById('paperId').value = file.id;
+            document.getElementById('paperName').textContent = file.name;
+            document.getElementById('originalFileName').textContent = file.file_name;
+            
+            // 滚动到表单位置
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // 处理替换文件上传
+        document.getElementById('replaceFileForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitButton = this.querySelector('button[type="submit"]');
+            const resultContainer = document.getElementById('uploadResult');
+            
+            // 禁用提交按钮
+            submitButton.disabled = true;
+            submitButton.textContent = '上传中...';
+            
+            // 显示结果容器
+            resultContainer.style.display = 'block';
+            resultContainer.textContent = '正在上传替换文件，请稍候...';
+            resultContainer.className = 'result-container';
+            
+            // 发送请求
+            fetch('/admin/replace_file', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resultContainer.textContent = data.message;
+                    resultContainer.classList.add('result-success');
+                    
+                    // 重置表单
+                    document.getElementById('replacementFile').value = '';
+                } else {
+                    resultContainer.textContent = '上传失败: ' + data.error;
+                    resultContainer.classList.add('result-error');
+                }
+            })
+            .catch(error => {
+                resultContainer.textContent = '请求失败: ' + error.message;
+                resultContainer.classList.add('result-error');
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                submitButton.disabled = false;
+                submitButton.textContent = '上传替换文件';
+            });
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小鹿题库系统</title>
+    <link rel="stylesheet" href="/static/css/header.css">
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .welcome-message {
+            margin-bottom: 40px;
+        }
+        
+        .welcome-message h2 {
+            font-size: 28px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        
+        .welcome-message p {
+            font-size: 16px;
+            color: #7f8c8d;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-top: 40px;
+        }
+        
+        .feature-card {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+        
+        .feature-card h3 {
+            color: #3498db;
+            margin-top: 0;
+            font-size: 20px;
+        }
+        
+        .feature-card p {
+            color: #666;
+            line-height: 1.5;
+        }
+        
+        .feature-icon {
+            font-size: 36px;
+            margin-bottom: 15px;
+            color: #3498db;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+                margin: 20px auto;
+            }
+            
+            .welcome-message h2 {
+                font-size: 24px;
+            }
+            
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 引入公共头部组件 -->
+    {% include 'header.html' %}
+
+    <div class="container">
+        <div class="welcome-message">
+            <h2>欢迎使用小鹿题库系统</h2>
+            <p>高效的题库管理平台，帮助您轻松管理和获取优质教学资源</p>
+        </div>
+        
+        <div class="feature-grid">
+            <a href="{{ url_for('upload_page') }}" style="text-decoration: none; color: inherit;">
+                <div class="feature-card">
+                    <div class="feature-icon">📝</div>
+                    <h3>上传试题</h3>
+                    <p>轻松上传和管理您的试题资源，支持多种格式</p>
+                </div>
+            </a>
+            
+            <a href="{{ url_for('upload_paper') }}" style="text-decoration: none; color: inherit;">
+                <div class="feature-card">
+                    <div class="feature-icon">📄</div>
+                    <h3>上传试卷</h3>
+                    <p>上传完整试卷，系统自动识别科目、地区等信息</p>
+                </div>
+            </a>
+            
+            <a href="{{ url_for('papers_list') }}" style="text-decoration: none; color: inherit;">
+                <div class="feature-card">
+                    <div class="feature-icon">🏫</div>
+                    <h3>名校试卷</h3>
+                    <p>浏览和下载全国各地名校优质试卷资源</p>
+                </div>
+            </a>
+            
+            <a href="{{ url_for('client') }}" style="text-decoration: none; color: inherit;">
+                <div class="feature-card">
+                    <div class="feature-icon">✏️</div>
+                    <h3>小鹿出题</h3>
+                    <p>智能组卷系统，根据需求快速生成定制试卷</p>
+                </div>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

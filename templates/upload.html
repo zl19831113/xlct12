@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上传试题数据</title>
+    <link rel="stylesheet" href="/static/css/header.css?v=2.0">
+    <!-- 引入 CKEditor -->
+    <script src="https://cdn.ckeditor.com/4.16.2/standard/ckeditor.js"></script>
+    <style>
+        :root {
+            --primary-color: #2F80ED;
+            --secondary-color: #E6F0FF;
+            --background-main: #FFFFFF;
+            --text-main: #333333;
+            --text-secondary: #666666;
+            --text-subheading: #444444;
+            --border-color: #E5E7EB;
+            --border-radius: 6px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 15px;
+            background-color: #f8f9fa;
+            line-height: 1.6;
+            font-size: 16px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin: 20px auto;
+            color: var(--text-main);
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .form-group { 
+            margin-bottom: 20px; 
+            position: relative;
+        }
+        
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            color: var(--text-main);
+            font-weight: 500;
+        }
+        
+        input, select { 
+            width: 100%; 
+            max-width: 400px; 
+            padding: 10px; 
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: 16px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.2);
+        }
+        
+        .cke { 
+            width: 100% !important; 
+            margin-bottom: 20px; 
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+        
+        .image-upload-controls {
+            margin: 15px 0;
+            padding: 15px;
+            background: var(--secondary-color);
+            border-radius: var(--border-radius);
+            border: 1px solid rgba(47, 128, 237, 0.2);
+        }
+        
+        .image-upload-group {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            background-color: var(--background-main);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        select:required:invalid {
+            border-color: #dc3545;
+        }
+        
+        select:required:valid {
+            border-color: #28a745;
+        }
+        
+        .form-group label::after {
+            content: "*";
+            color: #dc3545;
+            margin-left: 4px;
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.2s, transform 0.2s;
+        }
+        
+        button:hover {
+            background-color: #1a73e8;
+            transform: translateY(-1px);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+        
+        button[type="button"] {
+            background-color: #6c757d;
+        }
+        
+        button[type="button"]:hover {
+            background-color: #5a6268;
+        }
+        
+        button[type="submit"] {
+            background-color: var(--primary-color);
+            padding: 12px 24px;
+            font-size: 18px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 400px;
+            display: block;
+        }
+        
+        form {
+            background-color: var(--background-main);
+            padding: 25px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-md);
+            margin-bottom: 30px;
+        }
+        
+        h3 {
+            color: var(--text-subheading);
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+        
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 20px;
+                margin: 15px auto;
+            }
+            
+            form {
+                padding: 15px;
+            }
+            
+            input, select {
+                font-size: 14px;
+                padding: 8px;
+            }
+            
+            button {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            
+            button[type="submit"] {
+                padding: 10px 20px;
+                font-size: 16px;
+            }
+            
+            .image-upload-controls {
+                padding: 10px;
+            }
+            
+            .image-upload-group {
+                padding: 10px;
+            }
+        }
+    </style>
+    <!-- 上传试题页面特定的头部样式 -->
+    <style>
+        /* 仅在上传试题页面增加搜索框长度 */
+        .header-search {
+            flex: 1;
+            max-width: 600px !important; /* 增加搜索框最大宽度 */
+            margin: 0 30px !important;
+        }
+        
+        .search-input {
+            width: 100% !important;
+            padding: 12px 20px !important;
+            font-size: 16px !important;
+        }
+        
+        .search-button {
+            min-width: 100px !important;
+            padding: 0 30px !important;
+        }
+        
+        /* 调整头部高度，避免挡住内容 */
+        .header {
+            height: auto !important;
+            padding: 15px 20px !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- 引入公共头部组件 -->
+    {% include 'header.html' %}
+    
+    <form method="POST" action="/add_question" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <!-- 动态图片上传区域 -->
+        <div id="image-upload-area">
+            <h3></h3>
+            <div class="image-upload-controls">
+                <input type="number" id="questionNumber" placeholder="输入题号" min="1" style="width: 100px;">
+                <button type="button" onclick="addImageFieldWithNumber()">添加此题图片</button>
+            </div>
+        </div>
+        
+        <!-- 新增MP3批量上传区域 -->
+        <div id="audio-upload-area">
+            <h3>上传听力音频</h3>
+            <div class="image-upload-controls">
+                <p style="color: #666; font-size: 0.9em; margin: 5px 0;">
+                    <em>注意：上传的MP3文件名必须包含题号（如：1.mp3, question2.mp3）。系统会自动匹配题号与题目内容。</em>
+                </p>
+                <div id="mp3-upload-container">
+                    <div id="mp3-drop-area" style="border: 2px dashed #ccc; padding: 20px; text-align: center; margin-bottom: 10px; background-color: #f8f8f8; cursor: pointer;">
+                        <p>拖放多个MP3文件到此处，或点击选择文件</p>
+                        <input type="file" id="mp3-file-input" name="mp3_files" multiple accept="audio/mp3" style="display:none">
+                    </div>
+                    <div id="mp3-files-list" style="margin-top: 10px;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div>
+            <label>学段：</label>
+            <select name="education_stage" id="educationStage" required>
+                <option value="">* 请选择学段（必选）</option>
+                <option value="小学">小学</option>
+                <option value="初中">初中</option>
+                <option value="高中" selected>高中</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>试题科目：</label>
+            <select name="subject" id="subject" required onchange="updateQuestionTypes()">
+                <option value="">* 请选择科目（必选）</option>
+                <option value="语文">语文</option>
+                <option value="数学">数学</option>
+                <option value="英语">英语</option>
+                <option value="物理">物理</option>
+                <option value="化学">化学</option>
+                <option value="生物">生物</option>
+                <option value="政治">政治</option>
+                <option value="历史">历史</option>
+                <option value="地理">地理</option>
+            </select>
+        </div>
+        <div>
+            <label>题型：</label>
+            <select name="question_type" id="questionType" required oninvalid="this.setCustomValidity('请选择题型')" oninput="this.setCustomValidity('')">
+                <option value="">* 请先选择科目（必选）</option>
+            </select>
+        </div>
+        <div>
+            <label>教材：</label>
+            <input type="text" name="textbook" required>
+        </div>
+        <div>
+            <label>章节：</label>
+            <input type="text" name="chapter">
+        </div>
+        <div>
+            <label>单元：</label>
+            <input type="text" name="unit" required>
+        </div>
+        <div>
+            <label>课程：</label>
+            <input type="text" name="lesson" required>
+        </div>
+        <div>
+            <label>题目内容：</label>
+            <p style="color: #666; font-size: 0.9em; margin: 5px 0;">
+                题目格式说明：
+                <em>1. 每个完整题目以数字加顿号开头（如：2．）<br>
+                2. 子问题用括号编号（如：(1)、(2)）<br>
+                3. 所有子问题必须跟在主题目后面</em>
+            </p>
+            <textarea name="question_text" id="question_text" required></textarea>
+            <div id="question_count" style="color: #666; margin-top: 5px;"></div>
+        </div>
+        <div>
+            <label>答案和解析：</label>
+            <p style="color: #666; font-size: 0.9em; margin: 5px 0;">
+                格式要求：<br>
+                1. 每个答案必须以数字加标点开头（例如：1. 或 2、）<br>
+                2. 答案与解析写在一起，示例：<br>
+                <em>1. 答案内容... 解析内容...</em>
+            </p>
+            <textarea name="answer_and_explanation" id="answer_and_explanation" required></textarea>
+            <div id="answer_count" style="color: #666; margin-top: 5px;"></div>
+        </div>
+        <button type="submit">提交</button>
+    </form>
+    <script>
+        const questionTypes = {
+            '语文': ['文言文阅读', '现代文阅读', '古诗词鉴赏', '名篇名句默写', '语言文字运用', '作文'],
+            '数学': ['单项选择题', '多项选择题', '填空题', '解答题', '证明题', '应用题'],
+            '英语': ['听力理解', '阅读理解', '完形填空', '语法填空', '短文改错', '书面表达'],
+            '物理': ['选择题', '实验题', '计算题', '作图题', '论述题', '创新设计题'],
+            '化学': ['选择题', '物质推断题', '实验综合题', '工艺流程题', '反应原理题', '结构分析题'],
+            '生物': ['选择题', '实验探究题', '遗传分析题', '生态综合题', '生理调节题', '生物技术题'],
+            '政治': ['选择题', '辨析题', '材料分析题', '论述题', '综合探究题', '时政评析题'],
+            '历史': ['选择题', '材料解析题', '历史小论文', '时空定位题', '史实辨析题', '历史地图题'],
+            '地理': ['选择题', '读图分析题', '区位分析题', '地理计算题', '自然灾害题', '区域发展题']
+        };
+
+        function updateQuestionTypes() {
+            const subject = document.getElementById('subject').value;
+            const typeSelect = document.getElementById('questionType');
+            typeSelect.innerHTML = '<option value="">* 请选择题型（必选）</option>';
+            
+            if (subject && questionTypes[subject]) {
+                questionTypes[subject].forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    typeSelect.appendChild(option);
+                });
+                typeSelect.setCustomValidity('');
+            } else {
+                typeSelect.setCustomValidity('请先选择科目，再选择题型');
+            }
+        }
+
+        // 存储已添加的题号
+        let addedQuestions = new Set();
+
+        function addImageFieldWithNumber() {
+            const questionNumber = document.getElementById('questionNumber').value;
+            if (!questionNumber) {
+                alert('请输入题号');
+                return;
+            }
+            
+            if (addedQuestions.has(questionNumber)) {
+                alert(`第${questionNumber}题的图片已存在`);
+                return;
+            }
+
+            const container = document.getElementById('image-upload-area');
+            
+            const newQuestionDiv = document.createElement('div');
+            newQuestionDiv.className = 'image-upload-group';
+            newQuestionDiv.id = `question-group-${questionNumber}`;
+            newQuestionDiv.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label>第${questionNumber}题图片：</label>
+                    <input type="file" name="question_image_${questionNumber}" accept="image/*">
+                    <button type="button" onclick="removeImageGroup('${questionNumber}')" 
+                        style="color: red; border: none; background: none; cursor: pointer;">
+                        ✕
+                    </button>
+                </div>
+            `;
+            
+            const newAnswerDiv = document.createElement('div');
+            newAnswerDiv.className = 'image-upload-group';
+            newAnswerDiv.id = `answer-group-${questionNumber}`;
+            newAnswerDiv.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label>第${questionNumber}题答案图片：</label>
+                    <input type="file" name="answer_image_${questionNumber}" accept="image/*">
+                </div>
+            `;
+            
+            container.appendChild(newQuestionDiv);
+            container.appendChild(newAnswerDiv);
+            addedQuestions.add(questionNumber);
+            
+            // 清空输入框
+            document.getElementById('questionNumber').value = '';
+        }
+        
+        function removeImageGroup(questionNumber) {
+            document.getElementById(`question-group-${questionNumber}`).remove();
+            document.getElementById(`answer-group-${questionNumber}`).remove();
+            addedQuestions.delete(questionNumber);
+        }
+
+        // 表单提交前验证
+        document.querySelector('form').onsubmit = function(e) {
+            const subject = document.getElementById('subject').value;
+            const questionType = document.getElementById('questionType').value;
+            const questionText = CKEDITOR.instances.question_text.getData();
+            const answerText = CKEDITOR.instances.answer_and_explanation.getData();
+            
+            // 基本验证
+            if (!subject || !questionType) {
+                e.preventDefault();
+                alert('请确保已选择科目和题型');
+                return false;
+            }
+
+            // 检查题目和答案是否为空
+            if (!questionText.trim() || !answerText.trim()) {
+                e.preventDefault();
+                alert('题目内容和答案不能为空');
+                return false;
+            }
+
+            // 简单的题目数量检测（通过数字序号检测）
+            const questionCount = (questionText.match(/\d+[．.、]/g) || []).length;
+            const answerCount = (answerText.match(/\d+[．.、]/g) || []).length;
+
+            if (questionCount === 0) {
+                e.preventDefault();
+                alert('未检测到有效的题目格式，请确保每道题都有序号（如：1.、2.等）');
+                return false;
+            }
+
+            if (questionCount !== answerCount) {
+                if (!confirm(`检测到题目数量(${questionCount})和答案数量(${answerCount})不匹配，是否继续提交？`)) {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        function clearDatabase() {
+            if (confirm('确定要清空数据库吗？此操作不可恢复！')) {
+                fetch('/clear_database', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    }
+                })
+                .then(response => response.text())
+                .then(result => {
+                    alert(result);
+                    location.reload();
+                })
+                .catch(error => {
+                    alert('清空数据库失败：' + error);
+                });
+            }
+        }
+        
+        // MP3文件处理
+        const mp3FileInput = document.getElementById('mp3-file-input');
+        mp3FileInput.addEventListener('change', function() {
+            updateFilesList();
+        });
+        
+        // 更新文件列表显示
+        function updateFilesList() {
+            const filesList = document.getElementById('mp3-files-list');
+            filesList.innerHTML = '';
+            
+            const files = mp3FileInput.files;
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                
+                // 提取题号
+                let questionNumber = 'unknown';
+                const matches = file.name.match(/(\d+)/);
+                if (matches) {
+                    questionNumber = matches[0];
+                }
+                
+                // 创建文件显示条目
+                const fileItem = document.createElement('div');
+                fileItem.style.margin = '5px 0';
+                fileItem.style.padding = '5px';
+                fileItem.style.backgroundColor = '#f0f0f0';
+                fileItem.style.borderRadius = '4px';
+                fileItem.innerHTML = `<span>${file.name} (题号: ${questionNumber})</span>`;
+                filesList.appendChild(fileItem);
+            }
+        }
+        
+        // 拖放事件处理
+        const mp3DropArea = document.getElementById('mp3-drop-area');
+        mp3DropArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.style.borderStyle = 'solid';
+            this.style.borderColor = '#aaa';
+        });
+        
+        mp3DropArea.addEventListener('dragleave', function() {
+            this.style.borderStyle = 'dashed';
+            this.style.borderColor = '#ccc';
+        });
+        
+        mp3DropArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.style.borderStyle = 'dashed';
+            this.style.borderColor = '#ccc';
+            
+            const files = e.dataTransfer.files;
+            mp3FileInput.files = files;
+            updateFilesList();
+        });
+        
+        // 添加点击事件处理
+        mp3DropArea.addEventListener('click', function() {
+            mp3FileInput.click();
+        });
+    </script>
+    <script>
+        window.onload = function() {
+            // 配置 CKEditor
+            CKEDITOR.replace('question_text', {
+                height: 300,
+                filebrowserUploadUrl: "{{ ckeditor_config.filebrowserUploadUrl }}",
+                filebrowserBrowseUrl: "{{ ckeditor_config.filebrowserBrowseUrl }}",
+                imageUploadUrl: "{{ ckeditor_config.imageUploadUrl }}",
+                filebrowserUploadMethod: 'form',
+                removeDialogTabs: 'image:advanced;link:advanced',
+                removeButtons: 'Subscript,Superscript',
+                format_tags: 'p;h1;h2;h3;pre',
+                toolbar: [
+                    { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Strike', '-', 'RemoveFormat' ] },
+                    { name: 'paragraph', items: [ 'NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', '-', 'Blockquote' ] },
+                    { name: 'links', items: [ 'Link', 'Unlink' ] },
+                    { name: 'insert', items: [ 'Image', 'Table', 'HorizontalRule', 'SpecialChar' ] },
+                    { name: 'tools', items: [ 'Maximize' ] },
+                    { name: 'document', items: [ 'Source' ] }
+                ]
+            });
+
+            CKEDITOR.replace('answer_and_explanation', {
+                height: 200,
+                filebrowserUploadUrl: "{{ ckeditor_config.filebrowserUploadUrl }}",
+                filebrowserBrowseUrl: "{{ ckeditor_config.filebrowserBrowseUrl }}",
+                imageUploadUrl: "{{ ckeditor_config.imageUploadUrl }}",
+                filebrowserUploadMethod: 'form',
+                removeDialogTabs: 'image:advanced;link:advanced',
+                removeButtons: 'Subscript,Superscript',
+                format_tags: 'p;h1;h2;h3;pre',
+                toolbar: [
+                    { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Strike', '-', 'RemoveFormat' ] },
+                    { name: 'paragraph', items: [ 'NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', '-', 'Blockquote' ] },
+                    { name: 'links', items: [ 'Link', 'Unlink' ] },
+                    { name: 'insert', items: [ 'Image', 'Table', 'HorizontalRule', 'SpecialChar' ] },
+                    { name: 'tools', items: [ 'Maximize' ] },
+                    { name: 'document', items: [ 'Source' ] }
+                ]
+            });
+            
+            // 添加实时计数功能
+            CKEDITOR.instances.question_text.on('change', function() {
+                const text = this.getData();
+                const count = (text.match(/\d+[．.、]/g) || []).length;
+                document.getElementById('question_count').textContent = `检测到 ${count} 道题目`;
+            });
+
+            CKEDITOR.instances.answer_and_explanation.on('change', function() {
+                const text = this.getData();
+                const count = (text.match(/\d+[．.、]/g) || []).length;
+                document.getElementById('answer_count').textContent = `检测到 ${count} 个答案`;
+            });
+            
+            // 初始化题型选择 - 如果已经选择了科目，自动填充题型选项
+            updateQuestionTypes();
+        };
+    </script>
+</body>
+</html>
