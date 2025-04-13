@@ -1661,46 +1661,97 @@ def generate_paper():
                                 
                                 # 英语听力题目特殊处理
                                 if q.subject == '英语' and q.question_type == '听力理解':
-                                    # 针对英语听力题目拆分选项
-                                    abcd_pattern = r'([A-D])[．.]\s*([^A-D]+?)(?=\s+[A-D][．.]|$)'
-                                    option_matches = re.findall(abcd_pattern, choicePart)
+                                    # 针对英语听力题目拆分选项 - 使用更健壮的模式
+                                    # 首先尝试使用更宽松的正则表达式，匹配格式如 "A．Text B．Text C．Text"
+                                    all_options = []
                                     
-                                    if option_matches:
-                                        # 为每个选项创建一个单独的段落
-                                        for letter, content in option_matches:
+                                    # 方法1：使用更精确的正则表达式匹配
+                                    abcd_pattern1 = r'([A-D])[．.]\s*([^A-D\n]+?)(?=\s+[A-D][．.]|$)'
+                                    option_matches1 = re.findall(abcd_pattern1, choicePart)
+                                    
+                                    # 方法2：分割字符串模式
+                                    parts = re.split(r'\s*([A-D])[．.]\s*', ' ' + choicePart)
+                                    option_matches2 = []
+                                    if len(parts) > 2:
+                                        for i in range(1, len(parts), 2):
+                                            if i+1 < len(parts):
+                                                letter = parts[i]
+                                                content = parts[i+1].strip()
+                                                option_matches2.append((letter, content))
+                                    
+                                    # 方法3：使用更简单的正则表达式直接找出所有A. B. C.和它们后面的内容
+                                    abcd_pattern3 = r'([A-D])[．.]\s*(.*?)(?=\s+[A-D][．.]|$)'
+                                    option_matches3 = re.findall(abcd_pattern3, choicePart + ' ')
+                                    
+                                    # 选择匹配结果最多的方法
+                                    matches = []
+                                    if len(option_matches1) >= len(matches):
+                                        matches = option_matches1
+                                    if len(option_matches2) >= len(matches):
+                                        matches = option_matches2
+                                    if len(option_matches3) >= len(matches):
+                                        matches = option_matches3
+                                    
+                                    # 检查是否至少有A、B选项，否则可能是格式有问题
+                                    option_letters = [m[0] for m in matches]
+                                    expected_options = ['A', 'B', 'C']
+                                    
+                                    # 如果缺少选项，尝试直接从文本中搜索
+                                    if not all(opt in option_letters for opt in expected_options[:2]):
+                                        # 最后的方法：手动从文本中查找A. B. C.标记及其后面的内容
+                                        text = choicePart
+                                        manual_matches = []
+                                        for letter in expected_options:
+                                            pattern = f"{letter}[．.][^A-D]*"
+                                            match = re.search(pattern, text)
+                                            if match:
+                                                content = match.group(0)[2:].strip()
+                                                manual_matches.append((letter, content))
+                                        
+                                        if len(manual_matches) > len(matches):
+                                            matches = manual_matches
+                                    
+                                    # 创建选项段落
+                                    found_options = set()
+                                    for letter, content in matches:
+                                        # 避免重复添加相同的选项
+                                        if letter in found_options:
+                                            continue
+                                        found_options.add(letter)
+                                        
+                                        # 去掉内容中可能的其他选项标记
+                                        clean_content = re.sub(r'[A-D][．.]\s*', '', content).strip()
+                                        
+                                        p_opt = doc.add_paragraph(style='Option Style')
+                                        p_opt.paragraph_format.left_indent = Inches(0)
+                                        p_opt.paragraph_format.first_line_indent = Inches(0)
+                                        p_opt.paragraph_format.space_before = Pt(0)
+                                        p_opt.paragraph_format.space_after = Pt(0)
+                                        
+                                        opt_text = f"{letter}．{clean_content}"
+                                        opt_run = p_opt.add_run(opt_text)
+                                        opt_run.font.size = Pt(10.5)
+                                        opt_run.font.name = '宋体'
+                                    
+                                    # 检查是否找到了A、B、C三个选项，如果没有，尝试从整个choicePart中提取
+                                    if len(found_options) < 3 and 'C' not in found_options and ('A' in found_options or 'B' in found_options):
+                                        # 尝试查找C选项
+                                        c_pattern = r'C[．.]\s*([^A-D\n]+)'
+                                        c_match = re.search(c_pattern, choicePart)
+                                        if c_match:
                                             p_opt = doc.add_paragraph(style='Option Style')
                                             p_opt.paragraph_format.left_indent = Inches(0)
                                             p_opt.paragraph_format.first_line_indent = Inches(0)
                                             p_opt.paragraph_format.space_before = Pt(0)
                                             p_opt.paragraph_format.space_after = Pt(0)
                                             
-                                            opt_text = f"{letter}．{content.strip()}"
+                                            opt_text = f"C．{c_match.group(1).strip()}"
                                             opt_run = p_opt.add_run(opt_text)
                                             opt_run.font.size = Pt(10.5)
                                             opt_run.font.name = '宋体'
-                                        
-                                        options_paragraph_added = True
-                                    else:
-                                        # 如果正则匹配失败，尝试简单地按字母分割
-                                        parts = re.split(r'\s*([A-D])[．.]\s*', choicePart)
-                                        if len(parts) > 2:  # 确认分割成功（第一个元素是空字符串或前缀）
-                                            for i in range(1, len(parts), 2):
-                                                if i+1 < len(parts):
-                                                    letter = parts[i]
-                                                    content = parts[i+1].strip()
-                                                    
-                                                    p_opt = doc.add_paragraph(style='Option Style')
-                                                    p_opt.paragraph_format.left_indent = Inches(0)
-                                                    p_opt.paragraph_format.first_line_indent = Inches(0)
-                                                    p_opt.paragraph_format.space_before = Pt(0)
-                                                    p_opt.paragraph_format.space_after = Pt(0)
-                                                    
-                                                    opt_text = f"{letter}．{content}"
-                                                    opt_run = p_opt.add_run(opt_text)
-                                                    opt_run.font.size = Pt(10.5)
-                                                    opt_run.font.name = '宋体'
-                                            
-                                            options_paragraph_added = True
+                                            found_options.add('C')
+                                    
+                                    options_paragraph_added = len(found_options) > 0
                                 else:
                                     # 非英语听力题目使用原来的逻辑
                                     abcd_pattern = r'([A-D])[．.]([^A-D]+)'
