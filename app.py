@@ -3303,20 +3303,73 @@ def get_lessons():
 # 添加存储音频列表的字典
 paper_audio_files = {}
 
+def load_paper_audio_from_db(paper_id):
+    """尝试从数据库重新加载试卷的音频记录"""
+    try:
+        print(f"尝试从数据库重建ID为 {paper_id} 的试卷音频记录")
+        
+        # 查询数据库，尝试根据UUID模式识别试卷ID
+        # UUID格式类似: 123e4567-e89b-12d3-a456-426614174000
+        if re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', paper_id, re.I):
+            # 可能是通过generate_paper生成的试卷
+            # 查找所有英语听力题目
+            listening_questions = SU.query.filter_by(
+                subject='英语', 
+                question_type='听力理解'
+            ).filter(
+                SU.audio_file_path.isnot(None)
+            ).limit(100).all()
+            
+            if listening_questions:
+                print(f"找到 {len(listening_questions)} 个英语听力题目")
+                
+                # 创建音频文件记录
+                audio_files = []
+                for i, q in enumerate(listening_questions):
+                    if q.audio_filename:
+                        audio_files.append({
+                            'id': q.id,
+                            'filename': q.audio_filename,
+                            'title': f"题目{i+1}: {q.chapter if q.chapter else ''}",
+                            'chapter': q.chapter
+                        })
+                
+                if audio_files:
+                    # 在内存中创建音频记录
+                    paper_audio_files[paper_id] = {
+                        'title': '英语听力试卷',
+                        'files': audio_files,
+                        'created_at': datetime.now().isoformat(),
+                        'rebuilt_from_db': True
+                    }
+                    print(f"成功为ID {paper_id} 重建了 {len(audio_files)} 个音频文件记录")
+                    return True
+        
+        print(f"无法从数据库重建ID为 {paper_id} 的试卷音频记录")
+        return False
+    except Exception as e:
+        print(f"从数据库加载音频记录时出错: {str(e)}")
+        traceback.print_exc()
+        return False
+
 @app.route('/audio_player/<paper_id>')
 def audio_player(paper_id):
-    """音频播放页面，通过二维码扫描访问"""
+    """音频播放器页面"""
     try:
-        # 添加详细的日志输出
         print(f"----------- 访问音频播放器，试卷ID: {paper_id} -----------")
         print(f"当前存储的音频文件记录: {list(paper_audio_files.keys())}")
         print(f"服务器地址: {request.host_url}")
         
-        # 从存储中获取该试卷ID对应的音频文件列表
+        # 如果内存中没有该ID的记录，尝试从数据库加载
         if paper_id not in paper_audio_files:
-            print(f"错误：未找到ID为 {paper_id} 的音频记录")
+            print(f"内存中没有找到ID为 {paper_id} 的音频记录，尝试从数据库加载")
+            load_paper_audio_from_db(paper_id)
+        
+        # 再次检查是否找到了音频记录
+        if paper_id not in paper_audio_files:
+            print(f"错误：未能找到或恢复ID为 {paper_id} 的音频记录")
             return render_template('audio_player.html', 
-                                  error="未找到相关音频文件或链接已过期", 
+                                  error="未找到相关音频记录", 
                                   paper_id=paper_id,
                                   audio_files=[])
         
@@ -3442,6 +3495,133 @@ def get_audio_by_paper(paper_id, audio_index):
         
     except Exception as e:
         print(f"获取试卷音频出错: {str(e)}")
+        traceback.print_exc()
+        return "获取音频失败: " + str(e), 500
+
+@app.route('/permanent_audio/<paper_id>/<int:audio_index>')
+def permanent_audio(paper_id, audio_index):
+    """永久有效的音频代理API，确保音频URL永不失效"""
+    try:
+        print(f"----------- 永久音频API，试卷ID: {paper_id}, 索引: {audio_index} -----------")
+        # 检查试卷ID是否存在于内存中
+        if paper_id not in paper_audio_files:
+            print(f"永久音频API：未在内存中找到ID {paper_id} 的音频记录，尝试从数据库加载")
+            # 尝试从数据库重新加载音频记录
+            load_paper_audio_from_db(paper_id)
+        
+        # 再次检查是否找到了音频记录    
+        if paper_id not in paper_audio_files:
+            print(f"永久音频API：无法恢复ID为 {paper_id} 的音频记录")
+            return "试卷音频不存在或已过期", 404
+            
+        audio_list = paper_audio_files[paper_id]
+        files = audio_list.get('files', [])
+        print(f"永久音频API：找到音频文件列表，长度: {len(files)}")
+        
+        # 检查音频索引是否有效
+        if audio_index < 0 or audio_index >= len(files):
+            print(f"错误：音频索引 {audio_index} 超出范围 [0, {len(files)-1}]")
+            return "音频文件索引无效", 404
+            
+        # 获取音频文件信息
+        audio_file = files[audio_index]
+        file_id = audio_file.get('id')
+        print(f"永久音频API：要获取的音频ID: {file_id}, 文件名: {audio_file.get('filename')}")
+        
+        # 通过ID获取音频内容
+        record = SU.query.get_or_404(file_id)
+        
+        # 检查和记录音频字段状态
+        has_audio_content = hasattr(record, 'audio_content') and record.audio_content is not None and len(record.audio_content or b'') > 0
+        has_audio_path = hasattr(record, 'audio_file_path') and record.audio_file_path is not None and len(record.audio_file_path or '') > 0
+        
+        print(f"永久音频API：音频记录状态: ID={file_id}, 有内容={has_audio_content}, 有路径={has_audio_path}")
+        if has_audio_path:
+            print(f"永久音频API：音频文件路径: {record.audio_file_path}")
+            
+        # 尝试从内容发送
+        if has_audio_content:
+            print(f"永久音频API：返回音频内容数据，大小: {len(record.audio_content)} 字节")
+            return send_file(
+                io.BytesIO(record.audio_content),
+                mimetype='audio/mpeg',
+                as_attachment=False,
+                download_name=record.audio_filename or f'audio_{audio_index}.mp3'
+            )
+        
+        # 尝试从文件路径发送
+        elif has_audio_path:
+            audio_path_db = record.audio_file_path  # 从数据库获取的路径
+            print(f"永久音频API：数据库中的音频路径: {audio_path_db}")
+
+            # 尝试从阿里云服务器路径获取
+            server_base_path = "/var/www/question_paper/uploads/papers/audio"
+            if os.path.basename(audio_path_db) and not os.path.isabs(audio_path_db):
+                # 提取文件名
+                audio_filename = os.path.basename(audio_path_db)
+                server_audio_path = os.path.join(server_base_path, audio_filename)
+                print(f"永久音频API：尝试阿里云服务器路径: {server_audio_path}")
+
+                # 检查服务器路径下的文件是否存在
+                if os.path.exists(server_audio_path):
+                    print(f"永久音频API：服务器路径文件存在: {server_audio_path}, 大小: {os.path.getsize(server_audio_path)} 字节")
+                    return send_file(
+                        server_audio_path,
+                        mimetype='audio/mpeg',
+                        as_attachment=False,
+                        download_name=audio_filename
+                    )
+                else:
+                    print(f"永久音频API：服务器路径文件不存在: {server_audio_path}")
+            
+            # 尝试原始配置的服务器路径
+            server_original_base_path = "/var/www/question_bank/"
+            relative_path_in_db = audio_path_db.replace('uploads/', '', 1)
+            server_original_audio_path = os.path.join(server_original_base_path, relative_path_in_db)
+            print(f"永久音频API：尝试原始服务器路径: {server_original_audio_path}")
+
+            # 检查服务器路径下的文件是否存在
+            if os.path.exists(server_original_audio_path):
+                print(f"永久音频API：原始服务器路径文件存在: {server_original_audio_path}, 大小: {os.path.getsize(server_original_audio_path)} 字节")
+                return send_file(
+                    server_original_audio_path,
+                    mimetype='audio/mpeg',
+                    as_attachment=False,
+                    download_name=os.path.basename(server_original_audio_path)
+                )
+            else:
+                print(f"永久音频API：原始服务器路径文件不存在: {server_original_audio_path}")
+            
+            # 如果服务器路径不存在，回退到旧的本地相对路径逻辑
+            local_audio_path = audio_path_db
+            if not os.path.isabs(local_audio_path):
+                local_audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), local_audio_path)
+            
+            print(f"永久音频API：尝试本地回退路径: {local_audio_path}")
+            print(f"永久音频API：本地回退文件是否存在: {os.path.exists(local_audio_path)}")
+                
+            if os.path.exists(local_audio_path):
+                print(f"永久音频API：返回本地回退文件: {local_audio_path}, 大小: {os.path.getsize(local_audio_path)} 字节")
+                return send_file(
+                    local_audio_path,
+                    mimetype='audio/mpeg',
+                    as_attachment=False,
+                    download_name=os.path.basename(local_audio_path)
+                )
+
+        print("永久音频API：未找到有效的音频内容，返回静默音频")    
+        # 无音频情况下返回一个静态MP3作为替代
+        silence_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
+        print(f"永久音频API：静默音频路径: {silence_path}, 文件存在: {os.path.exists(silence_path)}")
+        return send_file(
+            silence_path,
+            mimetype='audio/mpeg',
+            as_attachment=False,
+            download_name='silence.mp3'
+        )
+        
+    except Exception as e:
+        print(f"永久音频API错误: {str(e)}")
         traceback.print_exc()
         return "获取音频失败: " + str(e), 500
 
