@@ -1714,18 +1714,42 @@ def generate_paper():
                 
                 # 检查是否有选择题
                 choice_questions = []
-                question_indices = []
+                choice_indices = []  # 题号数组
                 choice_answers = []
-                
+
+                # 创建题目ID到最终位置的映射
+                question_id_to_position = {}
+                current_position = 1
+
+                # 第一次遍历：创建题目位置映射
+                for q_type in ordered_types:
+                    for q in grouped_questions[q_type]:
+                        question_id_to_position[q.id] = current_position
+                        current_position += 1
+
+                # 第二次遍历：按题型和原始顺序收集选择题答案
                 for i, q in enumerate(questions):
                     answer_text = clean_html_content(q.answer)
                     # 匹配字母答案（A、B、C、D）
                     match = re.search(r'\b([A-D])\b', answer_text)
                     if match:
                         choice_questions.append(q)
-                        question_indices.append(i + 1)  # 保存原始题号
+                        # 使用映射获取题目最终位置编号
+                        actual_position = question_id_to_position.get(q.id, i + 1)
+                        choice_indices.append(actual_position)  # 保存题目在最终试卷中的实际序号
                         choice_answers.append(match.group(1))
-                
+
+                # 按题号排序答案
+                answer_items = zip(choice_indices, choice_answers, choice_questions)
+                sorted_answer_items = sorted(answer_items, key=lambda x: x[0])
+
+                # 更新排序后的列表
+                if sorted_answer_items:
+                    choice_indices, choice_answers, choice_questions = zip(*sorted_answer_items)
+                else:
+                    # 处理空列表情况
+                    choice_indices, choice_answers, choice_questions = [], [], []
+
                 # 如果有选择题，我们才创建表格
                 if choice_questions:
                     # 计算需要多少行（每行10题）
@@ -1765,7 +1789,7 @@ def generate_paper():
                             if row_idx < len(table.rows) and col_idx < cols_needed:
                                 # 题号单元格
                                 num_cell = table.cell(row_idx, col_idx)
-                                num_cell.text = str(question_indices[q_idx])
+                                num_cell.text = str(choice_indices[q_idx])
                                 num_paragraph = num_cell.paragraphs[0]
                                 num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                                 run = num_paragraph.runs[0]
@@ -1808,7 +1832,19 @@ def generate_paper():
                     run.font.bold = True
                 
                 # 添加每道题的解析，不留空白
-                for i, q in enumerate(questions, 1):
+                # 重要修改：按照题目在试卷中的最终位置顺序添加解析
+                # 创建题目对象到试卷位置的映射
+                questions_with_position = []
+                for i, q in enumerate(questions):
+                    position = question_id_to_position.get(q.id, i+1)
+                    questions_with_position.append((position, q))
+
+                # 按位置排序题目
+                sorted_questions = sorted(questions_with_position, key=lambda x: x[0])
+                print(f"按位置排序后的题目数量: {len(sorted_questions)}")
+
+                # 添加每道题的解析，不留空白 - 使用排序后的题目列表
+                for position, q in sorted_questions:
                     # 获取原始答案文本
                     answer_text = clean_html_content(q.answer).strip()
                     
@@ -1832,7 +1868,7 @@ def generate_paper():
                     p.style = 'Normal'
                     p.paragraph_format.space_after = Pt(3)  # 减少段落后的空白
                     p.paragraph_format.line_spacing = 1.15  # 适中的行距
-                    run = p.add_run(f"第{i}题：")
+                    run = p.add_run(f"第{position}题：")
                     run.font.bold = True
                     run.font.size = Pt(10.5)
                     
