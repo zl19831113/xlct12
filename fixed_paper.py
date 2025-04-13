@@ -1,0 +1,47 @@
+@app.route('/download_paper/<int:paper_id>')
+def download_paper(paper_id):
+    try:
+        paper = Paper.query.get_or_404(paper_id)
+        file_path = paper.file_path
+        
+        # 提取文件名
+        file_name = os.path.basename(file_path)
+        app.logger.info('尝试下载文件: ' + file_name)
+        
+        # 检查原始路径
+        if os.path.isfile(file_path):
+            app.logger.info('找到原始文件: ' + file_path)
+            return send_file(file_path, as_attachment=True)
+        
+        # 尝试在uploads/papers目录中查找
+        papers_dir = os.path.join(app.root_path, 'uploads', 'papers')
+        alt_path = os.path.join(papers_dir, file_name)
+        if os.path.isfile(alt_path):
+            app.logger.info('在uploads/papers中找到文件: ' + alt_path)
+            return send_file(alt_path, as_attachment=True)
+        
+        # 如果文件名以20开头且不包含下划线，尝试添加下划线
+        if file_name.startswith('20') and '_' not in file_name[:15]:
+            new_name = file_name[:8] + '_' + file_name[8:14] + '_' + file_name[14:]
+            new_path = os.path.join(papers_dir, new_name)
+            if os.path.isfile(new_path):
+                app.logger.info('找到带下划线的文件: ' + new_path)
+                return send_file(new_path, as_attachment=True)
+        
+        # 搜索前缀匹配的文件
+        prefix = file_name.split('.')[0][:8]
+        app.logger.info('搜索前缀: ' + prefix + ' 的文件')
+        
+        for f in os.listdir(papers_dir):
+            if f.startswith(prefix):
+                found_path = os.path.join(papers_dir, f)
+                app.logger.info('找到匹配的文件: ' + found_path)
+                return send_file(found_path, as_attachment=True)
+        
+        # 文件未找到
+        app.logger.error('未找到文件: ' + file_name)
+        return jsonify({'error': 'File not found'}), 404
+        
+    except Exception as e:
+        app.logger.error('下载文件时出错: ' + str(e))
+        return jsonify({'error': str(e)}), 500 

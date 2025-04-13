@@ -1,0 +1,18 @@
+Follow these steps to deploy the application to the server (120.26.12.100):
+
+1. Copy the archive and setup script to the server:
+   scp /tmp/zujuanwang_deploy/zujuanwang.tar.gz root@120.26.12.100:/tmp/
+   scp deploy/remote_setup.sh root@120.26.12.100:/tmp/
+
+2. SSH to the server:
+   ssh root@120.26.12.100
+
+3. Once logged in, run:
+   mkdir -p /var/www/zujuanwang
+   cd /var/www/zujuanwang
+   tar -xzf /tmp/zujuanwang.tar.gz
+   chmod +x /tmp/remote_setup.sh
+   /tmp/remote_setup.sh
+
+4. After the setup completes, the application should be accessible at:
+   http://120.26.12.100 
