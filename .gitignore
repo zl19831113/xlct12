@@ -1,34 +1,42 @@
-# Python bytecode files
+/venv/
+/.venv/
 __pycache__/
-*.py[cod]
-*$py.class
-
-# Virtual environment
-venv/
-env/
-ENV/
-
-# Instance folder and database files
-instance/
-*.db
+*.pyc
 *.sqlite
-
-# Large files and backups
-papers.tar.gz
-uploads/papers/
-backups/
-server_backup_*/
-download_backup/
-*.bak*
-temp_update_*/
-
-# OS files
-.DS_Store
-.cursor/
-
-# Generated reports
+*.db
+*.db-journal
+instance/
 *.log
-*report*.txt
-
-# Sensitive information
-persistent_data/ 
+*.log.*
+*.sql
+*.csv
+*.json
+*.txt
+uploads/
+*.gz
+*.tar
+*.zip
+*.rar
+*.DS_Store
+*.bak
+*.backup
+*.original
+*.swp
+.vscode/
+node_modules/
+*.sh
+*.exp
+*.bak_*
+app.py.bak*
+client.html.bak*
+smart_paper.html.bak*
+temp_update_*/
+download_backup/
+debug.log*
+backups/
+*.mp3
+*.png
+*.jpg
+*.jpeg
+*.gif
+*~ 
