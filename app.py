@@ -145,8 +145,7 @@ def clean_and_split_question(question_text):
         "&divide;": "÷",
         "&plusmn;": "±",
         "&laquo;": "«",
-        "&raquo;": "»",
-        "&#39;": "'",  # 添加常见的引号HTML实体
+        "&raquo;": "»"
     }
     for old, new in replacements.items():
         question_text = question_text.replace(old, new)
@@ -191,25 +190,6 @@ def clean_and_split_question(question_text):
         
         # 规范化选项格式
         choice_part = re.sub(r'([A-D])[．.、]\s*', r'\1．', choice_part)
-        
-        # 特别处理英语听力题的选项格式 - 将连续的选项拆分为单独的行
-        # 匹配模式: A．选项1 B．选项2 C．选项3
-        if '．' in choice_part and len(choice_part) > 2:
-            # 寻找所有的选项标记 (A．, B．, C．, D．)
-            option_markers = re.finditer(r'([A-D])．', choice_part)
-            positions = [match.start() for match in option_markers]
-            
-            if len(positions) > 1:  # 至少有两个选项标记才需处理
-                # 将连续的选项文本分割为单独的选项
-                split_options = []
-                for i in range(len(positions)):
-                    start = positions[i]
-                    end = positions[i+1] if i+1 < len(positions) else len(choice_part)
-                    option_text = choice_part[start:end].strip()
-                    split_options.append(option_text)
-                
-                # 用换行符连接各选项
-                choice_part = '\n'.join(split_options)
     else:
         # 尝试使用更宽松的模式，特别是处理英语听力题的选项
         # 这种模式查找 A.XXX B.YYY C.ZZZ 格式
@@ -229,13 +209,11 @@ def clean_and_split_question(question_text):
             options_found.sort()  # 按出现位置排序
             question_text = question_text[:options_found[0][0]].strip()
             
-            # 构建选项部分 - 改用换行符连接各选项
-            choice_texts = []
+            # 构建选项部分
             for _, _, option_text in options_found:
-                choice_texts.append(option_text)
-            
-            # 用换行符连接各选项
-            choice_part = '\n'.join(choice_texts)
+                if choice_part:
+                    choice_part += " "
+                choice_part += option_text
     
     # 处理题干部分，移除可能的多余符号
     question_text = question_text.strip()
@@ -1680,25 +1658,71 @@ def generate_paper():
                             else:
                                 # 文本选项类型，每个选项各占一行
                                 # 例如从"A．xxx B．yyy C．zzz D．www"中提取选项
-                                abcd_pattern = r'([A-D])[．.]([^A-D]+)'
-                                option_matches = re.findall(abcd_pattern, choicePart)
                                 
-                                if option_matches:
-                                    for letter, content in option_matches:
-                                        p_opt = doc.add_paragraph(style='Option Style')
-                                        p_opt.paragraph_format.left_indent = Inches(0)
-                                        p_opt.paragraph_format.first_line_indent = Inches(0)
-                                        p_opt.paragraph_format.space_before = Pt(0)
-                                        p_opt.paragraph_format.space_after = Pt(0)
-                                        
-                                        opt_text = f"{letter}．{content.strip()}"
-                                        opt_run = p_opt.add_run(opt_text)
-                                        opt_run.font.size = Pt(10.5)
-                                        opt_run.font.name = '宋体'
+                                # 英语听力题目特殊处理
+                                if q.subject == '英语' and q.question_type == '听力理解':
+                                    # 针对英语听力题目拆分选项
+                                    abcd_pattern = r'([A-D])[．.]\s*([^A-D]+?)(?=\s+[A-D][．.]|$)'
+                                    option_matches = re.findall(abcd_pattern, choicePart)
                                     
-                                    options_paragraph_added = True
-                                elif choicePart and choicePart.strip():
-                                    # 如果选项内容不能匹配已知模式，對要添加
+                                    if option_matches:
+                                        # 为每个选项创建一个单独的段落
+                                        for letter, content in option_matches:
+                                            p_opt = doc.add_paragraph(style='Option Style')
+                                            p_opt.paragraph_format.left_indent = Inches(0)
+                                            p_opt.paragraph_format.first_line_indent = Inches(0)
+                                            p_opt.paragraph_format.space_before = Pt(0)
+                                            p_opt.paragraph_format.space_after = Pt(0)
+                                            
+                                            opt_text = f"{letter}．{content.strip()}"
+                                            opt_run = p_opt.add_run(opt_text)
+                                            opt_run.font.size = Pt(10.5)
+                                            opt_run.font.name = '宋体'
+                                        
+                                        options_paragraph_added = True
+                                    else:
+                                        # 如果正则匹配失败，尝试简单地按字母分割
+                                        parts = re.split(r'\s*([A-D])[．.]\s*', choicePart)
+                                        if len(parts) > 2:  # 确认分割成功（第一个元素是空字符串或前缀）
+                                            for i in range(1, len(parts), 2):
+                                                if i+1 < len(parts):
+                                                    letter = parts[i]
+                                                    content = parts[i+1].strip()
+                                                    
+                                                    p_opt = doc.add_paragraph(style='Option Style')
+                                                    p_opt.paragraph_format.left_indent = Inches(0)
+                                                    p_opt.paragraph_format.first_line_indent = Inches(0)
+                                                    p_opt.paragraph_format.space_before = Pt(0)
+                                                    p_opt.paragraph_format.space_after = Pt(0)
+                                                    
+                                                    opt_text = f"{letter}．{content}"
+                                                    opt_run = p_opt.add_run(opt_text)
+                                                    opt_run.font.size = Pt(10.5)
+                                                    opt_run.font.name = '宋体'
+                                            
+                                            options_paragraph_added = True
+                                else:
+                                    # 非英语听力题目使用原来的逻辑
+                                    abcd_pattern = r'([A-D])[．.]([^A-D]+)'
+                                    option_matches = re.findall(abcd_pattern, choicePart)
+                                    
+                                    if option_matches:
+                                        for letter, content in option_matches:
+                                            p_opt = doc.add_paragraph(style='Option Style')
+                                            p_opt.paragraph_format.left_indent = Inches(0)
+                                            p_opt.paragraph_format.first_line_indent = Inches(0)
+                                            p_opt.paragraph_format.space_before = Pt(0)
+                                            p_opt.paragraph_format.space_after = Pt(0)
+                                            
+                                            opt_text = f"{letter}．{content.strip()}"
+                                            opt_run = p_opt.add_run(opt_text)
+                                            opt_run.font.size = Pt(10.5)
+                                            opt_run.font.name = '宋体'
+                                        
+                                        options_paragraph_added = True
+                                        
+                                # 如果仍未处理选项，则按原样添加
+                                if not options_paragraph_added and choicePart and choicePart.strip():
                                     p_opts = doc.add_paragraph()
                                     p_opts.paragraph_format.space_before = Pt(0)
                                     p_opts.paragraph_format.space_after = Pt(0)
