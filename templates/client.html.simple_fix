@@ -1,0 +1,55 @@
+<!-- 这是一个简单的修复，只添加必要的localStorage功能，不引入复杂代码 -->
+<!-- 在初始化数据部分添加 -->
+
+        // 初始化数据
+        let allQuestions = [];
+        let selectedQuestions = new Set();
+        
+        // 从localStorage恢复已选题目
+        function restoreSelectedQuestions() {
+            try {
+                const savedQuestions = localStorage.getItem('selectedQuestions');
+                if (savedQuestions) {
+                    const questionIds = JSON.parse(savedQuestions);
+                    selectedQuestions = new Set(questionIds.map(id => parseInt(id)));
+                    console.log('从localStorage恢复已选题目:', selectedQuestions.size);
+                }
+            } catch (error) {
+                console.error('恢复已选题目出错:', error);
+                selectedQuestions = new Set();
+            }
+        }
+        
+        // 保存已选题目到localStorage
+        function saveSelectedQuestions() {
+            try {
+                const questionIds = Array.from(selectedQuestions);
+                localStorage.setItem('selectedQuestions', JSON.stringify(questionIds));
+            } catch (error) {
+                console.error('保存已选题目出错:', error);
+            }
+        }
+
+<!-- 在DOMContentLoaded事件中添加 -->
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // 从localStorage恢复已选题目
+            restoreSelectedQuestions();
+
+<!-- 在toggleSelect函数末尾添加 -->
+
+            // 更新下载面板
+            updateDownloadPanel();
+            
+            // 保存到localStorage
+            saveSelectedQuestions();
+
+<!-- 在clearSelectedQuestions函数中添加 -->
+
+            // 从localStorage中也清除
+            localStorage.removeItem('selectedQuestions');
+
+<!-- 在generatePaper函数中下载成功后添加 -->
+
+                // 从localStorage中也清除
+                localStorage.removeItem('selectedQuestions');

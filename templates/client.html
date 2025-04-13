@@ -1332,88 +1332,72 @@
                 }
                 
                 // 显示更明确的加载状态
-                document.getElementById('loading').innerHTML = '<p>正在加载科目数据，请稍候...</p>';
+                document.getElementById('loading').innerHTML = '<p>正在加载题目数据，请稍候...</p>';
                 
-                // 先只加载科目列表
-                const subjectsResponse = await fetch('/api/subjects_only', {
-                    cache: 'no-cache',
-                    headers: {
-                        'pragma': 'no-cache',
-                        'cache-control': 'no-cache',
-                        'Accept': 'application/json'
-                    }
-                });
+                // 添加超时控制 - 减少移动端等待时间
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 20000); // 减少到20秒超时
                 
-                if (!subjectsResponse.ok) throw new Error(`HTTP错误! 状态码: ${subjectsResponse.status}`);
-                
-                const subjectsData = await subjectsResponse.json();
-                const subjectSelect = document.getElementById('subject');
-                
-                // 清空科目选择器并填充数据
-                subjectSelect.innerHTML = '<option value="">科目</option>';
-                
-                // 按学段分组显示科目
-                const subjects = subjectsData.filter(item => item.educationStage === '高中').map(item => item.subject);
-                subjects.sort().forEach(subject => {
-                    const option = document.createElement('option');
-                    option.value = subject;
-                    option.textContent = subject;
-                    subjectSelect.appendChild(option);
-                });
-                
-                document.getElementById('loading').innerHTML = '<p>请选择筛选条件查看题目</p>';
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('noQuestions').style.display = 'block';
-                
-                // 启用科目选择器
-                subjectSelect.disabled = false;
-                
-                // 添加科目变化监听器
-                subjectSelect.addEventListener('change', async function() {
-                    const selectedSubject = this.value;
-                    if (!selectedSubject) {
-                        document.getElementById('noQuestions').style.display = 'block';
-                        document.getElementById('questionCards').innerHTML = '';
-                        return;
-                    }
-                    
-                    document.getElementById('loading').innerHTML = '<p>正在加载题目数据，请稍候...</p>';
-                    document.getElementById('loading').style.display = 'block';
-                    document.getElementById('noQuestions').style.display = 'none';
-                    
-                    try {
-                        // 当选择了科目后，再加载该科目的题目
-                        const response = await fetch('/api/questions?subject=' + encodeURIComponent(selectedSubject), {
-                            cache: 'no-cache',
-                            headers: {
-                                'pragma': 'no-cache',
-                                'cache-control': 'no-cache',
-                                'Accept': 'application/json'
-                            }
-                        });
-                        
-                        if (!response.ok) throw new Error(`HTTP错误! 状态码: ${response.status}`);
-                        
-                        const data = await response.json();
-                        window.allQuestions = data;
-                        console.log('成功加载题目数量:', window.allQuestions.length);
-                        
-                        document.getElementById('loading').style.display = 'none';
-                        
-                        if(window.allQuestions.length > 0) {
-                            updateFilters();
-                            filterQuestions();
-                            document.getElementById('noQuestions').style.display = 'none';
-                        } else {
-                            document.getElementById('noQuestions').style.display = 'block';
-                            document.getElementById('noQuestions').textContent = '该科目下没有题目数据';
+                try {
+                    const response = await fetch('/api/questions', {
+                        signal: controller.signal,
+                        cache: 'no-cache',
+                        headers: {
+                            'pragma': 'no-cache',
+                            'cache-control': 'no-cache',
+                            'Accept': 'application/json'
                         }
-                    } catch (error) {
-                        console.error('加载题目数据失败:', error);
-                        document.getElementById('loading').innerHTML = `<p style="color: red;">加载题目失败: ${error.message}</p>`;
-                    }
-                });
+                    });
+                    
+                    // 清除超时定时器
+                    clearTimeout(timeoutId);
+                    
+                if (!response.ok) throw new Error(`HTTP错误! 状态码: ${response.status}`);
                 
+                const data = await response.json();
+                // 确保所有字段都有值，避免 undefined
+                    window.allQuestions = data.map(q => ({
+                    ...q,
+                    educationStage: q.educationStage || '高中', // 默认设置为高中
+                    subject: q.subject || '',
+                    questionType: q.questionType || '',
+                    chapter: q.chapter || '',
+                    unit: q.unit || '',
+                    lesson: q.lesson || ''
+                }));
+                
+                    console.log('成功加载题目数量:', window.allQuestions.length);
+                    console.log('数据示例:', window.allQuestions[0]);
+                
+                document.getElementById('loading').style.display = 'none';
+                updateFilters();
+                
+                // 保存原始类别名称
+                const chapterSelect = document.getElementById('chapter');
+                const unitSelect = document.getElementById('unit');
+                const lessonSelect = document.getElementById('lesson');
+                
+                // 重置选择器显示类别名称
+                chapterSelect.innerHTML = '<option value="">章节</option>';
+                unitSelect.innerHTML = '<option value="">单元</option>';
+                lessonSelect.innerHTML = '<option value="">课程</option>';
+                
+                // 确保选择器被禁用
+                chapterSelect.disabled = true;
+                unitSelect.disabled = true;
+                lessonSelect.disabled = true;
+                
+                    if(window.allQuestions.length > 0) {
+                        renderQuestions(window.allQuestions);
+                    document.getElementById('noQuestions').style.display = 'none';
+                } else {
+                    document.getElementById('noQuestions').style.display = 'block';
+                    }
+                } catch (fetchError) {
+                    // 清除超时计时器
+                    clearTimeout(timeoutId);
+                    throw fetchError;
+                }
             } catch (error) {
                 console.error('加载数据失败:', error);
                 

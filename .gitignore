@@ -1,0 +1,34 @@
+# Python bytecode files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# Instance folder and database files
+instance/
+*.db
+*.sqlite
+
+# Large files and backups
+papers.tar.gz
+uploads/papers/
+backups/
+server_backup_*/
+download_backup/
+*.bak*
+temp_update_*/
+
+# OS files
+.DS_Store
+.cursor/
+
+# Generated reports
+*.log
+*report*.txt
+
+# Sensitive information
+persistent_data/ 

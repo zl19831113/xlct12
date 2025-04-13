@@ -1,0 +1,373 @@
+/* 搜索页面移动端样式 */
+
+/* 移动端和桌面端文本显示控制 */
+.mobile-text {
+    display: none;
+}
+
+.desktop-text {
+    display: inline;
+}
+
+/* 购物车图标样式 */
+.cart-icon {
+    width: 24px;
+    height: 24px;
+    color: white;
+    position: relative;
+}
+
+.selected-count {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background-color: #ff4d4f;
+    color: white;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* 下载面板 */
+.download-panel {
+    position: fixed;
+    bottom: 200px;
+    right: 30px;
+    width: 50px;
+    height: 50px;
+    background-color: #2F80ED;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s;
+    z-index: 100;
+}
+
+.download-panel:hover {
+    transform: scale(1.1);
+    background-color: #1C66B3;
+}
+
+/* 选择按钮样式 */
+.select-btn {
+    width: 24px;
+    height: 24px;
+    background-color: transparent;
+    border: none;
+    padding: 0;
+}
+
+.select-btn svg {
+    color: #2F80ED;
+}
+
+.select-btn.selected svg {
+    color: #2F80ED;
+    transform: scale(1.2);
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+    fill: #2F80ED;
+    transition: all 0.3s ease;
+}
+
+.select-btn:active svg {
+    transform: none;
+}
+
+/* 脉冲动画 */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    /* 移动端文本样式控制 */
+    .desktop-text {
+        display: none;
+    }
+    
+    .mobile-text {
+        display: block;
+    }
+    
+    /* 主体布局 */
+    .main-container {
+        flex-direction: column;
+        padding: 0;
+        max-width: 100%;
+        background-color: #f5f7fa;
+    }
+    
+    .filter-sidebar {
+        width: 100%;
+        position: static;
+        top: 0;
+        margin-top: 0;
+        margin-bottom: 8px;
+        max-height: none;
+    }
+
+    .content-area {
+        width: 100%;
+        padding: 0;
+    }
+    
+    .search-header {
+        padding: 12px 16px;
+        margin-bottom: 8px;
+        border-radius: 0;
+        box-shadow: none;
+        border: none;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .search-header h1 {
+        font-size: 18px;
+        margin-bottom: 5px;
+    }
+    
+    .search-summary {
+        font-size: 14px;
+    }
+
+    /* 筛选框布局 - 两行三列 */
+    .filter-box {
+        padding: 8px;
+        overflow: visible;
+        border-radius: 0;
+        margin-bottom: 8px;
+        box-shadow: none;
+        border: none;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .filter-box-content {
+        padding: 8px 0;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+    
+    /* 第一行的三个筛选项 */
+    .filter-item:nth-child(-n+3) {
+        width: calc(33.33% - 3px);
+        margin-bottom: 6px;
+    }
+    
+    /* 第二行的三个筛选项 */
+    .filter-item:nth-child(n+4) {
+        width: calc(33.33% - 3px);
+    }
+    
+    .filter-item {
+        padding: 2px;
+        margin-bottom: 0;
+        box-sizing: border-box;
+    }
+    
+    /* 隐藏移动端筛选按钮上方的标签 */
+    .filter-item label {
+        display: none;
+    }
+    
+    select {
+        font-size: 14px;
+        padding: 6px 4px;
+        border-radius: 4px;
+        background-color: #f8f8f8;
+    }
+
+    /* 移动端题目样式 */
+    .question-item {
+        border-radius: 8px;
+        margin: 0 12px 12px;
+        padding: 15px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        border: none;
+    }
+    
+    .question-header {
+        margin-bottom: 10px;
+    }
+    
+    .question-type {
+        font-size: 13px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background-color: #f0f5ff;
+        color: #4285f4;
+    }
+    
+    .question-stem {
+        font-size: 15px;
+        line-height: 1.6;
+        margin-bottom: 15px;
+        color: #333;
+        text-align: justify;
+        white-space: pre-line;
+    }
+    
+    .option {
+        margin-bottom: 10px;
+        font-size: 15px;
+    }
+    
+    .option-label {
+        color: #4285f4;
+        font-weight: bold;
+        min-width: 22px;
+        display: inline-block;
+        text-align: center;
+        margin-right: 6px;
+    }
+    
+    .option-text {
+        flex: 1;
+        text-align: justify;
+        color: #333;
+    }
+    
+    /* 解析按钮样式 - 无边框无背景 */
+    .answer-btn {
+        color: #4285f4;
+        font-size: 15px;
+        font-weight: normal;
+        background: transparent;
+        border: none;
+        padding: 0;
+        position: relative;
+        box-shadow: none;
+        text-decoration: none;
+    }
+    
+    /* 取消添加点击后的样式 */
+    .answer-btn::after {
+        display: none;
+    }
+    
+    .answer-btn.active {
+        background-color: transparent;
+    }
+    
+    /* 移动端下载按钮样式 - 无边框无背景 */
+    .select-btn {
+        width: 24px;
+        height: 24px;
+        background: transparent;
+        border: none;
+        outline: none;
+        padding: 0;
+        margin-left: 8px;
+        box-shadow: none;
+    }
+    
+    .select-btn.selected {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+    }
+    
+    .select-btn.selected svg {
+        color: #4285f4;
+        fill: #4285f4;
+        filter: none;
+        box-shadow: none;
+    }
+    
+    .select-btn svg {
+        color: #4285f4;
+        width: 20px;
+        height: 20px;
+    }
+    
+    /* 答案内容 */
+    .answer-content {
+        background-color: #f8f8f8;
+        padding: 12px;
+        margin-top: 12px;
+        border-radius: 6px;
+        border-left: 3px solid #4285f4;
+    }
+    
+    .answer-content h4 {
+        font-size: 15px;
+        margin-top: 0;
+        margin-bottom: 8px;
+        color: #333;
+    }
+    
+    /* 添加移动端滑动阻尼效果 */
+    html, body {
+        scroll-behavior: smooth;
+        overflow-x: hidden;
+        scroll-snap-type: y proximity;
+    }
+    
+    .question-item {
+        scroll-snap-align: start;
+        scroll-margin: 10px;
+    }
+    
+    /* 滑动优化 */
+    #questionCards {
+        -webkit-overflow-scrolling: touch;
+        scroll-padding: 10px;
+    }
+    
+    /* 移动端购物车位置调整 - 匹配client.html */
+    .download-panel {
+        bottom: 120px;
+        right: 20px;
+        width: 45px;
+        height: 45px;
+    }
+
+    /* 问题动作区域 */
+    .question-actions {
+        display: flex;
+        justify-content: space-between;
+        padding-top: 10px;
+        margin-top: 5px;
+        align-items: center;
+        border-top: 1px solid #f0f0f0;
+    }
+    
+    /* 分页控制 */
+    .pagination-controls {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 15px 20px;
+        margin-top: 0;
+    }
+    
+    .pagination-button {
+        background-color: #4285f4;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .pagination-info {
+        font-size: 14px;
+        color: #666;
+        display: flex;
+        align-items: center;
+    }
+} 

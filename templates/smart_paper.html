@@ -654,65 +654,20 @@
         
         // 加载题目数据
         function loadQuestions() {
-            // 显示加载状态
-            showMessage('正在加载科目数据...', 'info');
-            
-            // 先只加载科目列表
-            fetch('/api/subjects_only')
-                .then(response => response.json())
-                .then(data => {
-                    // 填充科目选择器
-                    const subjectSelect = document.getElementById('subject');
-                    subjectSelect.innerHTML = '<option value="">选择科目</option>';
-                    
-                    // 按学段分组显示科目
-                    const subjects = data
-                        .filter(item => item.educationStage === '高中')
-                        .map(item => item.subject);
-                    
-                    subjects.sort().forEach(subject => {
-                        const option = document.createElement('option');
-                        option.value = subject;
-                        option.textContent = subject;
-                        subjectSelect.appendChild(option);
-                    });
-                    
-                    // 启用科目选择器
-                    subjectSelect.disabled = false;
-                    
-                    // 隐藏消息
-                    hideMessage();
-                    
-                    // 初始化事件监听
-                    initFilterEvents();
-                    
-                    // 预设高中默认值
-                    document.getElementById('educationStage').value = '高中';
-                    handleEducationStageChange();
-                })
-                .catch(error => {
-                    console.error('加载科目失败:', error);
-                    showMessage('加载科目数据失败，请刷新页面重试', 'error');
-                });
-        }
-        
-        // 当选择科目时加载题目
-        function loadQuestionsBySubject(subject) {
-            if (!subject) return;
-            
-            showMessage(`正在加载${subject}科目的题目数据...`, 'info');
-            
-            fetch('/api/questions?subject=' + encodeURIComponent(subject))
+            fetch('/api/questions')
                 .then(response => response.json())
                 .then(data => {
                     allQuestions = data;
                     console.log(`加载了${allQuestions.length}道题目`);
                     
-                    // 更新题型
-                    updateQuestionTypes();
+                    // 更新筛选器
+                    updateFilters();
                     
-                    // 隐藏消息
-                    hideMessage();
+                    // 预设高中默认值
+                    document.getElementById('educationStage').value = '高中';
+                    
+                    // 初始化事件监听
+                    initFilterEvents();
                 })
                 .catch(error => {
                     console.error('加载题目失败:', error);
@@ -730,8 +685,6 @@
             });
             
             document.getElementById('subject').addEventListener('change', function() {
-                // 当科目变化时加载该科目的题目
-                loadQuestionsBySubject(this.value);
                 handleSubjectChange();
                 updateQuestionTypes();
                 validateAndEnableGenerate();
@@ -1260,14 +1213,6 @@
             setTimeout(() => {
                 messageBox.style.display = 'none';
             }, 5000);
-        }
-        
-        // 隐藏消息
-        function hideMessage() {
-            const messageBox = document.getElementById('messageBox');
-            if (messageBox) {
-                messageBox.style.display = 'none';
-            }
         }
         
         // 生成试卷

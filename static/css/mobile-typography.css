@@ -1,0 +1,221 @@
+/* 移动端排版样式 - 与图片一致的字体样式调整 v1.2 */
+
+/* 全局字体设置 */
+@media (max-width: 768px) {
+    body {
+        font-family: 'PingFang SC', 'Source Han Sans CN', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+        font-size: 15px;
+        line-height: 2.0; /* 增加了行高，提高可读性 */
+        color: #333;
+        background-color: #f5f7fa;
+        overflow-x: hidden; /* 防止水平滚动 */
+        width: 100%;
+        max-width: 100vw;
+        box-sizing: border-box;
+    }
+
+    /* 章节标题样式 */
+    .chapter-title {
+        font-size: 16px;
+        font-weight: normal;
+        line-height: 1.8;
+        padding: 12px 10px;
+        color: #333;
+    }
+
+    /* 知识点标签 */
+    .knowledge-point {
+        font-size: 14px;
+        padding: 5px 8px;
+        line-height: 1.5;
+        margin-right: 8px;
+    }
+
+    /* 题目卡片样式 */
+    .question-item, .question-card {
+        padding: 20px 18px; /* 增加内边距 */
+        margin-bottom: 16px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        border: none;
+        width: 100%;
+        box-sizing: border-box;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    /* 题目类型标签 */
+    .question-type {
+        font-size: 13px;
+        line-height: 1.3;
+        padding: 3px 8px;
+        border-radius: 4px;
+        background-color: #f0f5ff;
+        color: #4285f4;
+        display: inline-block;
+        margin-right: 8px;
+        margin-bottom: 10px; /* 增加底部边距 */
+    }
+
+    /* 题目难度指标 */
+    .difficulty {
+        font-size: 13px;
+        line-height: 1.3;
+        color: #666;
+    }
+
+    /* 题目内容 */
+    .question-stem, .question-content {
+        font-size: 16px;
+        line-height: 2.0; /* 增加了行高，提高可读性 */
+        text-align: justify;
+        margin: 20px 0; /* 增加上下边距 */
+        color: #333;
+        white-space: pre-line;
+        letter-spacing: 0.03em; /* 增加字间距 */
+        font-weight: 600; /* 加粗，突出重点 */
+        max-width: 100%;
+        box-sizing: border-box;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+    }
+
+    /* 选项样式 */
+    .option {
+        margin-bottom: 18px; /* 增加选项之间的间距 */
+        font-size: 16px;
+        line-height: 2.0; /* 增加了行高，提高可读性 */
+        display: flex;
+        align-items: flex-start;
+        padding-left: 5px; /* 增加选项左侧缩进 */
+    }
+
+    /* 选项标签 */
+    .option-label {
+        min-width: 24px;
+        margin-right: 12px; /* 增加与选项文本的间距 */
+        font-weight: 500;
+        color: #333;
+        text-align: center;
+    }
+
+    /* 选项文本 */
+    .option-text {
+        flex: 1;
+        text-align: justify;
+        color: #333;
+        padding-top: 1px;
+        font-weight: 500; /* 适当加粗选项文本 */
+    }
+
+    /* 题目元数据 */
+    .question-meta {
+        font-size: 13px;
+        color: #999;
+        margin: 10px 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .question-meta span {
+        padding: 3px 8px;
+        background: #f8f8f8;
+        border-radius: 4px;
+    }
+
+    /* 题号格式 */
+    .question-number {
+        font-weight: 500;
+        margin-right: 14px; /* 增加与题目内容的间距 */
+        min-width: 20px;
+        display: inline-block;
+        text-align: center;
+        margin-top: 3px; /* 增加顶部间距 */
+    }
+
+    /* 编号列表样式 */
+    ol, ul {
+        padding-left: 28px; /* 增加列表缩进 */
+        margin: 18px 0;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    li {
+        margin-bottom: 14px; /* 增加列表项之间的间距 */
+        line-height: 2.0; /* 增加了行高，提高可读性 */
+    }
+
+    /* 加粗强调 */
+    .emphasis, strong, b {
+        font-weight: 600;
+    }
+
+    /* 解析按钮 */
+    .analysis-button, .answer-btn {
+        font-size: 15px;
+        color: #4285f4;
+        padding: 10px 0;
+        margin-top: 15px;
+        text-align: left;
+        font-weight: normal;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+    }
+
+    /* 工具栏按钮 */
+    .action-button {
+        padding: 5px;
+        margin: 0 8px;
+        font-size: 14px;
+        color: #4285f4;
+        background: transparent;
+        border: none;
+    }
+
+    /* 工具栏图标 */
+    .action-icon {
+        width: 22px;
+        height: 22px;
+    }
+
+    /* 解析内容 */
+    .answer-content {
+        font-size: 15px;
+        line-height: 1.9; /* 增加了行高，提高可读性 */
+        text-align: justify;
+        padding: 18px;
+        margin-top: 18px;
+        background-color: #f8f8f8;
+        border-radius: 6px;
+        border-left: 3px solid #4285f4;
+    }
+
+    .answer-content h4 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0 0 14px 0;
+        color: #333;
+    }
+
+    /* 页面标题 */
+    .page-title {
+        font-size: 17px;
+        font-weight: 600;
+        line-height: 1.5;
+        color: #333;
+        padding: 12px 15px;
+        margin: 0;
+    }
+
+    /* 筛选条件 */
+    .filter-item select,
+    .filter-item button {
+        font-size: 14px;
+        padding: 8px 10px;
+        line-height: 1.4;
+    }
+}

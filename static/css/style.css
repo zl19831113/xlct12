@@ -1,0 +1,173 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f9;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+}
+
+h1 {
+    margin-top: 50px;
+}
+
+#question-container {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    width: 60%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+.question-content {
+    line-height: 1.5;
+    white-space: normal;
+    font-size: 14px;
+    text-align: left;
+    padding: 8px 0;
+    color: #34495e;
+    position: relative;
+}
+
+.question-content br {
+    display: block;
+    margin: 6px 0;
+    content: "";
+}
+
+/* 优化选项排列 */
+.question-content [style*="A．"] {
+    display: inline-block;
+    margin: 8px 4px 0 0;
+    padding: 2px 6px;
+    background: #f0f0f0;
+    border-radius: 4px;
+}
+
+/* 卡片式布局 */
+.question-cards {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 15px;
+}
+
+.question-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    flex-direction: column;
+}
+
+.card-meta {
+    font-size: 13px;
+    color: #7f8c8d;
+    margin: 2px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.card-meta span {
+    background: #f5f6fa;
+    padding: 4px 8px;
+    border-radius: 4px;
+    line-height: 1.2;
+}
+
+.card-image {
+    margin-top: 12px;
+}
+
+.card-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+}
+
+.card-checkbox {
+    margin-right: 8px;
+}
+
+/* 选项样式优化 */
+.question-options {
+    margin-top: 8px;
+    padding-top: 8px;
+}
+
+.question-option {
+    display: inline-block;
+    margin: 4px 8px 4px 0;
+    padding: 4px 12px;
+    background: #e8f4ff;
+    border-radius: 15px;
+    color: #2c3e50;
+    font-size: 13px;
+    border: 1px solid #cfe2ff;
+}
+
+/* 图片预览优化 */
+#questionTable img {
+    max-width: 120px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+#questionTable img:hover {
+    transform: scale(1.8);
+    z-index: 100;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* 移动端优化 */
+@media (max-width: 576px) {
+    .question-cards {
+        padding: 10px;
+        gap: 10px;
+    }
+    
+    .question-card {
+        border-radius: 8px;
+        padding: 10px;
+    }
+    
+    .card-meta {
+        font-size: 12px;
+    }
+    
+    .card-meta span {
+        padding: 3px 6px;
+    }
+    
+    .question-content {
+        font-size: 15px;
+        line-height: 1.4;
+    }
+}
