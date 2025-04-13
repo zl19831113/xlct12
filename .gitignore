@@ -16,9 +16,15 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
+*.sqlite3-journal
 
 # Logs
 *.log
+pip-log.txt
+pip-delete-this-directory.txt
+celerybeat-schedule
+celerybeat.pid
 
 # User Uploads (often large, not version controlled)
 /uploads/
@@ -26,10 +32,15 @@ env/
 # Backups (explicitly excluded)
 /backups/
 /backup_originals/
-*bak*
-
-# Temporary update folders
+/server_backup_*
+*_backup_*
 temp_update_*
+*recovery*
+*original*
+*before_fix*
+*colon_fix*
+*indentation_fix*
+*fix_full*
 
 # OS generated files
 .DS_Store
@@ -39,3 +50,123 @@ Thumbs.db
 # IDE / Editor specific
 .vscode/
 .idea/
+.spyderproject
+.spyproject/
+.ropeproject
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot_*
+
+# Django stuff:
+local_settings.py
+
+# Flask stuff:
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+# Pipfile
+
+# PEP 582; used by PDM, Flit and potentially other packaging tools.
+__pypackages__/
+
+# SageMath parsed files
+*.sage.py
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# mkdocs documentation
+/site
+
+# Project specific files to ignore
+papers.tar.gz
+match_real_files_results.txt
+missing_files_report.txt
+paper_matching.log
+paper_matching_results.log
+paper_recovery_results.txt
+papers_export_*.csv
+path_conflicts.log
+file_association_fix_*.log
+file_rename_*.log
+filename_fix_*.log
+force_rename_*.log
+copy_files_*.log
+db_files_consistency_*.txt
+comparison_*.txt
+placeholder_report_*.txt
+update_paths_*.sql
+path_mismatch_report_*.txt
+verification_report_*.txt
+update_papers.log
+file_existence_check_results.json
+file_list.txt

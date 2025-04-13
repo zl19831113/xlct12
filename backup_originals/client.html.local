@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小鹿题库系统 - 小鹿出题</title>
+    <link rel="stylesheet" href="/static/css/header.css">
+    <!-- 添加版本号防止缓存 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <!-- 添加版本号查询参数 -->
+    <script>
+        // 强制刷新脚本
+        (function() {
+            // 添加版本号到所有资源URL
+            const version = new Date().getTime();
+            const links = document.getElementsByTagName('link');
+            for (let i = 0; i < links.length; i++) {
+                if (links[i].rel === 'stylesheet') {
+                    links[i].href = links[i].href + '?v=' + version;
+                }
+            }
+            
+            // 检测是否为移动设备
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            if (isMobile) {
+                console.log('检测到移动设备');
+            }
+        })();
+    </script>
+    <style>
+        :root {
+            --primary-color: #2F80ED;
+            --secondary-color: #E6F0FF;
+            --background-main: #FFFFFF;
+            --background-subtle: #F9FAFB;
+            --text-main: #333333;
+            --text-heading: #000000;
+            --text-subheading: #444444;
+            --border-color: #E0E0E0;
+            --box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            --border-radius: 6px;
+            --padding: 16px;
+        }
+        
+        body {
+            font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+
+        /* 其他样式保持不变 */
+    </style>
+</head>
+<body>
+    <!-- 引入公共头部组件 -->
+    {% include 'header.html' %}
+
+    <!-- 主体内容保持不变 -->
+
+    <script>
+        // 分页相关变量
+        let currentPage = 1;
+        let itemsPerPage = 20; // 每页显示20题，提高性能
+        let filteredQuestions = [];
+
+        // 初始化数据
+        let allQuestions = [];
+        let selectedQuestions = new Set();
+        
+        // 检测是否为移动设备
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        // 存储键添加设备类型前缀，避免冲突
+        const STORAGE_KEY = isMobile ? 'mobile_selectedQuestions' : 'selectedQuestions';
+        
+        // 从localStorage恢复已选题目
+        function restoreSelectedQuestions() {
+            try {
+                const savedQuestions = localStorage.getItem(STORAGE_KEY);
+                if (savedQuestions) {
+                    const questionIds = JSON.parse(savedQuestions);
+                    selectedQuestions = new Set(questionIds);
+                    console.log('从localStorage恢复已选题目:', selectedQuestions.size, '设备类型:', isMobile ? '移动端' : '桌面端');
+                }
+            } catch (error) {
+                console.error('恢复已选题目出错:', error);
+                // 出错时重置为空集合
+                selectedQuestions = new Set();
+                // 清除可能损坏的数据
+                try {
+                    localStorage.removeItem(STORAGE_KEY);
+                } catch (e) {
+                    console.error('清除损坏数据失败:', e);
+                }
+            }
+        }
+        
+        // 保存已选题目到localStorage
+        function saveSelectedQuestions() {
+            try {
+                const questionIds = Array.from(selectedQuestions);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(questionIds));
+                console.log('已保存题目到localStorage:', questionIds.length, '设备类型:', isMobile ? '移动端' : '桌面端');
+            } catch (error) {
+                console.error('保存已选题目出错:', error);
+                // 尝试清除存储并重新保存较少的数据
+                try {
+                    localStorage.clear();
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(selectedQuestions)));
+                } catch (e) {
+                    console.error('二次尝试保存失败:', e);
+                }
+            }
+        }
+
+        // 使用 DOMContentLoaded 确保在 DOM 加载完成后绑定事件
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面加载完成，设备类型:', isMobile ? '移动端' : '桌面端');
+            
+            // 从localStorage恢复已选题目
+            restoreSelectedQuestions();
+            
+            const container = document.getElementById('questionCards');
+            container.addEventListener('click', function(e) {
+                const target = e.target;
+                
+                // 处理选择按钮点击
+                if (target.classList.contains('select-btn')) {
+                    // 直接从按钮的父元素获取题目ID
+                    const questionCard = target.closest('.question-card');
+                    const questionId = parseInt(questionCard.dataset.questionId);
+                    
+                    // 切换选择状态
+                    if (selectedQuestions.has(questionId)) {
+                        selectedQuestions.delete(questionId);
+                        target.classList.remove('selected');
+                    } else {
+                        selectedQuestions.add(questionId);
+                        target.classList.add('selected');
+                    }
+                    updateDownloadPanel();
+                    // 保存到localStorage
+                    saveSelectedQuestions();
+                    return false; // 阻止事件冒泡和默认行为
+                }
+
+                // 处理答案按钮点击
+                if (target.classList.contains('answer-btn')) {
+                    const index = parseInt(target.getAttribute('data-index'));
+                    toggleAnswer(index);
+                }
+            });
+            
+            // 加载题目数据
+            loadQuestions();
+            
+            // 添加窗口关闭前保存
+            window.addEventListener('beforeunload', function() {
+                saveSelectedQuestions();
+            });
+        });
+
+        // 切换选择
+        window.toggleSelect = function(questionId) {
+            if (selectedQuestions.has(questionId)) {
+                selectedQuestions.delete(questionId);
+            } else {
+                selectedQuestions.add(questionId);
+            }
+            
+            // 更新选择状态
+            const buttons = document.querySelectorAll(`.question-item[data-question-id="${questionId}"] .select-btn`);
+            buttons.forEach(button => {
+                if (selectedQuestions.has(questionId)) {
+                    button.classList.add('selected');
+                    button.textContent = '已选择';
+                } else {
+                    button.classList.remove('selected');
+                    button.textContent = '组卷';
+                }
+            });
+            
+            // 更新下载面板
+            updateDownloadPanel();
+            
+            // 保存到localStorage
+            saveSelectedQuestions();
+        }
+
+        // 清空已选题目
+        window.clearSelectedQuestions = function() {
+            // 清空选中题目集合
+            selectedQuestions.clear();
+            
+            // 更新购物车显示
+            updateDownloadPanel();
+            
+            // 更新题目渲染状态，清除选中标记
+            const selectedButtons = document.querySelectorAll('.select-btn.selected');
+            selectedButtons.forEach(btn => {
+                btn.classList.remove('selected');
+                // 添加恢复按钮文本
+                btn.innerHTML = '<span class="btn-text">组卷</span>';
+            });
+            
+            // 关闭弹窗
+            document.getElementById('paperTitleModal').style.display = 'none';
+            
+            // 从localStorage中也清除
+            localStorage.removeItem(STORAGE_KEY);
+            
+            // 提示用户
+            alert('已清空所有已选题目');
+        }
+
+        // 生成试卷
+        window.generatePaper = function() {
+            const titleInput = document.getElementById('paperTitleInput');
+            const paperTitle = titleInput.value.trim() || '我的试卷';
+            
+            document.getElementById('paperTitleModal').style.display = 'none';
+            titleInput.value = '';
+            
+            fetch('/generate_paper', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    question_ids: Array.from(selectedQuestions),
+                    paper_title: paperTitle
+                })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('生成试卷失败');
+                return response.blob();
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = paperTitle + '.docx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                
+                // 下载成功后清空已选题目
+                selectedQuestions.clear();
+                updateDownloadPanel();
+                
+                // 从localStorage中也清除
+                localStorage.removeItem(STORAGE_KEY);
+                
+                // 更新题目渲染状态，清除选中标记
+                const selectedButtons = document.querySelectorAll('.select-btn.selected');
+                selectedButtons.forEach(btn => {
+                    btn.classList.remove('selected');
+                    // 添加恢复按钮文本
+                    btn.innerHTML = '<span class="btn-text">组卷</span>';
+                });
+            })
+            .catch(error => {
+                alert('生成试卷失败：' + error.message);
+            });
+        }
+
+        // 其他函数保持不变
+    </script>
+<script>
+// localStorage修复脚本
+// 简单的localStorage修复
+(function() {
+    // 使用window.onload确保在页面完全加载后执行
+    window.addEventListener("load", function() {
+        console.log("localStorage修复脚本已加载");
+        console.log('localStorage修复脚本已加载');
+        
+        // 确保selectedQuestions已定义
+        if (typeof window.selectedQuestions === 'undefined') {
+            window.selectedQuestions = new Set();
+            console.log('创建了selectedQuestions集合');
+        }
+        
+        // 从localStorage恢复已选题目
+        try {
+            const savedQuestions = localStorage.getItem('selectedQuestions');
+            if (savedQuestions) {
+                const questionIds = JSON.parse(savedQuestions);
+                questionIds.forEach(id => window.selectedQuestions.add(parseInt(id)));
+                console.log('从localStorage恢复已选题目:', window.selectedQuestions.size);
+                
+                // 更新UI
+                if (typeof window.updateDownloadPanel === 'function') {
+                    window.updateDownloadPanel();
+                }
+            }
+        } catch (error) {
+            console.error('恢复已选题目出错:', error);
+        }
+        
+        // 保存已选题目到localStorage的函数
+        window.saveSelectedQuestions = function() {
+            try {
+                const questionIds = Array.from(window.selectedQuestions);
+                localStorage.setItem('selectedQuestions', JSON.stringify(questionIds));
+                console.log('保存题目到localStorage:', questionIds.length);
+            } catch (error) {
+                console.error('保存已选题目出错:', error);
+            }
+        };
+        
+        // 拦截toggleSelect函数
+        if (typeof window.toggleSelect === 'function') {
+            const originalToggleSelect = window.toggleSelect;
+            window.toggleSelect = function(questionId) {
+                // 调用原始函数
+                originalToggleSelect(questionId);
+                // 保存到localStorage
+                window.saveSelectedQuestions();
+            };
+            console.log('已增强toggleSelect函数');
+        }
+        
+        // 拦截clearSelectedQuestions函数
+        if (typeof window.clearSelectedQuestions === 'function') {
+            const originalClearSelectedQuestions = window.clearSelectedQuestions;
+            window.clearSelectedQuestions = function() {
+                // 调用原始函数
+                originalClearSelectedQuestions();
+                // 从localStorage中清除
+                localStorage.removeItem('selectedQuestions');
+                console.log('已清除localStorage中的selectedQuestions');
+            };
+            console.log('已增强clearSelectedQuestions函数');
+        }
+        
+        // 拦截generatePaper函数
+        if (typeof window.generatePaper === 'function') {
+            const originalGeneratePaper = window.generatePaper;
+            window.generatePaper = function() {
+                // 调用原始函数
+                originalGeneratePaper();
+                // 从localStorage中清除
+                localStorage.removeItem('selectedQuestions');
+                console.log('生成试卷后已清除localStorage中的selectedQuestions');
+            };
+            console.log('已增强generatePaper函数');
+        }
+        
+        // 为所有选择按钮添加点击事件
+        setTimeout(function() {
+            const selectButtons = document.querySelectorAll('.select-btn');
+            selectButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // 保存到localStorage
+                    setTimeout(window.saveSelectedQuestions, 100);
+                
+    });
+})();
+            });
+            console.log('已为', selectButtons.length, '个选择按钮添加点击事件');
+        }, 1000);
+    });
+})();
+
+</script>
+    <!-- 添加客户端修复脚本 -->
+    <script src="/static/js/fix_client_html.js?v=20250402"></script>
+</body>
+</html>
