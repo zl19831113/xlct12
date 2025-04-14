@@ -1641,8 +1641,10 @@ def generate_paper():
                                         # 在同一段落添加第一个问题
                                         p.add_run("\n" + question)
                                     else:
-                                        # 为其他问题添加空行段落，形成行距
-                                        doc.add_paragraph().paragraph_format.space_after = Pt(6)
+                                        # 为其他问题添加空行段落，增大行距
+                                        empty_p = doc.add_paragraph()
+                                        empty_p.paragraph_format.space_before = Pt(20)  # 增大间距到20pt
+                                        empty_p.paragraph_format.space_after = Pt(0)
                                         
                                         # 添加新的问题段落
                                         question_p = doc.add_paragraph(style='Normal')
