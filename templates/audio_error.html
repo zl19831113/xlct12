@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音频播放错误</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #d32f2f;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+            margin-bottom: 20px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .info {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .error-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .solutions {
+            background-color: #fff3e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .solutions h3 {
+            margin-top: 0;
+            color: #e65100;
+        }
+        .solutions ol {
+            padding-left: 20px;
+        }
+        .solutions li {
+            margin-bottom: 10px;
+        }
+        .actions {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .actions a {
+            display: inline-block;
+            background-color: #1976d2;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #757575;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>音频播放错误</h1>
+        </header>
+
+        <div class="info">
+            <div class="error-icon">❌</div>
+            <h2>音频无法播放</h2>
+            <p>系统无法播放请求的音频文件，因为遇到了内部错误。</p>
+            <p><small>试卷ID: {{ paper_id }}</small></p>
+        </div>
+
+        <div class="solutions">
+            <h3>可能的解决方法：</h3>
+            <ol>
+                <li><strong>刷新页面</strong> - 点击上方的刷新按钮，尝试重新加载音频。</li>
+                <li><strong>清除缓存</strong> - 清除浏览器缓存后再尝试访问。</li>
+                <li><strong>稍后再试</strong> - 服务器可能暂时过载，请稍后再试。</li>
+                <li><strong>使用备用设备</strong> - 尝试使用其他设备或浏览器扫描二维码。</li>
+                <li><strong>联系管理员</strong> - 如果问题持续存在，请联系系统管理员。</li>
+            </ol>
+        </div>
+
+        <div class="actions">
+            <a href="javascript:history.back()">返回</a>
+            <a href="javascript:location.reload()">刷新</a>
+        </div>
+
+        <footer>
+            <p>© {{ now().strftime('%Y') }} 组卷网</p>
+        </footer>
+    </div>
+</body>
+</html>
