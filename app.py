@@ -188,8 +188,9 @@ def clean_and_split_question(question_text):
         # 从题干中移除选项部分
         question_text = question_text[:first_option_match.start()].strip()
         
-        # 规范化选项格式
-        choice_part = re.sub(r'([A-D])[．.、]\s*', r'\1．', choice_part)
+        # 规范化选项格式 - 修改为使用英文句号并将首字母小写化
+        # 1. 先将所有的中文顿号、英文句号、顿号替换为英文句号
+        choice_part = re.sub(r'([A-D])[．.、]\s*(\w)', lambda m: f"{m.group(1)}.{m.group(2).lower()}", choice_part)
     else:
         # 尝试使用更宽松的模式，特别是处理英语听力题的选项
         # 这种模式查找 A.XXX B.YYY C.ZZZ 格式
@@ -201,7 +202,10 @@ def clean_and_split_question(question_text):
             letter = match.group(1)
             content = match.group(2).strip()
             if content and not content.startswith('.'):  # 确保内容有效
-                options_found.append((match.start(), match.end(), f"{letter}．{content}"))
+                # 将首字母小写化
+                if content and len(content) > 0:
+                    content = content[0].lower() + content[1:]
+                options_found.append((match.start(), match.end(), f"{letter}.{content}"))
         
         if options_found:
             # 如果找到选项，将它们添加到choice_part
@@ -1630,12 +1634,14 @@ def generate_paper():
                             options_paragraph_added = False
                             
                             # 检查选项类型，看是否包含序号 (如 A．①③ B．①④ C．②③ D．②④)
-                            numbered_options_pattern = r'([A-D])[．.]\s*([①②③④⑤⑥⑦⑧⑨]+)'
+                            # 更新正则表达式只匹配英文点号
+                            numbered_options_pattern = r'([A-D])[.]\s*([①②③④⑤⑥⑦⑧⑨]+)'
                             has_numbered_options = re.search(numbered_options_pattern, choicePart)
                             
                             if has_numbered_options:
                                 # 序号选项类型，改用并排文本格式而不是表格
-                                choice_matches = re.findall(r'([A-D])[．.]\s*((?:[①②③④⑤⑥⑦⑧⑨]+(?:\s*)?)+)', choicePart)
+                                # 更新正则表达式只匹配英文点号
+                                choice_matches = re.findall(r'([A-D])[.]\s*((?:[①②③④⑤⑥⑦⑧⑨]+(?:\s*)?)+)', choicePart)
                                 if choice_matches:
                                     # 创建一个段落包含所有选项，用制表符分隔
                                     p_opts = doc.add_paragraph(style='Normal')
@@ -1646,7 +1652,8 @@ def generate_paper():
                                     # 生成选项文本，用制表符分隔
                                     options_text = ""
                                     for i, (letter, numbers) in enumerate(choice_matches):
-                                        options_text += f"{letter}．{numbers.strip()}"
+                                        # 使用英文点号
+                                        options_text += f"{letter}.{numbers.strip()}"
                                         if i < len(choice_matches) - 1:
                                             options_text += "\t\t"
                                     
@@ -1658,7 +1665,8 @@ def generate_paper():
                             else:
                                 # 文本选项类型，每个选项各占一行
                                 # 例如从"A．xxx B．yyy C．zzz D．www"中提取选项
-                                abcd_pattern = r'([A-D])[．.]([^A-D]+)'
+                                # 修改正则表达式匹配英文点号和小写首字母
+                                abcd_pattern = r'([A-D])[.]\s*([^A-D]+)'
                                 option_matches = re.findall(abcd_pattern, choicePart)
                                 
                                 if option_matches:
@@ -1669,7 +1677,7 @@ def generate_paper():
                                         p_opt.paragraph_format.space_before = Pt(0)
                                         p_opt.paragraph_format.space_after = Pt(0)
                                         
-                                        opt_text = f"{letter}．{content.strip()}"
+                                        opt_text = f"{letter}.{content.strip()}"
                                         opt_run = p_opt.add_run(opt_text)
                                         opt_run.font.size = Pt(10.5)
                                         opt_run.font.name = '宋体'
