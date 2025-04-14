@@ -125,54 +125,6 @@ def clean_and_split_question(question_text):
     # 确保引号和逗号不引起换行
     question_text = re.sub(r'([，,"""])\s*\n', r'\1 ', question_text)
     
-    # 英语听力长对话特殊处理：在每个问题之间添加空行
-    if "听下面一段较长对话" in question_text:
-        # 将文本按行拆分
-        lines = question_text.split('\n')
-        processed_lines = []
-        
-        # 英语问题的常见开头词
-        question_starters = ['What', 'What\'s', 'When', 'Where', 'Which', 'Why', 'How', 'Who', 'Whose', 
-                            'Do', 'Does', 'Did', 'Is', 'Are', 'Was', 'Were', 'Can', 'Could', 'Will', 
-                            'Would', 'Should', 'Has', 'Have', 'Had']
-        
-        # 定义选项的正则表达式模式
-        option_a_pattern = re.compile(r'^A[.．、]')
-        option_b_pattern = re.compile(r'^B[.．、]')
-        option_c_pattern = re.compile(r'^C[.．、]')
-        
-        # 用于跟踪最近出现的选项
-        recent_lines = []
-        
-        # 检查每一行
-        for i, line in enumerate(lines):
-            line_stripped = line.strip()
-            
-            # 跟踪最近的几行，保持最多5行的历史
-            recent_lines.append(line_stripped)
-            if len(recent_lines) > 5:
-                recent_lines.pop(0)
-            
-            # 如果当前行以问题开头词开始，且不是第一行
-            starts_with_question = any(line_stripped.startswith(starter) for starter in question_starters)
-            
-            if starts_with_question and i > 0 and processed_lines:
-                # 检查最近几行是否包含选项A、B和C
-                has_option_a = any(option_a_pattern.match(l) for l in recent_lines)
-                has_option_b = any(option_b_pattern.match(l) for l in recent_lines)
-                has_option_c = any(option_c_pattern.match(l) for l in recent_lines)
-                
-                # 如果最近的行中包含了选项A、B和C，则表示上一个小题结束
-                if has_option_a and has_option_b and has_option_c:
-                    # 确保前一行不是空行
-                    if processed_lines[-1].strip() != '':
-                        processed_lines.append('')  # 添加空行
-            
-            processed_lines.append(line)
-        
-        # 重新组合文本
-        question_text = '\n'.join(processed_lines)
-    
     # 确保所有HTML实体被正确处理
     replacements = {
         "&ldquo;": """,
@@ -1645,6 +1597,17 @@ def generate_paper():
                             questionPart = re.sub(r'&[a-zA-Z0-9#]+;', '', questionPart)
                             choicePart = re.sub(r'&[a-zA-Z0-9#]+;', '', choicePart)
                             
+                            # 特殊处理英语听力长对话题目
+                            is_english_listening_dialog = (q.subject == '英语' and 
+                                                         q.question_type == '听力理解' and 
+                                                         '听下面一段较长对话' in questionPart)
+                            
+                            # 查找英语听力长对话中的独立问题
+                            listening_questions = []
+                            if is_english_listening_dialog:
+                                # 识别英语问题，如 "What is the boy doing now?"
+                                listening_questions = re.findall(r'([A-Z][^.?!]*\?)', questionPart)
+                            
                             # Add main paragraph: Question Number + Stem
                             p = doc.add_paragraph(style='Normal')
                             p.paragraph_format.line_spacing = 1.5
@@ -1655,13 +1618,38 @@ def generate_paper():
                             question_number_run.font.bold = False
                             question_number_run.font.size = Pt(10.5)
                             
-                            # 确保题干末尾有问题空白括号，如果没有则添加
-                            stem_text = questionPart.strip()
-                            if not stem_text.endswith("）") and "（" not in stem_text[-5:]:
-                                stem_text = stem_text + "（   ）"
+                            # 常规题干处理
+                            if not is_english_listening_dialog or not listening_questions or len(listening_questions) <= 1:
+                                # 确保题干末尾有问题空白括号，如果没有则添加
+                                stem_text = questionPart.strip()
+                                if not stem_text.endswith("）") and "（" not in stem_text[-5:]:
+                                    stem_text = stem_text + "（   ）"
+                                    
+                                question_text_run = p.add_run(stem_text)
+                                question_text_run.font.size = Pt(10.5)
+                            else:
+                                # 处理英语听力长对话题
+                                # 首先只添加题干介绍部分（如"听下面一段较长对话,回答以下小题。"）
+                                intro_part = questionPart.split(listening_questions[0])[0].strip()
+                                question_text_run = p.add_run(intro_part)
+                                question_text_run.font.size = Pt(10.5)
                                 
-                            question_text_run = p.add_run(stem_text)
-                            question_text_run.font.size = Pt(10.5)
+                                # 然后为每个问题创建独立段落
+                                for i, question in enumerate(listening_questions):
+                                    # 第一个问题添加到介绍段落后
+                                    if i == 0:
+                                        # 在同一段落添加第一个问题
+                                        p.add_run("\n" + question)
+                                    else:
+                                        # 为其他问题添加空行段落，形成行距
+                                        doc.add_paragraph().paragraph_format.space_after = Pt(6)
+                                        
+                                        # 添加新的问题段落
+                                        question_p = doc.add_paragraph(style='Normal')
+                                        question_p.paragraph_format.line_spacing = 1.5
+                                        question_p.paragraph_format.space_before = Pt(0)
+                                        question_p.paragraph_format.space_after = Pt(0)
+                                        question_p.add_run(question).font.size = Pt(10.5)
                             
                             # 添加选择项 (①②③④)，每个序号带文字各占一行
                             if bulletsList:
@@ -1744,10 +1732,7 @@ def generate_paper():
                                     run.font.name = '宋体'
                                     options_paragraph_added = True
 
-                            # Increment overall question number
                             overall_question_num += 1
-                            # Add spacing after the entire block for this question - 使用较小间距
-                            doc.add_paragraph().paragraph_format.space_after = Pt(3)
             except Exception as add_questions_error:
                 print(f"Error adding questions to document: {str(add_questions_error)}")
                 traceback.print_exc()
