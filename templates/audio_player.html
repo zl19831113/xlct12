@@ -118,7 +118,7 @@
                 <div class="audio-item">
                     <div class="audio-title">{{ audio.title if audio.title else '听力音频 ' ~ loop.index }}</div>
                     <audio controls preload="none">
-                        <source src="{{ url_for('get_audio_by_paper', paper_id=paper_id, audio_index=loop.index0) }}" type="audio/mpeg">
+                        <source src="{{ url_for('permanent_audio', paper_id=paper_id, audio_index=loop.index0) }}" type="audio/mpeg">
                         您的浏览器不支持音频播放。
                     </audio>
                 </div>
