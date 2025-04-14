@@ -125,6 +125,54 @@ def clean_and_split_question(question_text):
     # 确保引号和逗号不引起换行
     question_text = re.sub(r'([，,"""])\s*\n', r'\1 ', question_text)
     
+    # 英语听力长对话特殊处理：在每个问题之间添加空行
+    if "听下面一段较长对话" in question_text:
+        # 将文本按行拆分
+        lines = question_text.split('\n')
+        processed_lines = []
+        
+        # 英语问题的常见开头词
+        question_starters = ['What', 'What\'s', 'When', 'Where', 'Which', 'Why', 'How', 'Who', 'Whose', 
+                            'Do', 'Does', 'Did', 'Is', 'Are', 'Was', 'Were', 'Can', 'Could', 'Will', 
+                            'Would', 'Should', 'Has', 'Have', 'Had']
+        
+        # 定义选项的正则表达式模式
+        option_a_pattern = re.compile(r'^A[.．、]')
+        option_b_pattern = re.compile(r'^B[.．、]')
+        option_c_pattern = re.compile(r'^C[.．、]')
+        
+        # 用于跟踪最近出现的选项
+        recent_lines = []
+        
+        # 检查每一行
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            
+            # 跟踪最近的几行，保持最多5行的历史
+            recent_lines.append(line_stripped)
+            if len(recent_lines) > 5:
+                recent_lines.pop(0)
+            
+            # 如果当前行以问题开头词开始，且不是第一行
+            starts_with_question = any(line_stripped.startswith(starter) for starter in question_starters)
+            
+            if starts_with_question and i > 0 and processed_lines:
+                # 检查最近几行是否包含选项A、B和C
+                has_option_a = any(option_a_pattern.match(l) for l in recent_lines)
+                has_option_b = any(option_b_pattern.match(l) for l in recent_lines)
+                has_option_c = any(option_c_pattern.match(l) for l in recent_lines)
+                
+                # 如果最近的行中包含了选项A、B和C，则表示上一个小题结束
+                if has_option_a and has_option_b and has_option_c:
+                    # 确保前一行不是空行
+                    if processed_lines[-1].strip() != '':
+                        processed_lines.append('')  # 添加空行
+            
+            processed_lines.append(line)
+        
+        # 重新组合文本
+        question_text = '\n'.join(processed_lines)
+    
     # 确保所有HTML实体被正确处理
     replacements = {
         "&ldquo;": """,
