@@ -3453,6 +3453,99 @@ def get_audio_by_paper(paper_id, audio_index):
         traceback.print_exc()
         return "获取音频失败: " + str(e), 500
 
+# 添加永久音频存储路由
+@app.route('/permanent_audio/<access_token>', methods=['GET'])
+def permanent_audio(access_token):
+    """永久音频访问路由，通过令牌访问永久保存的音频文件"""
+    try:
+        print(f"----------- 访问永久音频，令牌: {access_token} -----------")
+        
+        # 检查令牌是否有效
+        if access_token not in paper_audio_files:
+            print(f"错误：未找到令牌 {access_token} 对应的音频记录")
+            return render_template('audio_player.html', 
+                                  error="无效的音频访问链接", 
+                                  paper_id=access_token,
+                                  audio_files=[])
+        
+        audio_list = paper_audio_files[access_token]
+        paper_title = audio_list.get('title', '英语听力')
+        files = audio_list.get('files', [])
+        
+        print(f"成功找到永久音频记录，标题: {paper_title}, 文件数量: {len(files)}")
+        
+        return render_template('audio_player.html', 
+                              paper_id=access_token,
+                              paper_title=paper_title,
+                              audio_files=files,
+                              is_permanent=True,
+                              error=None)
+    except Exception as e:
+        print(f"永久音频页面加载错误: {str(e)}")
+        traceback.print_exc()
+        return render_template('audio_player.html', 
+                              error="加载永久音频文件时出错: " + str(e), 
+                              paper_id=access_token,
+                              audio_files=[])
+
+@app.route('/api/generate_audio_qrcode', methods=['POST'])
+def generate_audio_qrcode():
+    """生成永久音频访问的二维码"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '没有接收到数据'}), 400
+            
+        audio_files = data.get('audio_files', [])
+        paper_title = data.get('paper_title', '英语听力')
+        
+        if not audio_files:
+            return jsonify({'error': '无音频文件'}), 400
+        
+        # 生成唯一的访问令牌
+        access_token = str(uuid.uuid4())
+        
+        # 存储音频文件信息
+        paper_audio_files[access_token] = {
+            'title': paper_title,
+            'files': audio_files,
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # 生成永久访问URL
+        base_url = request.host_url.rstrip('/')
+        access_url = f"{base_url}/permanent_audio/{access_token}"
+        
+        print(f"创建永久音频访问链接: {access_url}")
+        
+        # 生成二维码
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(access_url)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # 将二维码图片转换为Base64
+        buffered = BytesIO()
+        img.save(buffered)
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return jsonify({
+            'success': True,
+            'qrcode': img_str,
+            'access_url': access_url,
+            'access_token': access_token
+        })
+    except Exception as e:
+        print(f"生成音频二维码出错: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'error': f'生成二维码失败: {str(e)}'}), 500
+
 if __name__ == '__main__':
     try:
         print("正在尝试启动在端口 5001...")

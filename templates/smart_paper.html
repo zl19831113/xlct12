@@ -248,7 +248,11 @@
         .progress-container {
             display: none;
             text-align: center;
+            padding: 30px;
             margin-top: 20px;
+            background-color: var(--background-main);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
         }
         
         .spinner {
@@ -436,6 +440,80 @@
             width: 60px;
             text-align: center;
         }
+        
+        /* 二维码模态框样式 */
+        .qrcode-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .qrcode-modal-content {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            width: 350px;
+            max-width: 90%;
+            text-align: center;
+        }
+        
+        .qrcode-image {
+            max-width: 250px;
+            margin: 20px auto;
+        }
+        
+        .qrcode-title {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: var(--text-main);
+        }
+        
+        .qrcode-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        .qrcode-url {
+            word-break: break-all;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+        
+        .qrcode-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .qrcode-button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            border: none;
+        }
+        
+        .download-qrcode {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .close-qrcode {
+            background-color: #f1f1f1;
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -521,6 +599,20 @@
             <div id="progressContainer" class="progress-container">
                 <div class="spinner"></div>
                 <p>正在生成试卷，请稍候...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 二维码模态框 -->
+    <div id="qrcodeModal" class="qrcode-modal">
+        <div class="qrcode-modal-content">
+            <h3 class="qrcode-title">听力音频二维码</h3>
+            <p class="qrcode-description">扫描以下二维码，即可随时访问本试卷的听力音频</p>
+            <img id="qrcodeImage" class="qrcode-image" src="" alt="听力音频二维码">
+            <div class="qrcode-url" id="qrcodeUrl"></div>
+            <div class="qrcode-actions">
+                <button class="qrcode-button download-qrcode" id="downloadQrcode">下载二维码</button>
+                <button class="qrcode-button close-qrcode" id="closeQrcode">关闭</button>
             </div>
         </div>
     </div>
@@ -1353,12 +1445,77 @@
                 // 显示成功消息
                 showMessage('试卷生成成功！', 'success');
                 
+                // 如果有音频文件，则生成永久音频二维码
+                if (audioFiles && audioFiles.length > 0) {
+                    generatePermanentAudioQrcode(audioFiles, paperTitle);
+                }
+                
                 // 启用生成按钮
                 document.getElementById('generateButton').disabled = false;
             })
             .catch(error => {
                 document.getElementById('generateButton').disabled = false;
                 showMessage('下载试卷失败：' + error.message, 'error');
+            });
+        }
+        
+        // 生成永久音频二维码
+        function generatePermanentAudioQrcode(audioFiles, paperTitle) {
+            fetch('/api/generate_audio_qrcode', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    audio_files: audioFiles,
+                    paper_title: paperTitle
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showMessage(data.error, 'error');
+                    return;
+                }
+                
+                if (data.success) {
+                    // 显示二维码
+                    const qrcodeModal = document.getElementById('qrcodeModal');
+                    const qrcodeImage = document.getElementById('qrcodeImage');
+                    const qrcodeUrl = document.getElementById('qrcodeUrl');
+                    
+                    // 设置二维码图片和链接
+                    qrcodeImage.src = `data:image/png;base64,${data.qrcode}`;
+                    qrcodeUrl.textContent = data.access_url;
+                    
+                    // 显示模态框
+                    qrcodeModal.style.display = 'flex';
+                    
+                    // 绑定下载二维码和关闭按钮事件
+                    document.getElementById('downloadQrcode').onclick = function() {
+                        // 创建下载链接
+                        const link = document.createElement('a');
+                        link.href = qrcodeImage.src;
+                        link.download = `${paperTitle}-听力音频二维码.png`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    };
+                    
+                    document.getElementById('closeQrcode').onclick = function() {
+                        qrcodeModal.style.display = 'none';
+                    };
+                    
+                    // 点击模态框背景关闭
+                    qrcodeModal.onclick = function(event) {
+                        if (event.target === qrcodeModal) {
+                            qrcodeModal.style.display = 'none';
+                        }
+                    };
+                }
+            })
+            .catch(error => {
+                showMessage('生成二维码失败：' + error.message, 'error');
             });
         }
     </script>
