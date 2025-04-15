@@ -3406,7 +3406,8 @@ def get_audio_by_paper(paper_id, audio_index):
         # 获取音频文件信息
         audio_file = files[audio_index]
         file_id = audio_file.get('id')
-        print(f"要获取的音频ID: {file_id}, 文件名: {audio_file.get('filename')}")
+        filename = audio_file.get('filename', '')
+        print(f"要获取的音频ID: {file_id}, 文件名: {filename}")
         
         # 通过ID获取音频内容
         record = SU.query.get_or_404(file_id)
@@ -3418,66 +3419,190 @@ def get_audio_by_paper(paper_id, audio_index):
         print(f"音频记录状态: ID={file_id}, 有内容={has_audio_content}, 有路径={has_audio_path}")
         if has_audio_path:
             print(f"音频文件路径: {record.audio_file_path}")
-            
-        # 尝试从内容发送
-        if has_audio_content:
-            print(f"返回音频内容数据，大小: {len(record.audio_content)} 字节")
-            return send_file(
-                io.BytesIO(record.audio_content),
-                mimetype='audio/mpeg',
-                as_attachment=False,
-                download_name=record.audio_filename or f'audio_{audio_index}.mp3'
-            )
         
-        # 尝试从文件路径发送
-        elif has_audio_path:
-            audio_path_db = record.audio_file_path  # 从数据库获取的路径
-            print(f"数据库中的音频路径: {audio_path_db}")
-
-            # 新增：定义服务器基础路径
-            server_base_path = "/var/www/question_bank/"
-
-            # 尝试基于服务器基础路径构建绝对路径
-            # (移除 'uploads/' 前缀，因为它在 server_base_path 中已经包含了)
-            relative_path_in_db = audio_path_db.replace('uploads/', '', 1)
-            server_audio_path = os.path.join(server_base_path, relative_path_in_db)
-            print(f"尝试服务器路径: {server_audio_path}")
-
-            # 检查服务器路径下的文件是否存在
-            if os.path.exists(server_audio_path):
-                print(f"服务器路径文件存在: {server_audio_path}, 大小: {os.path.getsize(server_audio_path)} 字节")
+        # 1. 尝试从二进制内容直接发送
+        if has_audio_content:
+            try:
+                print(f"返回音频内容数据，大小: {len(record.audio_content)} 字节")
                 return send_file(
-                    server_audio_path,
+                    io.BytesIO(record.audio_content),
                     mimetype='audio/mpeg',
                     as_attachment=False,
-                    download_name=os.path.basename(server_audio_path)
+                    download_name=record.audio_filename or f'audio_{audio_index}.mp3'
                 )
-            else:
-                print(f"服务器路径文件不存在: {server_audio_path}")
+            except Exception as content_error:
+                print(f"从内容发送音频失败: {str(content_error)}")
+                # 继续尝试其他方法
+        
+        # 2. 尝试从文件路径发送
+        if has_audio_path:
+            # 获取数据库中记录的路径
+            db_path = record.audio_file_path
+            print(f"数据库中记录的音频路径: {db_path}")
             
-            # 如果服务器路径不存在，回退到旧的本地相对路径逻辑
-            local_audio_path = audio_path_db
-            if not os.path.isabs(local_audio_path):
-                local_audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), local_audio_path)
+            # 2.1 尝试直接使用数据库路径
+            if os.path.isabs(db_path) and os.path.exists(db_path):
+                try:
+                    print(f"直接使用数据库绝对路径: {db_path}")
+                    return send_file(
+                        db_path,
+                        mimetype='audio/mpeg',
+                        as_attachment=False,
+                        download_name=os.path.basename(db_path)
+                    )
+                except Exception as path_error:
+                    print(f"使用数据库绝对路径发送失败: {str(path_error)}")
             
-            print(f"尝试本地回退路径: {local_audio_path}")
-            print(f"本地回退文件是否存在: {os.path.exists(local_audio_path)}")
-                
-            if os.path.exists(local_audio_path):
-                print(f"返回本地回退文件: {local_audio_path}, 大小: {os.path.getsize(local_audio_path)} 字节")
-                return send_file(
-                    local_audio_path,
-                    mimetype='audio/mpeg',
-                    as_attachment=False,
-                    download_name=os.path.basename(local_audio_path)
-                )
-
-        print("未找到有效的音频内容，返回静默音频")    
-        # 无音频情况下返回一个静态MP3作为替代
+            # 2.2 尝试相对于应用根目录的路径
+            app_root = os.path.dirname(os.path.abspath(__file__))
+            local_path = os.path.join(app_root, db_path)
+            if os.path.exists(local_path):
+                try:
+                    print(f"使用应用根目录相对路径: {local_path}")
+                    return send_file(
+                        local_path,
+                        mimetype='audio/mpeg',
+                        as_attachment=False,
+                        download_name=os.path.basename(local_path)
+                    )
+                except Exception as local_error:
+                    print(f"使用应用根目录相对路径发送失败: {str(local_error)}")
+            
+            # 2.3 尝试在服务器的常见路径中查找
+            server_base_paths = [
+                "/var/www/question_bank/",
+                "/var/www/html/question_bank/",
+                "/var/www/html/",
+                "/home/ubuntu/zujuanwang90/",
+                "/home/www/question_bank/"
+            ]
+            
+            # 处理相对路径，移除'uploads/'前缀
+            rel_path = db_path
+            if rel_path.startswith('uploads/'):
+                rel_path = rel_path.replace('uploads/', '', 1)
+            
+            # 尝试所有服务器基础路径组合
+            for base_path in server_base_paths:
+                server_path = os.path.join(base_path, rel_path)
+                if os.path.exists(server_path):
+                    try:
+                        print(f"使用服务器路径: {server_path}")
+                        return send_file(
+                            server_path,
+                            mimetype='audio/mpeg',
+                            as_attachment=False,
+                            download_name=os.path.basename(server_path)
+                        )
+                    except Exception as server_error:
+                        print(f"使用服务器路径发送失败: {str(server_error)}")
+        
+        # 3. 尝试通过文件名查找
+        if filename:
+            # 3.1 在常见音频目录中查找文件名
+            common_audio_dirs = [
+                os.path.join(app_root, 'uploads', 'audio'),
+                os.path.join(app_root, 'static', 'audio'),
+                '/var/www/question_bank/uploads/audio',
+                '/var/www/html/uploads/audio'
+            ]
+            
+            for audio_dir in common_audio_dirs:
+                if os.path.exists(audio_dir):
+                    file_path = os.path.join(audio_dir, filename)
+                    if os.path.exists(file_path):
+                        try:
+                            print(f"通过文件名在常见目录找到: {file_path}")
+                            return send_file(
+                                file_path,
+                                mimetype='audio/mpeg',
+                                as_attachment=False,
+                                download_name=filename
+                            )
+                        except Exception as file_error:
+                            print(f"通过文件名发送失败: {str(file_error)}")
+            
+            # 3.2 递归搜索上传目录查找文件名
+            uploads_dir = os.path.join(app_root, 'uploads')
+            print(f"在uploads目录递归搜索文件名: {filename}")
+            
+            if os.path.exists(uploads_dir):
+                for root, _, files in os.walk(uploads_dir):
+                    if filename in files:
+                        found_path = os.path.join(root, filename)
+                        try:
+                            print(f"递归搜索找到文件: {found_path}")
+                            return send_file(
+                                found_path,
+                                mimetype='audio/mpeg',
+                                as_attachment=False,
+                                download_name=filename
+                            )
+                        except Exception as found_error:
+                            print(f"递归搜索发送失败: {str(found_error)}")
+        
+        # 4. 尝试将MP3加载为二进制数据
+        if has_audio_path:
+            # 所有可能的文件路径
+            all_possible_paths = []
+            
+            # 基础路径
+            if os.path.isabs(db_path):
+                all_possible_paths.append(db_path)
+            
+            # 应用根目录相对路径
+            all_possible_paths.append(os.path.join(app_root, db_path))
+            
+            # 服务器路径
+            for base in server_base_paths:
+                all_possible_paths.append(os.path.join(base, rel_path))
+                if filename:
+                    all_possible_paths.append(os.path.join(base, 'uploads/audio', filename))
+            
+            # 直接用文件名在常见目录
+            if filename:
+                for audio_dir in common_audio_dirs:
+                    all_possible_paths.append(os.path.join(audio_dir, filename))
+            
+            # 尝试每个路径，读取二进制内容
+            for path in all_possible_paths:
+                if os.path.exists(path):
+                    try:
+                        with open(path, 'rb') as f:
+                            file_content = f.read()
+                            print(f"成功读取文件内容，路径: {path}, 大小: {len(file_content)} 字节")
+                            
+                            return send_file(
+                                io.BytesIO(file_content),
+                                mimetype='audio/mpeg',
+                                as_attachment=False,
+                                download_name=os.path.basename(path)
+                            )
+                    except Exception as read_error:
+                        print(f"读取文件内容失败 {path}: {str(read_error)}")
+        
+        # 5. 最后尝试提供静默音频
+        print("所有方法都失败，返回静默音频")
         silence_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
-        print(f"静默音频路径: {silence_path}, 文件存在: {os.path.exists(silence_path)}")
+        
+        # 5.1 尝试使用预设的静默音频文件
+        if os.path.exists(silence_path):
+            try:
+                print(f"使用静默音频文件: {silence_path}")
+                return send_file(
+                    silence_path,
+                    mimetype='audio/mpeg',
+                    as_attachment=False,
+                    download_name='silence.mp3'
+                )
+            except Exception as silence_error:
+                print(f"发送静默音频文件失败: {str(silence_error)}")
+        
+        # 5.2 生成内存中的静默MP3数据
+        print("生成内存中的静默MP3数据")
+        silence_data = b'\xFF\xFB\x90\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
         return send_file(
-            silence_path,
+            io.BytesIO(silence_data),
             mimetype='audio/mpeg',
             as_attachment=False,
             download_name='silence.mp3'
@@ -3486,7 +3611,118 @@ def get_audio_by_paper(paper_id, audio_index):
     except Exception as e:
         print(f"获取试卷音频出错: {str(e)}")
         traceback.print_exc()
-        return "获取音频失败: " + str(e), 500
+        
+        # 生成静默音频作为最后的备用选项，确保总是返回音频而不是错误
+        try:
+            silence_data = b'\xFF\xFB\x90\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            return send_file(
+                io.BytesIO(silence_data),
+                mimetype='audio/mpeg',
+                as_attachment=False,
+                download_name='silence.mp3'
+            )
+        except Exception:
+            # 即使是内存中的静默数据也发送失败，返回文本响应
+            return "音频暂时不可用，请稍后再试", 200  # 返回200而不是错误码
+
+@app.route('/api/generate_audio_qrcode', methods=['POST'])
+def generate_audio_qrcode():
+    """生成永久音频QR码，用于听力考试"""
+    try:
+        # 获取请求数据
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '请求数据无效'}), 400
+            
+        audio_files = data.get('audio_files')
+        paper_title = data.get('paper_title', '英语听力')
+        
+        if not audio_files or not isinstance(audio_files, list):
+            return jsonify({'error': '音频文件列表无效'}), 400
+            
+        print(f"----------- 生成音频二维码，标题: {paper_title} -----------")
+        print(f"音频文件数量: {len(audio_files)}")
+        
+        # 生成唯一的试卷ID
+        paper_id = f"audio_{uuid.uuid4().hex[:8]}"
+        
+        # 存储音频文件信息
+        paper_audio_files[paper_id] = {
+            'title': paper_title,
+            'files': audio_files,
+            'created_at': datetime.datetime.now().isoformat()
+        }
+        
+        # 确定协议（HTTP或HTTPS）
+        if request.headers.get('X-Forwarded-Proto') == 'https':
+            protocol = 'https'
+        elif request.is_secure:
+            protocol = 'https'
+        else:
+            protocol = 'http'
+            
+        # 获取当前主机名，处理反向代理情况
+        host = request.headers.get('X-Forwarded-Host', request.host)
+            
+        # 生成访问URL（使用当前请求的协议和主机）
+        access_url = f"{protocol}://{host}/audio_player/{paper_id}"
+        print(f"生成的音频访问URL: {access_url}")
+        
+        # 生成二维码
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(access_url)
+        qr.make(fit=True)
+        
+        # 创建二维码图片
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # 将二维码图像转换为base64编码
+        buffered = io.BytesIO()
+        img.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return jsonify({
+            'success': True,
+            'paper_id': paper_id,
+            'access_url': access_url,
+            'qrcode': img_str
+        })
+        
+    except Exception as e:
+        print(f"生成音频二维码出错: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'error': f'生成二维码时出错: {str(e)}'}), 500
+
+# 在app.py最后的__main__代码块前，添加确保静默音频文件存在的代码
+# 创建静默音频文件
+def ensure_silent_audio_exists():
+    """确保静默音频文件存在，如果不存在则创建"""
+    try:
+        static_audio_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'audio')
+        os.makedirs(static_audio_dir, exist_ok=True)
+        
+        silence_path = os.path.join(static_audio_dir, 'silence.mp3')
+        if not os.path.exists(silence_path):
+            print(f"创建静默音频文件: {silence_path}")
+            # 最小的有效MP3数据
+            silence_data = b'\xFF\xFB\x90\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            with open(silence_path, 'wb') as f:
+                f.write(silence_data)
+            print(f"静默音频文件创建成功: {silence_path}")
+        else:
+            print(f"静默音频文件已存在: {silence_path}")
+    except Exception as e:
+        print(f"创建静默音频文件失败: {str(e)}")
+        traceback.print_exc()
+
+# 在应用启动时确保静默音频文件存在
+with app.app_context():
+    ensure_silent_audio_exists()
 
 if __name__ == '__main__':
     try:
