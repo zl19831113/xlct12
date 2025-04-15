@@ -1144,7 +1144,7 @@ def generate_paper():
             style.font.name = '宋体'  # 使用宋体作为默认字体
             style.font.size = Pt(10.5)  # 10.5磅字号
             style.font.color.rgb = RGBColor(0, 0, 0)  # 黑色文字
-            style.paragraph_format.line_spacing = 1.5  # 1.5倍行距
+            style.paragraph_format.line_spacing = 2.0  # 修改为2.0倍行距
             style.paragraph_format.space_after = Pt(0)  # 默认段落间距
             
             # 创建标题样式（宋体，15磅，加粗，居中）
@@ -1172,7 +1172,7 @@ def generate_paper():
             option_style.base_style = doc.styles['Normal']
             option_style.font.name = '宋体'
             option_style.font.size = Pt(10.5)
-            option_style.paragraph_format.line_spacing = 1.5
+            option_style.paragraph_format.line_spacing = 2.0  # 修改为2.0倍行距
             option_style.paragraph_format.space_after = Pt(0)
             
             # 选项符号样式（①②③④）
@@ -1186,7 +1186,7 @@ def generate_paper():
             choice_style.base_style = doc.styles['Normal']
             choice_style.font.name = '宋体'
             choice_style.font.size = Pt(10.5)
-            choice_style.paragraph_format.line_spacing = 1.5
+            choice_style.paragraph_format.line_spacing = 2.0  # 修改为2.0倍行距
             
             # 表格样式
             table_style = doc.styles.add_style('Table Style', WD_STYLE_TYPE.PARAGRAPH)
@@ -1641,10 +1641,10 @@ def generate_paper():
                                         # 在同一段落添加第一个问题
                                         p.add_run("\n" + question)
                                     else:
-                                        # 为其他问题添加空行段落，增大行距
+                                        # 为其他问题添加更大的空行段落，形成明显行距
                                         empty_p = doc.add_paragraph()
-                                        empty_p.paragraph_format.space_before = Pt(20)  # 增大间距到20pt
-                                        empty_p.paragraph_format.space_after = Pt(0)
+                                        empty_p.paragraph_format.space_before = Pt(24)  # 将间距从18pt增加到24pt
+                                        empty_p.paragraph_format.space_after = Pt(18)   # 将间距从12pt增加到18pt
                                         
                                         # 添加新的问题段落
                                         question_p = doc.add_paragraph(style='Normal')
