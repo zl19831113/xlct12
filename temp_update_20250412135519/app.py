@@ -188,9 +188,8 @@ def clean_and_split_question(question_text):
         # 从题干中移除选项部分
         question_text = question_text[:first_option_match.start()].strip()
         
-        # 规范化选项格式 - 修改为使用英文句号并将首字母小写化
-        # 1. 先将所有的中文顿号、英文句号、顿号替换为英文句号
-        choice_part = re.sub(r'([A-D])[．.、]\s*(\w)', lambda m: f"{m.group(1)}.{m.group(2).lower()}", choice_part)
+        # 规范化选项格式
+        choice_part = re.sub(r'([A-D])[．.、]\s*', r'\1．', choice_part)
     else:
         # 尝试使用更宽松的模式，特别是处理英语听力题的选项
         # 这种模式查找 A.XXX B.YYY C.ZZZ 格式
@@ -202,10 +201,7 @@ def clean_and_split_question(question_text):
             letter = match.group(1)
             content = match.group(2).strip()
             if content and not content.startswith('.'):  # 确保内容有效
-                # 将首字母小写化
-                if content and len(content) > 0:
-                    content = content[0].lower() + content[1:]
-                options_found.append((match.start(), match.end(), f"{letter}.{content}"))
+                options_found.append((match.start(), match.end(), f"{letter}．{content}"))
         
         if options_found:
             # 如果找到选项，将它们添加到choice_part
@@ -502,12 +498,6 @@ def parse_questions(text):
     questions = []
     # 清理HTML标签
     clean_text = re.sub(r'<[^>]+>', '', text)
-    
-    # 修复听力题目中格式不正确的选项
-    # 例如将 "A．" "B．" "C．" 转换为 "A. " "B. " "C. "
-    clean_text = re.sub(r'([A-Z])．(\s*)', r'\1. \2', clean_text)
-    # 修复连续的选项标记，确保每个选项有正确的内容
-    clean_text = re.sub(r'([A-Z])\.\s+([A-Z])\.\s+([A-Z])\.', r'\1. 选项1 \2. 选项2 \3. 选项3', clean_text)
     
     # 匹配主题目，忽略子问题编号
     pattern = r'(?:^|\n)\s*(\d+)[．.、]\s*(.*?)(?=(?:\n\s*\d+[．.、])|$)'
@@ -1144,7 +1134,7 @@ def generate_paper():
             style.font.name = '宋体'  # 使用宋体作为默认字体
             style.font.size = Pt(10.5)  # 10.5磅字号
             style.font.color.rgb = RGBColor(0, 0, 0)  # 黑色文字
-            style.paragraph_format.line_spacing = 2.0  # 修改为2.0倍行距
+            style.paragraph_format.line_spacing = 1.5  # 1.5倍行距
             style.paragraph_format.space_after = Pt(0)  # 默认段落间距
             
             # 创建标题样式（宋体，15磅，加粗，居中）
@@ -1172,7 +1162,7 @@ def generate_paper():
             option_style.base_style = doc.styles['Normal']
             option_style.font.name = '宋体'
             option_style.font.size = Pt(10.5)
-            option_style.paragraph_format.line_spacing = 2.0  # 修改为2.0倍行距
+            option_style.paragraph_format.line_spacing = 1.5
             option_style.paragraph_format.space_after = Pt(0)
             
             # 选项符号样式（①②③④）
@@ -1186,7 +1176,7 @@ def generate_paper():
             choice_style.base_style = doc.styles['Normal']
             choice_style.font.name = '宋体'
             choice_style.font.size = Pt(10.5)
-            choice_style.paragraph_format.line_spacing = 2.0  # 修改为2.0倍行距
+            choice_style.paragraph_format.line_spacing = 1.5
             
             # 表格样式
             table_style = doc.styles.add_style('Table Style', WD_STYLE_TYPE.PARAGRAPH)
@@ -1231,10 +1221,9 @@ def generate_paper():
                         # 本地开发环境
                         qr_url = f"{base_url}/audio_player/{paper_uuid}"
                     else:
-                        # 服务器生产环境 - 使用当前网址
-                        qr_url = f"{base_url}/audio_player/{paper_uuid}"
-                        # 记录二维码URL
-                        print(f"创建二维码链接: {qr_url}")
+                        # 服务器生产环境 - 使用完整的外部URL
+                        server_url = "http://120.26.12.100"  # 固定服务器地址
+                        qr_url = f"{server_url}/audio_player/{paper_uuid}"
                     
                     # 创建二维码图像
                     qr = qrcode.QRCode(
@@ -1597,17 +1586,6 @@ def generate_paper():
                             questionPart = re.sub(r'&[a-zA-Z0-9#]+;', '', questionPart)
                             choicePart = re.sub(r'&[a-zA-Z0-9#]+;', '', choicePart)
                             
-                            # 特殊处理英语听力长对话题目
-                            is_english_listening_dialog = (q.subject == '英语' and 
-                                                         q.question_type == '听力理解' and 
-                                                         '听下面一段较长对话' in questionPart)
-                            
-                            # 查找英语听力长对话中的独立问题
-                            listening_questions = []
-                            if is_english_listening_dialog:
-                                # 识别英语问题，如 "What is the boy doing now?"
-                                listening_questions = re.findall(r'([A-Z][^.?!]*\?)', questionPart)
-                            
                             # Add main paragraph: Question Number + Stem
                             p = doc.add_paragraph(style='Normal')
                             p.paragraph_format.line_spacing = 1.5
@@ -1618,40 +1596,13 @@ def generate_paper():
                             question_number_run.font.bold = False
                             question_number_run.font.size = Pt(10.5)
                             
-                            # 常规题干处理
-                            if not is_english_listening_dialog or not listening_questions or len(listening_questions) <= 1:
-                                # 确保题干末尾有问题空白括号，如果没有则添加
-                                stem_text = questionPart.strip()
-                                if not stem_text.endswith("）") and "（" not in stem_text[-5:]:
-                                    stem_text = stem_text + "（   ）"
-                                    
-                                question_text_run = p.add_run(stem_text)
-                                question_text_run.font.size = Pt(10.5)
-                            else:
-                                # 处理英语听力长对话题
-                                # 首先只添加题干介绍部分（如"听下面一段较长对话,回答以下小题。"）
-                                intro_part = questionPart.split(listening_questions[0])[0].strip()
-                                question_text_run = p.add_run(intro_part)
-                                question_text_run.font.size = Pt(10.5)
+                            # 确保题干末尾有问题空白括号，如果没有则添加
+                            stem_text = questionPart.strip()
+                            if not stem_text.endswith("）") and "（" not in stem_text[-5:]:
+                                stem_text = stem_text + "（   ）"
                                 
-                                # 然后为每个问题创建独立段落
-                                for i, question in enumerate(listening_questions):
-                                    # 第一个问题添加到介绍段落后
-                                    if i == 0:
-                                        # 在同一段落添加第一个问题
-                                        p.add_run("\n" + question)
-                                    else:
-                                        # 为其他问题添加更大的空行段落，形成明显行距
-                                        empty_p = doc.add_paragraph()
-                                        empty_p.paragraph_format.space_before = Pt(24)  # 将间距从18pt增加到24pt
-                                        empty_p.paragraph_format.space_after = Pt(18)   # 将间距从12pt增加到18pt
-                                        
-                                        # 添加新的问题段落
-                                        question_p = doc.add_paragraph(style='Normal')
-                                        question_p.paragraph_format.line_spacing = 1.5
-                                        question_p.paragraph_format.space_before = Pt(0)
-                                        question_p.paragraph_format.space_after = Pt(0)
-                                        question_p.add_run(question).font.size = Pt(10.5)
+                            question_text_run = p.add_run(stem_text)
+                            question_text_run.font.size = Pt(10.5)
                             
                             # 添加选择项 (①②③④)，每个序号带文字各占一行
                             if bulletsList:
@@ -1672,14 +1623,12 @@ def generate_paper():
                             options_paragraph_added = False
                             
                             # 检查选项类型，看是否包含序号 (如 A．①③ B．①④ C．②③ D．②④)
-                            # 更新正则表达式只匹配英文点号
-                            numbered_options_pattern = r'([A-D])[.]\s*([①②③④⑤⑥⑦⑧⑨]+)'
+                            numbered_options_pattern = r'([A-D])[．.]\s*([①②③④⑤⑥⑦⑧⑨]+)'
                             has_numbered_options = re.search(numbered_options_pattern, choicePart)
                             
                             if has_numbered_options:
                                 # 序号选项类型，改用并排文本格式而不是表格
-                                # 更新正则表达式只匹配英文点号
-                                choice_matches = re.findall(r'([A-D])[.]\s*((?:[①②③④⑤⑥⑦⑧⑨]+(?:\s*)?)+)', choicePart)
+                                choice_matches = re.findall(r'([A-D])[．.]\s*((?:[①②③④⑤⑥⑦⑧⑨]+(?:\s*)?)+)', choicePart)
                                 if choice_matches:
                                     # 创建一个段落包含所有选项，用制表符分隔
                                     p_opts = doc.add_paragraph(style='Normal')
@@ -1690,8 +1639,7 @@ def generate_paper():
                                     # 生成选项文本，用制表符分隔
                                     options_text = ""
                                     for i, (letter, numbers) in enumerate(choice_matches):
-                                        # 使用英文点号
-                                        options_text += f"{letter}.{numbers.strip()}"
+                                        options_text += f"{letter}．{numbers.strip()}"
                                         if i < len(choice_matches) - 1:
                                             options_text += "\t\t"
                                     
@@ -1703,8 +1651,7 @@ def generate_paper():
                             else:
                                 # 文本选项类型，每个选项各占一行
                                 # 例如从"A．xxx B．yyy C．zzz D．www"中提取选项
-                                # 修改正则表达式匹配英文点号和小写首字母
-                                abcd_pattern = r'([A-D])[.]\s*([^A-D]+)'
+                                abcd_pattern = r'([A-D])[．.]([^A-D]+)'
                                 option_matches = re.findall(abcd_pattern, choicePart)
                                 
                                 if option_matches:
@@ -1715,7 +1662,7 @@ def generate_paper():
                                         p_opt.paragraph_format.space_before = Pt(0)
                                         p_opt.paragraph_format.space_after = Pt(0)
                                         
-                                        opt_text = f"{letter}.{content.strip()}"
+                                        opt_text = f"{letter}．{content.strip()}"
                                         opt_run = p_opt.add_run(opt_text)
                                         opt_run.font.size = Pt(10.5)
                                         opt_run.font.name = '宋体'
@@ -1734,7 +1681,10 @@ def generate_paper():
                                     run.font.name = '宋体'
                                     options_paragraph_added = True
 
+                            # Increment overall question number
                             overall_question_num += 1
+                            # Add spacing after the entire block for this question - 使用较小间距
+                            doc.add_paragraph().paragraph_format.space_after = Pt(3)
             except Exception as add_questions_error:
                 print(f"Error adding questions to document: {str(add_questions_error)}")
                 traceback.print_exc()
@@ -1757,42 +1707,18 @@ def generate_paper():
                 
                 # 检查是否有选择题
                 choice_questions = []
-                choice_indices = []  # 题号数组
+                question_indices = []
                 choice_answers = []
-
-                # 创建题目ID到最终位置的映射
-                question_id_to_position = {}
-                current_position = 1
-
-                # 第一次遍历：创建题目位置映射
-                for q_type in ordered_types:
-                    for q in grouped_questions[q_type]:
-                        question_id_to_position[q.id] = current_position
-                        current_position += 1
-
-                # 第二次遍历：按题型和原始顺序收集选择题答案
+                
                 for i, q in enumerate(questions):
                     answer_text = clean_html_content(q.answer)
                     # 匹配字母答案（A、B、C、D）
                     match = re.search(r'\b([A-D])\b', answer_text)
                     if match:
                         choice_questions.append(q)
-                        # 使用映射获取题目最终位置编号
-                        actual_position = question_id_to_position.get(q.id, i + 1)
-                        choice_indices.append(actual_position)  # 保存题目在最终试卷中的实际序号
+                        question_indices.append(i + 1)  # 保存原始题号
                         choice_answers.append(match.group(1))
-
-                # 按题号排序答案
-                answer_items = zip(choice_indices, choice_answers, choice_questions)
-                sorted_answer_items = sorted(answer_items, key=lambda x: x[0])
-
-                # 更新排序后的列表
-                if sorted_answer_items:
-                    choice_indices, choice_answers, choice_questions = zip(*sorted_answer_items)
-                else:
-                    # 处理空列表情况
-                    choice_indices, choice_answers, choice_questions = [], [], []
-
+                
                 # 如果有选择题，我们才创建表格
                 if choice_questions:
                     # 计算需要多少行（每行10题）
@@ -1832,7 +1758,7 @@ def generate_paper():
                             if row_idx < len(table.rows) and col_idx < cols_needed:
                                 # 题号单元格
                                 num_cell = table.cell(row_idx, col_idx)
-                                num_cell.text = str(choice_indices[q_idx])
+                                num_cell.text = str(question_indices[q_idx])
                                 num_paragraph = num_cell.paragraphs[0]
                                 num_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                                 run = num_paragraph.runs[0]
@@ -1875,19 +1801,7 @@ def generate_paper():
                     run.font.bold = True
                 
                 # 添加每道题的解析，不留空白
-                # 重要修改：按照题目在试卷中的最终位置顺序添加解析
-                # 创建题目对象到试卷位置的映射
-                questions_with_position = []
-                for i, q in enumerate(questions):
-                    position = question_id_to_position.get(q.id, i+1)
-                    questions_with_position.append((position, q))
-
-                # 按位置排序题目
-                sorted_questions = sorted(questions_with_position, key=lambda x: x[0])
-                print(f"按位置排序后的题目数量: {len(sorted_questions)}")
-
-                # 添加每道题的解析，不留空白 - 使用排序后的题目列表
-                for position, q in sorted_questions:
+                for i, q in enumerate(questions, 1):
                     # 获取原始答案文本
                     answer_text = clean_html_content(q.answer).strip()
                     
@@ -1911,7 +1825,7 @@ def generate_paper():
                     p.style = 'Normal'
                     p.paragraph_format.space_after = Pt(3)  # 减少段落后的空白
                     p.paragraph_format.line_spacing = 1.15  # 适中的行距
-                    run = p.add_run(f"第{position}题：")
+                    run = p.add_run(f"第{i}题：")
                     run.font.bold = True
                     run.font.size = Pt(10.5)
                     
@@ -3350,14 +3264,8 @@ paper_audio_files = {}
 def audio_player(paper_id):
     """音频播放页面，通过二维码扫描访问"""
     try:
-        # 添加详细的日志输出
-        print(f"----------- 访问音频播放器，试卷ID: {paper_id} -----------")
-        print(f"当前存储的音频文件记录: {list(paper_audio_files.keys())}")
-        print(f"服务器地址: {request.host_url}")
-        
         # 从存储中获取该试卷ID对应的音频文件列表
         if paper_id not in paper_audio_files:
-            print(f"错误：未找到ID为 {paper_id} 的音频记录")
             return render_template('audio_player.html', 
                                   error="未找到相关音频文件或链接已过期", 
                                   paper_id=paper_id,
@@ -3365,22 +3273,17 @@ def audio_player(paper_id):
         
         audio_list = paper_audio_files[paper_id]
         paper_title = audio_list.get('title', '英语听力')
-        files = audio_list.get('files', [])
-        
-        print(f"成功找到音频记录，标题: {paper_title}, 文件数量: {len(files)}")
-        if files:
-            print(f"第一个文件ID: {files[0].get('id')}, 文件名: {files[0].get('filename')}")
         
         return render_template('audio_player.html', 
                               paper_id=paper_id,
                               paper_title=paper_title,
-                              audio_files=files,
+                              audio_files=audio_list.get('files', []),
                               error=None)
     except Exception as e:
         print(f"音频播放页面加载错误: {str(e)}")
         traceback.print_exc()
         return render_template('audio_player.html', 
-                              error="加载音频文件时出错: " + str(e), 
+                              error="加载音频文件时出错", 
                               paper_id=paper_id,
                               audio_files=[])
 
@@ -3388,25 +3291,20 @@ def audio_player(paper_id):
 def get_audio_by_paper(paper_id, audio_index):
     """根据试卷ID和音频索引获取音频文件"""
     try:
-        print(f"----------- 获取音频文件，试卷ID: {paper_id}, 索引: {audio_index} -----------")
         # 检查试卷ID是否存在
         if paper_id not in paper_audio_files:
-            print(f"错误：未找到ID为 {paper_id} 的音频记录")
             return "试卷音频不存在或已过期", 404
             
         audio_list = paper_audio_files[paper_id]
         files = audio_list.get('files', [])
-        print(f"音频文件列表长度: {len(files)}")
         
         # 检查音频索引是否有效
         if audio_index < 0 or audio_index >= len(files):
-            print(f"错误：音频索引 {audio_index} 超出范围 [0, {len(files)-1}]")
             return "音频文件索引无效", 404
             
         # 获取音频文件信息
         audio_file = files[audio_index]
         file_id = audio_file.get('id')
-        print(f"要获取的音频ID: {file_id}, 文件名: {audio_file.get('filename')}")
         
         # 通过ID获取音频内容
         record = SU.query.get_or_404(file_id)
@@ -3415,13 +3313,8 @@ def get_audio_by_paper(paper_id, audio_index):
         has_audio_content = hasattr(record, 'audio_content') and record.audio_content is not None and len(record.audio_content or b'') > 0
         has_audio_path = hasattr(record, 'audio_file_path') and record.audio_file_path is not None and len(record.audio_file_path or '') > 0
         
-        print(f"音频记录状态: ID={file_id}, 有内容={has_audio_content}, 有路径={has_audio_path}")
-        if has_audio_path:
-            print(f"音频文件路径: {record.audio_file_path}")
-            
         # 尝试从内容发送
         if has_audio_content:
-            print(f"返回音频内容数据，大小: {len(record.audio_content)} 字节")
             return send_file(
                 io.BytesIO(record.audio_content),
                 mimetype='audio/mpeg',
@@ -3431,53 +3324,22 @@ def get_audio_by_paper(paper_id, audio_index):
         
         # 尝试从文件路径发送
         elif has_audio_path:
-            audio_path_db = record.audio_file_path  # 从数据库获取的路径
-            print(f"数据库中的音频路径: {audio_path_db}")
-
-            # 新增：定义服务器基础路径
-            server_base_path = "/var/www/question_bank/"
-
-            # 尝试基于服务器基础路径构建绝对路径
-            # (移除 'uploads/' 前缀，因为它在 server_base_path 中已经包含了)
-            relative_path_in_db = audio_path_db.replace('uploads/', '', 1)
-            server_audio_path = os.path.join(server_base_path, relative_path_in_db)
-            print(f"尝试服务器路径: {server_audio_path}")
-
-            # 检查服务器路径下的文件是否存在
-            if os.path.exists(server_audio_path):
-                print(f"服务器路径文件存在: {server_audio_path}, 大小: {os.path.getsize(server_audio_path)} 字节")
-                return send_file(
-                    server_audio_path,
-                    mimetype='audio/mpeg',
-                    as_attachment=False,
-                    download_name=os.path.basename(server_audio_path)
-                )
-            else:
-                print(f"服务器路径文件不存在: {server_audio_path}")
-            
-            # 如果服务器路径不存在，回退到旧的本地相对路径逻辑
-            local_audio_path = audio_path_db
-            if not os.path.isabs(local_audio_path):
-                local_audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), local_audio_path)
-            
-            print(f"尝试本地回退路径: {local_audio_path}")
-            print(f"本地回退文件是否存在: {os.path.exists(local_audio_path)}")
+            audio_path = record.audio_file_path
+            # 如果是相对路径，转换为绝对路径
+            if not os.path.isabs(audio_path):
+                audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), audio_path)
                 
-            if os.path.exists(local_audio_path):
-                print(f"返回本地回退文件: {local_audio_path}, 大小: {os.path.getsize(local_audio_path)} 字节")
+            if os.path.exists(audio_path):
                 return send_file(
-                    local_audio_path,
+                    audio_path,
                     mimetype='audio/mpeg',
                     as_attachment=False,
-                    download_name=os.path.basename(local_audio_path)
+                    download_name=os.path.basename(audio_path)
                 )
-
-        print("未找到有效的音频内容，返回静默音频")    
+                
         # 无音频情况下返回一个静态MP3作为替代
-        silence_path = os.path.join(app.static_folder, 'audio', 'silence.mp3')
-        print(f"静默音频路径: {silence_path}, 文件存在: {os.path.exists(silence_path)}")
         return send_file(
-            silence_path,
+            os.path.join(app.static_folder, 'audio', 'silence.mp3'),
             mimetype='audio/mpeg',
             as_attachment=False,
             download_name='silence.mp3'
@@ -3486,7 +3348,7 @@ def get_audio_by_paper(paper_id, audio_index):
     except Exception as e:
         print(f"获取试卷音频出错: {str(e)}")
         traceback.print_exc()
-        return "获取音频失败: " + str(e), 500
+        return "获取音频失败", 500
 
 if __name__ == '__main__':
     try:
