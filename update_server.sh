@@ -1,50 +1,73 @@
 #!/bin/bash
 
-# 创建一个用于服务器更新的简单脚本
-
 # 设置变量
-SERVER="120.26.12.100"
-USER="root"
-REMOTE_PATH="/var/www/zujuanwang"
+REMOTE_USER="root"
+REMOTE_HOST="120.26.12.100"
+REMOTE_DIR="/var/www/question_bank"
+LOCAL_DIR="."
+TIMESTAMP=$(date +%Y%m%d%H%M%S)
 
-# 报告开始
-echo "===== 开始更新服务器 ====="
-echo "服务器地址: $SERVER"
-echo "远程路径: $REMOTE_PATH"
+# 定义要排除的文件和目录
+EXCLUDES=(
+    "--exclude=.git"
+    "--exclude=.DS_Store"
+    "--exclude=__pycache__"
+    "--exclude=venv"
+    "--exclude=instance/questions.db*"
+    "--exclude=instance/xlct12.db*"
+    "--exclude=uploads/papers"
+    "--exclude=*.pyc"
+    "--exclude=*.log"
+    "--exclude=.vscode"
+    "--exclude=*.bak"
+    "--exclude=*.backup"
+    "--exclude=backups"
+    "--exclude=*.sh"
+    "--exclude=*.py.orig"
+    "--exclude=*.py.bak*"
+    "--exclude=*.html.bak*"
+    "--exclude=system_backup*"
+)
 
-# 1. 创建一个临时目录，拷贝需要的文件
-echo "步骤1: 创建临时目录并复制文件..."
-TEMP_DIR="temp_update_$(date +%Y%m%d%H%M%S)"
-mkdir -p $TEMP_DIR/templates
-cp templates/client.html templates/smart_paper.html $TEMP_DIR/templates/
-cp app.py $TEMP_DIR/
-echo "文件已复制到临时目录: $TEMP_DIR"
+# 设置更快的rsync选项
+RSYNC_OPTS="-avz --compress --compress-level=9 --progress --timeout=60 ${EXCLUDES[*]}"
 
-# 2. 将文件上传到服务器
-echo "步骤2: 上传文件到服务器..."
-scp -r $TEMP_DIR/* $USER@$SERVER:$REMOTE_PATH/
-if [ $? -eq 0 ]; then
-    echo "文件上传成功!"
-else
-    echo "文件上传失败!"
-    exit 1
-fi
+# 如果需要密码，取消注释以下行并修改密码
+# SSH_PASS="your_password_here"
+# SSH_CMD="sshpass -p ${SSH_PASS}"
 
-# 3. 备份服务器上的原始文件
-echo "步骤3: 在服务器上备份原始文件..."
-ssh $USER@$SERVER "cd $REMOTE_PATH && \
-    cp -f templates/client.html templates/client.html.bak_$(date +%Y%m%d%H%M%S) && \
-    cp -f templates/smart_paper.html templates/smart_paper.html.bak_$(date +%Y%m%d%H%M%S) && \
-    cp -f app.py app.py.bak_$(date +%Y%m%d%H%M%S)"
+# 如果不需要密码（使用SSH密钥），使用这个
+SSH_CMD="ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10"
 
-# 4. 重启服务器
-echo "步骤4: 重启服务..."
-ssh $USER@$SERVER "cd $REMOTE_PATH && \
-    systemctl restart zujuanwang.service"
+echo "====== 快速更新远程服务器 (${TIMESTAMP}) ======"
+echo "本地目录: ${LOCAL_DIR}"
+echo "远程服务器: ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}"
 
-# 5. 清理临时目录
-echo "步骤5: 清理临时文件..."
-rm -rf $TEMP_DIR
+# 仅创建最小备份
+echo "===== 在远程服务器创建最小备份 ====="
+${SSH_CMD} ${REMOTE_USER}@${REMOTE_HOST} "cd ${REMOTE_DIR} && mkdir -p backups/quick_${TIMESTAMP} && cp app.py backups/quick_${TIMESTAMP}/"
 
-echo "===== 服务器更新完成 ====="
-echo "请访问网站验证更新是否成功" 
+# 快速上传核心文件
+echo "===== 快速上传app.py ====="
+rsync ${RSYNC_OPTS} app.py ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/
+
+echo "===== 快速上传templates目录 ====="
+rsync ${RSYNC_OPTS} templates/ ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/templates/
+
+echo "===== 快速上传static目录 ====="
+rsync ${RSYNC_OPTS} static/ ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/static/
+
+# 正确重启Gunicorn服务
+echo "===== 正确重启Gunicorn服务 ====="
+${SSH_CMD} ${REMOTE_USER}@${REMOTE_HOST} "cd ${REMOTE_DIR} && pkill -f 'gunicorn -c gunicorn_config.py' && sleep 2 && ${REMOTE_DIR}/venv/bin/gunicorn -c gunicorn_config.py app:app -D"
+
+# 重启Nginx以确保静态文件正确加载
+echo "===== 重启Nginx服务 ====="
+${SSH_CMD} ${REMOTE_USER}@${REMOTE_HOST} "systemctl restart nginx"
+
+# 检查服务器状态
+echo "===== 检查服务状态 ====="
+${SSH_CMD} ${REMOTE_USER}@${REMOTE_HOST} "ps aux | grep -i gunicorn | grep -v grep"
+
+echo "====== 快速更新完成 (${TIMESTAMP}) ======"
+echo "服务器已更新完成，请刷新浏览器测试" 

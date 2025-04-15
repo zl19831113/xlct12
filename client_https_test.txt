@@ -1,0 +1,16 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Host xlct12.com:443 was resolved.
+* IPv6: (none)
+* IPv4: 120.26.12.100
+*   Trying 120.26.12.100:443...
+* Connected to xlct12.com (120.26.12.100) port 443
+* ALPN: curl offers h2,http/1.1
+* (304) (OUT), TLS handshake, Client hello (1):
+} [315 bytes data]
+*  CAfile: /etc/ssl/cert.pem
+*  CApath: none
+* LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to xlct12.com:443 
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+* Closing connection
+curl: (35) LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to xlct12.com:443 
